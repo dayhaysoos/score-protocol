@@ -77,6 +77,10 @@ source reuses its existing revision and review artifacts.
    when its title or requirements are edited.
 4. Complete a cross-file seam audit while drafting. Do not prepare until every
    seam passes all of these checks:
+   - Copy each file requirement exactly from one Slice-level requirement.
+     Every Slice-level requirement must be allocated to at least one File Brief;
+     do not paraphrase or introduce a file requirement that is absent from the
+     Slice-level list.
    - Give every public declaration exactly one owning target and name each
      same-slice consumer's exact owner path. Treat each declaration as the
      documented interface between isolated File Agents. Supply its stable name,

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -39,6 +40,8 @@ function writeProjectFile(root: string, path: string, content: string): void {
 
 function createProject(): string {
   const root = mkdtempSync(join(tmpdir(), "score-change-runner-integration-"));
+  writeProjectFile(root, "README.md", "# Account project\n");
+  writeProjectFile(root, "docs/account.md", "Account labels include status.\n");
   writeProjectFile(root, "package.json", '{"type":"module"}\n');
   writeProjectFile(
     root,
@@ -85,7 +88,16 @@ function changeDraft(objective: string): ChangeDraft {
           }
         ],
         consumes: [{ name: "Account", from: "src/account.ts" }],
-        context: [],
+        context: [
+          {
+            path: "README.md",
+            purpose: "Defines the human-facing account label expectation."
+          },
+          {
+            path: "docs/account.md",
+            purpose: "Defines the lowercase-path account label expectation."
+          }
+        ],
         skills: [],
         constraints: ["Return a string without side effects."]
       }
@@ -175,11 +187,21 @@ describe("Change to Runner integration", () => {
 
       const latest = reviewedPlans[0];
       assert.ok(latest);
-      ScoreAlpha.approveReviewedChangePlan(scoreDatabasePath, {
-        plan: latest,
-        authority: "local-cli:change-runner-integration-test",
-        decidedAt: "2026-08-11T20:00:00.000Z"
-      });
+      const approval = spawnSync(
+        join(process.cwd(), "node_modules", ".bin", "tsx"),
+        [
+          join(process.cwd(), "src", "cli.ts"),
+          "approve",
+          "--pass",
+          latest.passId,
+          "--score-db",
+          scoreDatabasePath
+        ],
+        { cwd: projectRoot, encoding: "utf8", timeout: 10_000 }
+      );
+      assert.equal(approval.status, 0, approval.stderr);
+      assert.equal(approval.stderr, "");
+      assert.equal(typeof JSON.parse(approval.stdout).decision_id, "string");
 
       const enqueued = await Effect.runPromise(
         enqueueApprovedPlan({

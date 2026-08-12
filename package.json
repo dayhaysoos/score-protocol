@@ -1,6 +1,6 @@
 {
   "name": "score-protocol",
-  "version": "0.0.1-alpha",
+  "version": "0.0.2-alpha",
   "private": false,
   "description": "SCORE Protocol Change and Slice preparation with reviewed, atomic Runner execution",
   "license": "MIT",

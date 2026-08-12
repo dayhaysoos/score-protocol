@@ -135,6 +135,17 @@ source files, approve the review, or start the Runner while preparing work.
 Stop when SCORE returns `review_ready`, and give the user the Change Review path
 and a concise summary of the target files.
 
+For non-interactive execution, the user must approve the exact reviewed pass
+before starting it:
+
+```sh
+score approve --pass <id>
+score start --pass <id> --provider <id> --model <id>
+```
+
+Never run `score approve` on the user's behalf unless they explicitly authorize
+approval of that exact review.
+
 If SCORE returns validation findings, repair only the named problems and
 resubmit the complete Change. If the user asks to revise a review, preserve the
 returned `changeId`, update the complete structured document, and resubmit it as

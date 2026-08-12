@@ -338,6 +338,26 @@ describe("noninteractive OpenCode model selection", () => {
 });
 
 describe("Runner CLI options", () => {
+  it("prints actionable command help without opening SCORE state", () => {
+    const directory = mkdtempSync(join(tmpdir(), "score-runner-cli-help-"));
+    try {
+      for (const command of ["start", "approve", "status"]) {
+        const result = spawnSync(
+          join(process.cwd(), "node_modules", ".bin", "tsx"),
+          [join(process.cwd(), "src", "cli.ts"), command, "--help"],
+          { cwd: directory, encoding: "utf8", timeout: 10_000 }
+        );
+
+        assert.equal(result.status, 0, `${command}: ${result.stderr}`);
+        assert.equal(result.stderr, "", command);
+        assert.match(result.stdout, new RegExp(`score ${command}`, "u"), command);
+        assert.equal(existsSync(join(directory, ".score")), false);
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("refuses an explicit Runner database symlink without changing its target", () => {
     const directory = mkdtempSync(join(tmpdir(), "score-runner-cli-db-symlink-"));
     const outsidePath = join(directory, "outside.db");

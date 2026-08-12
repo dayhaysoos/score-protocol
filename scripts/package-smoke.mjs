@@ -170,6 +170,10 @@ try {
   );
 
   const score = join(projectDirectory, "node_modules", ".bin", "score");
+  const startHelp = run(score, ["start", "--help"], { cwd: projectDirectory });
+  assert.match(startHelp.stdout, /score start --pass <id> --provider <id> --model <id>/u);
+  const approveHelp = run(score, ["approve", "--help"], { cwd: projectDirectory });
+  assert.equal(approveHelp.stdout, "Usage: score approve --pass <id> [--score-db <path>]\n");
   const doctorHelp = run(score, ["doctor", "--help"], { cwd: projectDirectory });
   assert.equal(doctorHelp.stdout, "Usage: score doctor [--json]\n");
   assert.doesNotMatch(doctorHelp.stdout, /opencode|timeout|auth|provider/u);

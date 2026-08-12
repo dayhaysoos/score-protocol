@@ -20,6 +20,7 @@ import {
   type ReviewKind
 } from "./render.js";
 import {
+  compareRepositoryPaths,
   repositoryRevisionContentDigest,
   type RepositorySourceSnapshot
 } from "./repository-source-state.js";
@@ -413,13 +414,15 @@ function readRepositorySourceSnapshot(
     content_digest: string;
   }>;
   if (
-    canonicalJson(files.toSorted((left, right) => left.path.localeCompare(right.path))) !==
+    canonicalJson(files.toSorted((left, right) => compareRepositoryPaths(left.path, right.path))) !==
       canonicalJson(
-        storedFiles.map(({ path, media_type, content_digest }) => ({
-          path,
-          media_type,
-          content_digest
-        }))
+        storedFiles
+          .map(({ path, media_type, content_digest }) => ({
+            path,
+            media_type,
+            content_digest
+          }))
+          .toSorted((left, right) => compareRepositoryPaths(left.path, right.path))
       ) ||
     storedFiles.some((file) => sha256Bytes(file.content) !== file.content_digest) ||
     repositoryRevisionContentDigest({ orderedManifest: files }) !== sourceSnapshotRow.revision_digest
