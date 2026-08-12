@@ -111,6 +111,39 @@ function assertTypedInvalid(stdout: string): Record<string, unknown> {
 }
 
 describe("score change CLI", () => {
+  it("exposes version-matched agent and human guidance without project writes", () => {
+    const projectRoot = createProject();
+    try {
+      const authoring = runCli(projectRoot, ["skill"]);
+      assert.equal(authoring.status, 0);
+      assert.equal(authoring.stderr, "");
+      assert.match(authoring.stdout, /^---\nname: score-authoring\n/u);
+      assert.match(authoring.stdout, /score change --input -/u);
+
+      const human = runCli(projectRoot, ["skill", "how-to-score"]);
+      assert.equal(human.status, 0);
+      assert.equal(human.stderr, "");
+      assert.match(human.stdout, /^---\nname: how-to-score\n/u);
+      assert.match(human.stdout, /Use SCORE to prepare this work/u);
+
+      const path = runCli(projectRoot, ["skill", "--path"]);
+      assert.equal(path.status, 0);
+      assert.equal(path.stderr, "");
+      assert.match(path.stdout, /skills\/score-authoring\/SKILL\.md\n$/u);
+
+      const invalid = runCli(projectRoot, ["skill", "unknown"]);
+      assert.equal(invalid.status, 64);
+      assert.equal(invalid.stdout, "");
+      assert.equal(
+        invalid.stderr,
+        "Usage: score skill [score-authoring|how-to-score] [--path]\n"
+      );
+      assert.equal(existsSync(join(projectRoot, ".score")), false);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it("prepares stdin once and writes one compact success JSON line", () => {
     const projectRoot = createProject();
     try {

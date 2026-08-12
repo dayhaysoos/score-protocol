@@ -6,6 +6,9 @@ import { describe, it } from "node:test";
 const skillPath = fileURLToPath(
   new URL("../skills/score-authoring/SKILL.md", import.meta.url)
 );
+const humanSkillPath = fileURLToPath(
+  new URL("../skills/how-to-score/SKILL.md", import.meta.url)
+);
 
 describe("SCORE authoring skill", () => {
   it("teaches the agent-managed Change flow and stops at review", () => {
@@ -57,5 +60,21 @@ describe("SCORE authoring skill", () => {
     assert.doesNotMatch(skill, /Account Status/);
     assert.doesNotMatch(skill, /Compilation Bundle/);
     assert.doesNotMatch(skill, /interface SliceDraft\s*\{/);
+  });
+});
+
+describe("SCORE human guide", () => {
+  it("directs existing product material through an agent and preserves the human gate", () => {
+    const skill = readFileSync(humanSkillPath, "utf8");
+
+    assert.match(skill, /plan or specification/i);
+    assert.match(skill, /issue or acceptance criteria/i);
+    assert.match(skill, /product or architecture documentation/i);
+    assert.match(skill, /run(?:ning)? `score skill`/i);
+    assert.match(skill, /score change --input -/u);
+    assert.match(skill, /should not.*approve.*start the Runner/is);
+    assert.match(skill, /score start/u);
+    assert.match(skill, /ordinary uncommitted changes/i);
+    assert.match(skill, /experimental alpha/i);
   });
 });

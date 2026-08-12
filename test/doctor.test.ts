@@ -345,6 +345,7 @@ describe("score doctor", () => {
     mkdirSync(join(root, "migrations"));
     mkdirSync(join(root, "schema"));
     mkdirSync(join(root, "skills", "score-authoring"), { recursive: true });
+    mkdirSync(join(root, "skills", "how-to-score"), { recursive: true });
     writeFileSync(join(root, "package.json"), JSON.stringify({ version: "1.2.3" }), "utf8");
     for (const resource of [
       "001_initial.sql",
@@ -358,6 +359,7 @@ describe("score doctor", () => {
     }
     writeFileSync(join(root, "schema", "compilation-bundle.schema.json"), "{}\n", "utf8");
     writeFileSync(join(root, "skills", "score-authoring", "SKILL.md"), "fixture\n", "utf8");
+    writeFileSync(join(root, "skills", "how-to-score", "SKILL.md"), "fixture\n", "utf8");
     writeFileSync(join(root, "CONTEXT.md"), "fixture\n", "utf8");
     try {
       assert.deepEqual(inspectScorePackage(root), {

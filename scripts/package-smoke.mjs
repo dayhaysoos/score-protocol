@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   writeFileSync
@@ -129,8 +130,10 @@ try {
   }
   assertIncluded(packageRoot, "schema/compilation-bundle.schema.json");
   assertIncluded(packageRoot, "skills/score-authoring/SKILL.md");
+  assertIncluded(packageRoot, "skills/how-to-score/SKILL.md");
   assertIncluded(packageRoot, "README.md");
   assertIncluded(packageRoot, "CONTEXT.md");
+  assertIncluded(packageRoot, "LICENSE");
   assertExcluded(packageRoot, "src");
   assertExcluded(packageRoot, "test");
   assertExcluded(packageRoot, "examples");
@@ -141,6 +144,30 @@ try {
     cwd: projectDirectory
   });
   assert.match(help.stdout, /score/i, "score --help must identify the CLI.");
+
+  const authoringSkill = run(
+    join(projectDirectory, "node_modules", ".bin", "score"),
+    ["skill"],
+    { cwd: projectDirectory }
+  );
+  assert.match(authoringSkill.stdout, /^---\nname: score-authoring\n/u);
+  assert.match(authoringSkill.stdout, /score change --input -/u);
+  const humanSkill = run(
+    join(projectDirectory, "node_modules", ".bin", "score"),
+    ["skill", "how-to-score"],
+    { cwd: projectDirectory }
+  );
+  assert.match(humanSkill.stdout, /^---\nname: how-to-score\n/u);
+  assert.match(humanSkill.stdout, /Use SCORE to prepare this work/u);
+  const skillPath = run(
+    join(projectDirectory, "node_modules", ".bin", "score"),
+    ["skill", "--path"],
+    { cwd: projectDirectory }
+  ).stdout.trim();
+  assert.equal(
+    realpathSync(skillPath),
+    realpathSync(join(packageRoot, "skills", "score-authoring", "SKILL.md"))
+  );
 
   const score = join(projectDirectory, "node_modules", ".bin", "score");
   const doctorHelp = run(score, ["doctor", "--help"], { cwd: projectDirectory });

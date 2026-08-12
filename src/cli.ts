@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { parseJsonNoDuplicateKeys } from "./canonical.js";
 import type { PrepareChangeResult } from "./change-authoring.js";
@@ -21,8 +22,14 @@ const CHANGE_HELP =
 const SCORE_USAGE =
   "Usage: score change --input -\n" +
   "       score change --schema\n" +
+  "       score skill [score-authoring|how-to-score] [--path]\n" +
   "       score doctor [--json]\n" +
   `       score ${RUNNER_CLI_COMMANDS.join("|")} [options]\n`;
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const SKILLS = {
+  "score-authoring": join(PACKAGE_ROOT, "skills", "score-authoring", "SKILL.md"),
+  "how-to-score": join(PACKAGE_ROOT, "skills", "how-to-score", "SKILL.md")
+} as const;
 
 function option(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -37,6 +44,41 @@ function requiredOption(name: string): string {
 
 function writeCompactJson(value: unknown): void {
   process.stdout.write(`${terminalSafeJson(value)}\n`);
+}
+
+function runSkillCommand(args: ReadonlyArray<string>): void {
+  const pathOnly = args.includes("--path");
+  const names = args.filter((arg) => arg !== "--path");
+  if (names.length > 1 || args.some((arg) => arg !== "--path" && !(arg in SKILLS))) {
+    process.stderr.write("Usage: score skill [score-authoring|how-to-score] [--path]\n");
+    process.exitCode = 64;
+    return;
+  }
+  const name = (names[0] ?? "score-authoring") as keyof typeof SKILLS;
+  const path = SKILLS[name];
+  process.stdout.write(pathOnly ? `${path}\n` : readFileSync(path, "utf8"));
+}
+
+async function importWithExperimentalWarningsDisabled<T>(
+  load: () => Promise<T>
+): Promise<T> {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = ((warning: string | Error, ...args: ReadonlyArray<unknown>) => {
+    const options = args[0];
+    const type =
+      typeof options === "string"
+        ? options
+        : typeof options === "object" && options !== null && "type" in options
+          ? options.type
+          : undefined;
+    if (type === "ExperimentalWarning") return;
+    Reflect.apply(emitWarning, process, [warning, ...args]);
+  }) as typeof process.emitWarning;
+  try {
+    return await load();
+  } finally {
+    process.emitWarning = emitWarning;
+  }
 }
 
 function invalidJsonInput(): PrepareChangeResult {
@@ -150,7 +192,9 @@ async function runLegacyAlphaCommand(command: string): Promise<boolean> {
 async function main(): Promise<void> {
   const command = process.argv[2];
   if (command === "doctor") {
-    const { runDoctorCli } = await import("./doctor-cli.js");
+    const { runDoctorCli } = await importWithExperimentalWarningsDisabled(
+      () => import("./doctor-cli.js")
+    );
     process.exitCode = await runDoctorCli(process.argv.slice(3));
     return;
   }
@@ -158,12 +202,18 @@ async function main(): Promise<void> {
     await runChangeCommand(process.argv.slice(3));
     return;
   }
+  if (command === "skill") {
+    runSkillCommand(process.argv.slice(3));
+    return;
+  }
   if (command === "--help" || command === "-h" || command === undefined) {
     process.stdout.write(SCORE_USAGE);
     return;
   }
   if (isRunnerCliCommand(command)) {
-    const { runRunnerCli } = await import("./runner/cli.js");
+    const { runRunnerCli } = await importWithExperimentalWarningsDisabled(
+      () => import("./runner/cli.js")
+    );
     await runRunnerCli();
     return;
   }

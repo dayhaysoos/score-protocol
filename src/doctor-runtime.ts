@@ -150,6 +150,7 @@ export function inspectScorePackage(root = packageRoot): {
     "migrations/007_slice_identity_dependencies.sql",
     "schema/compilation-bundle.schema.json",
     "skills/score-authoring/SKILL.md",
+    "skills/how-to-score/SKILL.md",
     "CONTEXT.md"
   ].every((path) => {
     const resourcePath = join(root, path);
@@ -195,7 +196,10 @@ export function makeDoctorDependencies(options: DoctorRuntimeOptions = {}): Doct
     inspectNode: () => {
       const version = process.versions.node;
       const [major = 0, minor = 0] = version.split(".").map(Number);
-      return { version, supported: major === 26 && minor >= 5 };
+      return {
+        version,
+        supported: major > 22 || (major === 22 && minor >= 16)
+      };
     },
     inspectPackage: inspectScorePackage,
     inspectSqlite,
