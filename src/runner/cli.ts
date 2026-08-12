@@ -1,11 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Effect } from "effect";
 
+import { ScoreAlpha } from "../score-alpha.js";
 import {
   OpenCodeRuntimeLive
 } from "./open-code-adapter.js";
@@ -38,7 +39,11 @@ import { formatReviewedSlice, listReviewedSlices } from "./slice-listing.js";
 import { formatRunApplicationSummary } from "./application-summary.js";
 import { resolveNonInteractiveOpenCodeConfiguration } from "./open-code-selection.js";
 import { optionValue } from "./cli-options.js";
-import { RUNNER_CLI_USAGE } from "./cli-commands.js";
+import {
+  isRunnerCliCommand,
+  RUNNER_CLI_HELP,
+  RUNNER_CLI_USAGE
+} from "./cli-commands.js";
 import { safeRunnerCliErrorMessage } from "./diagnostic-sanitization.js";
 import { prepareRunnerDatabaseState } from "../private-state-filesystem.js";
 import { installRunnerDatabaseGitExclude } from "../plan-intake-filesystem.js";
@@ -144,7 +149,27 @@ function runtimeLayer() {
 
 async function main(): Promise<void> {
   const command = process.argv[2];
+  if (command !== undefined && isRunnerCliCommand(command) && process.argv.includes("--help")) {
+    process.stdout.write(RUNNER_CLI_HELP[command]);
+    return;
+  }
   const scoreDatabasePath = option("score-db") ?? join(process.cwd(), ".score", "score.db");
+
+  if (command === "approve") {
+    const passId = requiredOption("pass");
+    const plan = ScoreAlpha.listReviewedChangePlans(scoreDatabasePath).find(
+      (candidate) => candidate.passId === passId
+    );
+    if (plan === undefined) throw new Error(`Reviewed work ${passId} is not ready for approval`);
+    print(
+      ScoreAlpha.approveReviewedChangePlan(scoreDatabasePath, {
+        plan,
+        authority: `local-cli:${userInfo().username}`,
+        decidedAt: new Date().toISOString()
+      })
+    );
+    return;
+  }
   const requestedRunnerDatabasePath = option("runner-db");
   const runnerState = prepareRunnerDatabaseState({
     databasePath: requestedRunnerDatabasePath ?? defaultRunnerDatabasePath(),

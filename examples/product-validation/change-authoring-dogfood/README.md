@@ -16,7 +16,7 @@ npm run build:package
 PACK_DIR="$(mktemp -d /tmp/score-change-pack.XXXXXX)"
 npm pack --silent --pack-destination "$PACK_DIR"
 cd examples/product-validation/change-authoring-dogfood
-npm install --no-save "$PACK_DIR/score-protocol-0.0.1-alpha.tgz"
+npm install --no-save "$PACK_DIR/score-protocol-0.0.2-alpha.tgz"
 npm run doctor
 npm run prepare
 ```

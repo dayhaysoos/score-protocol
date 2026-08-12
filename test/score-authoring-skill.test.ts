@@ -44,6 +44,7 @@ describe("SCORE authoring skill", () => {
     assert.match(skill, /test files only when the person explicitly requested tests/i);
     assert.match(skill, /waiting.*applied.*predecessor/is);
     assert.match(skill, /cross-file seam audit/i);
+    assert.match(skill, /file requirement.*exact.*slice-level requirement/is);
     assert.match(skill, /exact import statement/i);
     assert.match(skill, /name.*declaration.*description/is);
     assert.match(skill, /does not parse.*infer module paths/is);

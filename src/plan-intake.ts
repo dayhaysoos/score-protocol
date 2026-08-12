@@ -22,6 +22,7 @@ import {
 } from "./private-state-filesystem.js";
 import { normalizeProjectRelativePath } from "./project-path.js";
 import {
+  compareRepositoryPaths,
   repositoryRevisionContentDigest
 } from "./repository-source-state.js";
 import { ScoreAlpha } from "./score-alpha.js";
@@ -526,7 +527,7 @@ function compileSlice(
     resolved_slice_dependencies: normalizedResolvedDependencies(resolvedDependencies),
     declared_files: [...capturedFiles.values()]
       .map(({ path, content_digest }) => ({ path, content_digest }))
-      .toSorted((left, right) => left.path.localeCompare(right.path)),
+      .toSorted((left, right) => compareRepositoryPaths(left.path, right.path)),
     resolved_skills: preparedFiles.map((file) =>
       file.skills.map((skill) => ({
         name: skill.name,
@@ -553,7 +554,9 @@ function compileSlice(
     files: draft.files
   };
   const specificationDigest = sha256Json(specificationContent);
-  const files = [...capturedFiles.values()].toSorted((left, right) => left.path.localeCompare(right.path));
+  const files = [...capturedFiles.values()].toSorted((left, right) =>
+    compareRepositoryPaths(left.path, right.path)
+  );
   const orderedManifest = files.map(({ path, media_type, content_digest }) => ({ path, media_type, content_digest }));
   const repositoryDigest = repositoryRevisionContentDigest({ orderedManifest });
   const procedureDigest = sha256Bytes(PLAN_INTAKE_PROCEDURE);
