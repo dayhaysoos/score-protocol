@@ -1,0 +1,126 @@
+{
+  "title": "Reading progress summary",
+  "objective": "Add deterministic reading progress and a compact shelf summary without mutating caller-owned data.",
+  "requirements": [
+    "Reading exposes readonly id, title, totalPages, and pagesRead fields.",
+    "readingProgress returns 0 when totalPages is zero or negative; otherwise it clamps pagesRead into [0, totalPages] and returns Math.floor(clamped / totalPages * 100).",
+    "summarizeReadings returns exactly \"<count> books · <complete> complete · <remaining> pages remaining\"; complete means readingProgress is 100, and remaining sums max(0, totalPages - max(0, pagesRead))."
+  ],
+  "files": [
+    {
+      "path": "src/reading.ts",
+      "operation": "modify",
+      "task": "Add the required readonly pagesRead field while preserving the existing Reading export and fields.",
+      "requirements": [
+        "Reading exposes readonly id, title, totalPages, and pagesRead fields."
+      ],
+      "owns": [
+        {
+          "name": "Reading",
+          "declaration": "export interface Reading { readonly id: string; readonly title: string; readonly totalPages: number; readonly pagesRead: number; }",
+          "description": "A caller-owned reading record with its current page position."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/reading-intent.md",
+          "purpose": "Defines the immutability and whole-number progress policy."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Keep Reading exported.",
+        "Do not add runtime behavior to this type-only module."
+      ]
+    },
+    {
+      "path": "src/reading-progress.ts",
+      "operation": "create",
+      "task": "Create the pure readingProgress calculation with the exact clamping, zero-total, and floor-rounding behavior.",
+      "requirements": [
+        "readingProgress returns 0 when totalPages is zero or negative; otherwise it clamps pagesRead into [0, totalPages] and returns Math.floor(clamped / totalPages * 100)."
+      ],
+      "owns": [
+        {
+          "name": "readingProgress",
+          "declaration": "export function readingProgress(reading: Reading): number;",
+          "description": "Returns a clamped whole-number completion percentage."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Reading",
+          "from": "src/reading.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/reading-intent.md",
+          "purpose": "Defines the immutability and whole-number progress policy."
+        },
+        {
+          "path": "tsconfig.json",
+          "purpose": "Shows the NodeNext module resolution that requires explicit .js relative import specifiers."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext type import",
+          "content": "Import Reading exactly from ./reading.js using import type."
+        }
+      ],
+      "constraints": [
+        "Do not mutate the Reading argument.",
+        "Do not throw for finite numeric inputs.",
+        "Do not import or re-export Reading through another module."
+      ]
+    },
+    {
+      "path": "src/reading-summary.ts",
+      "operation": "create",
+      "task": "Create the pure summarizeReadings function using readingProgress for completion and the exact summary format and remaining-page formula.",
+      "requirements": [
+        "summarizeReadings returns exactly \"<count> books · <complete> complete · <remaining> pages remaining\"; complete means readingProgress is 100, and remaining sums max(0, totalPages - max(0, pagesRead))."
+      ],
+      "owns": [
+        {
+          "name": "summarizeReadings",
+          "declaration": "export function summarizeReadings(readings: readonly Reading[]): string;",
+          "description": "Returns the exact aggregate shelf summary."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Reading",
+          "from": "src/reading.ts"
+        },
+        {
+          "name": "readingProgress",
+          "from": "src/reading-progress.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/reading-intent.md",
+          "purpose": "Defines the immutability policy for collection operations."
+        },
+        {
+          "path": "tsconfig.json",
+          "purpose": "Shows the NodeNext module resolution that requires explicit .js relative import specifiers."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext owner imports",
+          "content": "Import Reading exactly from ./reading.js with import type. Import readingProgress exactly from ./reading-progress.js. Do not combine or redirect those imports."
+        }
+      ],
+      "constraints": [
+        "Do not mutate the readings collection or its entries.",
+        "Use the exact separator and wording from the requirement.",
+        "Do not import or re-export Reading through reading-progress."
+      ]
+    }
+  ]
+}

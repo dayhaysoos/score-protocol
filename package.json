@@ -1,0 +1,66 @@
+{
+  "name": "score-protocol",
+  "version": "0.0.0-experiment",
+  "private": true,
+  "description": "SCORE Protocol Change and Slice preparation with reviewed, atomic Runner execution",
+  "type": "module",
+  "types": "dist/plan-intake-tool.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/plan-intake-tool.d.ts",
+      "import": "./dist/plan-intake-tool.js"
+    },
+    "./change": {
+      "types": "./dist/change-authoring.d.ts",
+      "import": "./dist/change-authoring.js"
+    }
+  },
+  "bin": {
+    "score": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "schema",
+    "skills",
+    "README.md",
+    "CONTEXT.md"
+  ],
+  "engines": {
+    "node": ">=26.5.0 <27"
+  },
+  "packageManager": "npm@11.17.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:package": "npm run clean:dist && tsc -p tsconfig.build.json",
+    "clean:dist": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "prepack": "npm run build:package",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test test/**/*.test.ts",
+    "test:package": "node scripts/package-smoke.mjs",
+    "reproduce": "tsx src/cli.ts reproduce",
+    "inspect": "tsx src/cli.ts inspect",
+    "approve": "tsx src/cli.ts approve",
+    "export": "tsx src/cli.ts export",
+    "runner": "tsx src/runner/cli.ts"
+  },
+  "dependencies": {
+    "@effect/sql-sqlite-node": "4.0.0-beta.104",
+    "@inquirer/prompts": "8.5.2",
+    "@opencode-ai/cli": "0.0.0-next-17111",
+    "ajv": "8.20.0",
+    "better-sqlite3": "13.0.3",
+    "canonicalize": "3.0.0",
+    "cli-table3": "0.6.5",
+    "effect": "4.0.0-beta.104",
+    "json-dup-key-validator": "1.0.3",
+    "log-update": "8.0.0",
+    "string-width": "8.2.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "26.1.2",
+    "tsx": "4.23.8",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "score-product-validation-editable-revisions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "score:prepare": "../../../node_modules/.bin/tsx score/prepare.mjs",
+    "score:list": "../../../node_modules/.bin/tsx ../../../src/runner/cli.ts list --score-db .score/score.db --runner-db .score/runner.db",
+    "typecheck": "../../../node_modules/.bin/tsc -p tsconfig.json --noEmit"
+  }
+}

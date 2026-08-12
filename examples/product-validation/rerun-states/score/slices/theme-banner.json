@@ -1,0 +1,71 @@
+{
+  "slice_id": "theme-banner",
+  "title": "Theme banner",
+  "objective": "Replace the current theme name and create one banner that consumes it.",
+  "requirements": [
+    "themeName returns validation-blue.",
+    "bannerText returns Theme: followed by one space and themeName's result."
+  ],
+  "files": [
+    {
+      "path": "src/theme.ts",
+      "operation": "modify",
+      "task": "Return the validation theme identifier.",
+      "requirements": [
+        "themeName returns validation-blue."
+      ],
+      "owns": [
+        {
+          "name": "themeName",
+          "description": "Returns the current validation theme identifier.",
+          "declaration": "export function themeName(): string;"
+        }
+      ],
+      "consumes": [],
+      "context": [],
+      "skills": [
+        {
+          "name": "Exact theme value",
+          "content": "Implement the pure function with exactly one return statement returning the string `validation-blue`. Export only themeName."
+        }
+      ],
+      "constraints": [
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/banner.ts",
+      "operation": "create",
+      "task": "Create a banner composed from the shared theme function.",
+      "requirements": [
+        "bannerText returns Theme: followed by one space and themeName's result."
+      ],
+      "owns": [
+        {
+          "name": "bannerText",
+          "description": "Builds the banner copy from the shared theme identifier.",
+          "declaration": "export function bannerText(): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "themeName",
+          "from": "src/theme.ts"
+        }
+      ],
+      "context": [],
+      "skills": [
+        {
+          "name": "NodeNext composition",
+          "content": "Import themeName from the exact NodeNext module path supplied in Agent Input. Return `Theme: ${themeName()}` from a pure function and export only bannerText."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import { themeName } from \"./theme.js\";`.",
+        "Call exactly `themeName()` when constructing the banner text.",
+        "Do not duplicate the theme value.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

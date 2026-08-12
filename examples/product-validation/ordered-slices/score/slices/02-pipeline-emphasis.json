@@ -1,0 +1,50 @@
+{
+  "slice_id": "pipeline-emphasis",
+  "after": ["pipeline-foundation"],
+  "title": "Pipeline emphasis",
+  "objective": "Extend the applied pipeline with an emphasized greeting while preserving the foundation export.",
+  "requirements": [
+    "baseMessage retains its applied normalization and greeting behavior.",
+    "emphasizeMessage delegates to baseMessage, uppercases the result, and appends one exclamation mark."
+  ],
+  "files": [
+    {
+      "path": "src/pipeline.ts",
+      "operation": "modify",
+      "task": "Preserve the applied base function and add the emphasis capability.",
+      "requirements": [
+        "baseMessage retains its applied normalization and greeting behavior.",
+        "emphasizeMessage delegates to baseMessage, uppercases the result, and appends one exclamation mark."
+      ],
+      "owns": [
+        {
+          "name": "baseMessage",
+          "description": "Preserves the applied normalized base greeting for later pipeline stages.",
+          "declaration": "export function baseMessage(name: string): string;"
+        },
+        {
+          "name": "emphasizeMessage",
+          "description": "Returns an uppercase emphasized form of the base greeting.",
+          "declaration": "export function emphasizeMessage(name: string): string;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/pipeline-intent.md",
+          "purpose": "Defines the second capability and preservation requirement."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Safe same-file extension",
+          "content": "Keep the existing baseMessage behavior from the supplied target content. Add emphasizeMessage as a separate exported pure function that calls baseMessage, uppercases its result, and adds `!`. Export no other declarations."
+        }
+      ],
+      "constraints": [
+        "Do not duplicate normalization inside emphasizeMessage.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

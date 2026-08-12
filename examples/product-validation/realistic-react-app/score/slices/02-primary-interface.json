@@ -1,0 +1,242 @@
+{
+  "slice_id": "focus-board-interface",
+  "after": ["focus-board-domain"],
+  "title": "Focus Board primary interface",
+  "objective": "Build the accessible add-and-toggle interface on the exact applied domain foundation.",
+  "requirements": [
+    "TaskComposer renders a semantic form with visible Task and Group labels, Work and Personal options, and an Add task submit button; valid submission delegates to onAdd and clears only the title input, while blank submission does nothing.",
+    "TaskItem renders one native checkbox associated with the task title and a visible Work or Personal group label.",
+    "TaskList always renders a semantic unordered list in creation order and shows No tasks yet beside the empty list when no tasks exist.",
+    "App preserves the accepted Focus Board header, keeps task state in React memory, delegates creation and toggle transitions to the applied domain functions, and composes TaskComposer with TaskList using the frozen stylesheet."
+  ],
+  "files": [
+    {
+      "path": "src/components/TaskComposer.tsx",
+      "operation": "modify",
+      "task": "Create the native task-entry form with local input and group controls.",
+      "requirements": [
+        "TaskComposer renders a semantic form with visible Task and Group labels, Work and Personal options, and an Add task submit button; valid submission delegates to onAdd and clears only the title input, while blank submission does nothing."
+      ],
+      "owns": [
+        {
+          "name": "TaskComposerProps",
+          "description": "Defines the callback used to submit a titled task in its selected group.",
+          "declaration": "export interface TaskComposerProps { onAdd: (title: string, group: \"work\" | \"personal\") => void; }"
+        },
+        {
+          "name": "TaskComposer",
+          "description": "Renders the task-entry form and delegates accepted submissions through onAdd.",
+          "declaration": "export function TaskComposer(props: TaskComposerProps): JSX.Element;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines exact task-entry behavior and non-goals."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines observable trimming, blank, labels, and keyboard expectations."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines native form semantics and frozen class names."
+        },
+        {
+          "path": "src/styles.css",
+          "purpose": "Provides the existing task-form, field, and form-actions classes without allowing CSS edits."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Accessible controlled form",
+          "content": "Import type { JSX } from react and use React in-memory controlled state for title and group. Export exactly TaskComposerProps and TaskComposer with the planned signatures, using the identifier `props`. Render a native form.task-form. Render visible label.field elements around the Task input and Group select. Use work and personal option values with Work and Personal copy. On submit, trim only to decide whether the value is valid; call props.onAdd with the current title and group so the domain remains authoritative for normalization. Clear the title only after a valid submission. Put the submit button in .form-actions."
+        }
+      ],
+      "constraints": [
+        "Do not add inline styles or edit CSS.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/components/TaskItem.tsx",
+      "operation": "modify",
+      "task": "Render one accessible task row with completion control and group copy.",
+      "requirements": [
+        "TaskItem renders one native checkbox associated with the task title and a visible Work or Personal group label."
+      ],
+      "owns": [
+        {
+          "name": "TaskItemProps",
+          "description": "Defines the task value and toggle callback required by one task row.",
+          "declaration": "export interface TaskItemProps { task: Task; onToggle: (taskId: number) => void; }"
+        },
+        {
+          "name": "TaskItem",
+          "description": "Renders one task row and delegates its checkbox change through onToggle.",
+          "declaration": "export function TaskItem(props: TaskItemProps): JSX.Element;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/domain/task.ts",
+          "purpose": "Supplies the exact applied Task contract imported by this component."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines checkbox naming, isolated toggle, and visible group behavior."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines native semantics and frozen task row class names."
+        },
+        {
+          "path": "src/styles.css",
+          "purpose": "Provides task-item, task-copy, task-title, and task-group classes."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Native task row",
+          "content": "Import type { JSX } from react and import Task as a type from ../domain/task. Export exactly TaskItemProps and TaskItem with the planned signatures and `props` identifier. Render one li.task-item. Associate the native checkbox and visible title using a wrapping label or matching id/htmlFor. Bind checked to task.completed and call props.onToggle(task.id) on change. Put title and capitalized group copy in .task-copy, .task-title, and .task-group."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"../domain/task\";`.",
+        "Do not use custom checkbox roles.",
+        "Do not add inline styles or edit CSS.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/components/TaskList.tsx",
+      "operation": "modify",
+      "task": "Render tasks in order through TaskItem and preserve an always-present semantic list.",
+      "requirements": [
+        "TaskList always renders a semantic unordered list in creation order and shows No tasks yet beside the empty list when no tasks exist."
+      ],
+      "owns": [
+        {
+          "name": "TaskListProps",
+          "description": "Defines the ordered tasks and toggle callback rendered by the task list.",
+          "declaration": "export interface TaskListProps { tasks: readonly Task[]; onToggle: (taskId: number) => void; }"
+        },
+        {
+          "name": "TaskList",
+          "description": "Renders tasks in supplied order inside a semantic unordered list using TaskItem for each task.",
+          "declaration": "export function TaskList(props: TaskListProps): JSX.Element;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "TaskItemProps",
+          "from": "src/components/TaskItem.tsx"
+        },
+        {
+          "name": "TaskItem",
+          "from": "src/components/TaskItem.tsx"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/domain/task.ts",
+          "purpose": "Supplies the exact applied Task contract imported by this component."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines order, semantic list, and empty behavior."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines the frozen task-list and empty-state classes."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Semantic collection rendering",
+          "content": "Import type { JSX } from react, import Task as a type from ../domain/task, and use the named import `{ TaskItem }` from the exact supplied sibling module path `./TaskItem`. Export exactly TaskListProps and TaskList with the planned signatures and `props` identifier. Always render ul.task-list, even when empty. Map without sorting and use task.id as key. Render p.empty-state with exactly `No tasks yet.` beside the empty ul when tasks.length is zero."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"../domain/task\";`.",
+        "Use exactly `import { TaskItem } from \"./TaskItem\";`.",
+        "For every task, render TaskItem with the exact JSX prop names `task` and `onToggle`.",
+        "Do not reimplement TaskItem.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/App.tsx",
+      "operation": "modify",
+      "task": "Replace the placeholder board with the applied add-and-toggle workflow.",
+      "requirements": [
+        "App preserves the accepted Focus Board header, keeps task state in React memory, delegates creation and toggle transitions to the applied domain functions, and composes TaskComposer with TaskList using the frozen stylesheet."
+      ],
+      "owns": [
+        {
+          "name": "App",
+          "description": "Owns in-memory task state and composes task creation, listing, and toggling.",
+          "declaration": "export function App(): JSX.Element;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "TaskComposerProps",
+          "from": "src/components/TaskComposer.tsx"
+        },
+        {
+          "name": "TaskComposer",
+          "from": "src/components/TaskComposer.tsx"
+        },
+        {
+          "name": "TaskListProps",
+          "from": "src/components/TaskList.tsx"
+        },
+        {
+          "name": "TaskList",
+          "from": "src/components/TaskList.tsx"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/domain/task.ts",
+          "purpose": "Supplies the applied Task type for React state."
+        },
+        {
+          "path": "src/domain/task-operations.ts",
+          "purpose": "Supplies the applied createTask and toggleTask transitions the component must delegate to."
+        },
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines the primary product structure, state lifetime, and non-goals."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines exact header copy, shell structure, and class names."
+        },
+        {
+          "path": "src/styles.css",
+          "purpose": "Provides the frozen app-shell, hero, board-card, and component classes."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Composed React state boundary",
+          "content": "Import type { JSX } from react. Export only App with the exact planned signature. Keep readonly Task[] state in memory. Import Task as a type and createTask/toggleTask as values from ./domain/task and ./domain/task-operations. Import TaskComposer and TaskList from their exact supplied module paths. Delegate add and toggle callbacks to the domain functions through functional state updates. Pass the creation callback to TaskComposer using the exact `onAdd` prop name and the toggle callback to TaskList using the exact `onToggle` prop name from their supplied declarations. Preserve main.app-shell, header.hero, p.eyebrow `Daily focus`, h1 `Focus Board`, intro `Keep the next useful thing visible.`, and section.board-card. Render TaskComposer followed by TaskList."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./domain/task\";`.",
+        "Use exactly `import { createTask, toggleTask } from \"./domain/task-operations\";`.",
+        "Use exactly `import { TaskComposer } from \"./components/TaskComposer\";`.",
+        "Use exactly `import { TaskList } from \"./components/TaskList\";`.",
+        "Pass the creation callback through the exact TaskComposer JSX prop name `onAdd`.",
+        "Pass the collection and toggle callback through the exact TaskList JSX prop names `tasks` and `onToggle`.",
+        "Do not implement filtering or a completion summary yet.",
+        "Do not edit CSS, configuration, main.tsx, or another file."
+      ]
+    }
+  ]
+}

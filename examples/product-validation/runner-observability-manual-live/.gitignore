@@ -1,0 +1,8 @@
+.score/
+.opencode/
+dist/
+node_modules/
+*.log
+src/format-sensor.ts
+src/sensor-summary.ts
+src/sensor.ts

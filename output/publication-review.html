@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SCORE Plan Review — Account Status two-file change</title>
+  <style>
+    :root {
+      --bg: oklch(1 0 0);
+      --surface: oklch(0.975 0 0);
+      --surface-strong: oklch(0.945 0.008 18);
+      --ink: oklch(0.20 0.015 18);
+      --muted: oklch(0.44 0.018 18);
+      --line: oklch(0.87 0.008 18);
+      --primary: oklch(0.55 0.20 18);
+      --accent: oklch(0.39 0.12 245);
+      --accent-soft: oklch(0.94 0.025 245);
+      --warning: oklch(0.48 0.12 74);
+      --warning-soft: oklch(0.96 0.045 74);
+      --danger: oklch(0.48 0.17 24);
+      --danger-soft: oklch(0.95 0.04 24);
+      --success: oklch(0.42 0.12 150);
+      --content: 960px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+    a { color: var(--accent); text-underline-offset: 0.18em; }
+    a:focus-visible, summary:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+    h1, h2, h3, h4, h5, h6, p { margin-top: 0; }
+    h1, h2, h3 { text-wrap: balance; }
+    h1 { margin-bottom: 0.75rem; font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.03em; }
+    h2 { margin-bottom: 0.7rem; font-size: 1.45rem; line-height: 1.2; letter-spacing: -0.02em; }
+    h3 { margin-bottom: 0.65rem; font-size: 1.08rem; line-height: 1.35; }
+    h4 { margin-bottom: 0.5rem; font-size: 0.92rem; }
+    h5, h6 { margin-bottom: 0.45rem; font-size: 0.86rem; }
+    p { max-width: 72ch; text-wrap: pretty; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    code { overflow-wrap: anywhere; }
+    pre {
+      margin: 0.75rem 0 1rem;
+      padding: 1rem;
+      overflow: auto;
+      border-radius: 8px;
+      background: oklch(0.22 0.012 245);
+      color: oklch(0.96 0.004 245);
+      font-size: 0.82rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    ul, ol { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+    li + li { margin-top: 0.38rem; }
+    blockquote { margin: 1rem 0; padding-left: 1rem; border-left: 1px solid var(--line); color: var(--muted); }
+    hr { margin: 1.5rem 0; border: 0; border-top: 1px solid var(--line); }
+
+    .shell { width: min(calc(100% - 2rem), var(--content)); margin: 0 auto; }
+    .topbar { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.84rem; }
+    .topbar .shell { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 56px; }
+    .topbar .shell > *, .slice-header > *, .accepted-input > summary > *, .requirement-list > li > *, .package-section > *, .input-usage li > *, .file-package > summary > * { min-width: 0; }
+    .product-name { color: var(--ink); font-weight: 720; letter-spacing: -0.015em; }
+
+    .hero { padding: 4rem 0 3rem; }
+    .lede { margin-bottom: 0; color: var(--muted); font-size: 1.08rem; }
+    .plan-shape { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+    .plan-shape p { margin-bottom: 0; }
+    .change-count { font-size: 1.18rem; }
+    .change-breakdown { margin-top: 0.2rem; color: var(--ink); font-size: 0.94rem; }
+    .approval-note { margin-top: 0.55rem; color: var(--muted); font-size: 0.86rem; }
+    .approval-ready { display: grid; grid-template-columns: minmax(150px, 0.3fr) minmax(0, 1fr); gap: 1.5rem; margin-top: 1.5rem; padding: 1.1rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .approval-ready strong { color: var(--success); font-size: 1.02rem; }
+    .approval-ready p { margin: 0; }
+    .muted { color: var(--muted); }
+    .empty { margin-bottom: 0; color: var(--muted); }
+
+    .issues { padding: 2rem 0; border-top: 1px solid var(--line); }
+    .finding-group { margin-top: 1rem; padding: 1rem; border-radius: 8px; }
+    .finding-group.blockers, .finding-group.gaps { background: var(--danger-soft); color: var(--danger); }
+    .finding-group.warnings { background: var(--warning-soft); color: var(--warning); }
+
+    .slice { padding: 3rem 0 4rem; border-top: 1px solid var(--line); }
+    .slice-header { display: flex; align-items: start; justify-content: space-between; gap: 2rem; margin-bottom: 2.25rem; }
+    .slice-header p { margin-bottom: 0; color: var(--muted); }
+    .slice-overview { margin-bottom: 2.5rem; }
+    .section-help { margin-bottom: 1rem; color: var(--muted); font-size: 0.9rem; }
+    .accepted-input-list { border-top: 1px solid var(--line); }
+    .accepted-input { border-bottom: 1px solid var(--line); scroll-margin-top: 1rem; }
+    .accepted-input > summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto 1.25rem;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.9rem 0;
+    }
+    .accepted-input > summary::after {
+      content: "+";
+      grid-column: 3;
+      grid-row: 1;
+      color: var(--muted);
+      font-size: 1.15rem;
+      text-align: center;
+    }
+    .accepted-input[open] > summary::after { content: "−"; }
+    .context-source-title { display: grid; gap: 0.1rem; margin: 0; }
+    .context-source-title code { color: var(--muted); font-size: 0.75rem; font-weight: 500; }
+    .context-recipients { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 0.5rem; color: var(--muted); font-size: 0.78rem; }
+    .context-recipient-files { display: grid; gap: 0.12rem; }
+    .context-recipients code { color: inherit; }
+    .context-recipient-label { color: var(--ink); font-weight: 680; }
+    .accepted-input-content { padding: 0.75rem 0 1.75rem; }
+    .accepted-document { max-width: 78ch; }
+    .accepted-document h4, .accepted-document h5, .accepted-document h6 { margin-top: 1.4rem; }
+    .accepted-document h4:first-child { margin-top: 0; font-size: 1.15rem; }
+    .accepted-document p, .accepted-document ul, .accepted-document ol { margin-bottom: 1rem; }
+    .accepted-document li > ul, .accepted-document li > ol { margin-bottom: 0; }
+    .document-code { white-space: pre; }
+    .input-usage { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+    .input-usage-label { margin-bottom: 0.65rem; }
+    .input-usage ul { list-style: none; padding: 0; }
+    .input-usage li { display: grid; grid-template-columns: minmax(180px, 0.5fr) minmax(0, 1fr); gap: 1rem; }
+    .input-usage li span { color: var(--muted); font-size: 0.86rem; }
+
+    .requirement-list { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+    .requirement-list > li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr); gap: 2rem; padding: 1rem 0; border-bottom: 1px solid var(--line); scroll-margin-top: 1rem; }
+    .requirement-copy { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 0.75rem; }
+    .requirement-copy p { margin: 0; }
+    .requirement-id { display: inline-block; padding: 0.1rem 0.38rem; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.72rem; font-weight: 720; }
+    .coverage-files { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 0.82rem; }
+    .coverage-files li + li { margin-top: 0.2rem; }
+    .coverage-files a { color: inherit; text-decoration: none; }
+    .coverage-files a:hover { color: var(--accent); text-decoration: underline; }
+    .files-heading { margin-bottom: 0.2rem; }
+    .files-help { margin-bottom: 1rem; color: var(--muted); font-size: 0.9rem; }
+    .file-map-scroll { overflow-x: auto; }
+    .file-map { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 0.84rem; }
+    .file-map th, .file-map td { padding: 0.85rem 0.7rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .file-map thead th { color: var(--muted); font-size: 0.74rem; font-weight: 680; text-transform: uppercase; letter-spacing: 0.04em; }
+    .file-map tbody th { width: 22%; font-weight: 650; }
+    .file-map td:nth-child(2) { width: 10%; }
+    .file-map td:nth-child(3) { width: 30%; }
+    .file-map a { color: inherit; text-decoration: none; }
+    .file-map a:hover { color: var(--accent); text-decoration: underline; }
+    .file-map-uses { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+    .file-map-uses li { display: grid; gap: 0.1rem; }
+    .file-map-uses li + li { margin-top: 0; }
+    .file-map-uses span { color: var(--muted); font-size: 0.78rem; }
+
+    summary { cursor: pointer; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    .file-package { border-top: 1px solid var(--line); }
+    .file-package:last-child { border-bottom: 1px solid var(--line); }
+    .file-package > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 1.25rem; align-items: start; gap: 1rem; padding: 1.15rem 0; }
+    .file-package > summary::after { content: "+"; color: var(--muted); font-size: 1.25rem; line-height: 1; text-align: center; }
+    .file-package[open] > summary::after { content: "−"; }
+    .file-package[open] > summary .file-name { color: var(--accent); }
+    .file-summary-main { display: grid; gap: 0.28rem; }
+    .file-name { min-width: 0; margin: 0; font-size: 0.98rem; font-weight: 720; }
+    .file-name code { overflow-wrap: anywhere; }
+    .file-purpose { margin: 0; color: var(--muted); font-size: 0.86rem; }
+    .file-context-preview { display: flex; flex-wrap: wrap; gap: 0.1rem 0.5rem; margin: 0; color: var(--muted); font-size: 0.76rem; }
+    .context-preview-label { color: var(--ink); font-weight: 680; }
+    .file-context-preview code { color: inherit; }
+    .file-context-preview code + code::before { content: "·"; margin-right: 0.5rem; color: var(--line); }
+    .file-operation { padding-top: 0.05rem; color: var(--muted); font-size: 0.82rem; }
+    .file-package-content { padding: 0.5rem 0 2.5rem; }
+    .package-section { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 2rem; padding: 1.5rem 0; border-top: 1px solid var(--line); }
+    .package-section > h3, .package-section > h4, .package-section > h5 { margin: 0; }
+    .package-section > p:last-child { margin-bottom: 0; }
+    .purpose > div > p:last-child { margin-bottom: 0; }
+    .prompt-outcome { color: var(--muted); }
+    .requirement-references { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .requirement-references li { margin: 0; }
+    .requirement-references a { display: flex; align-items: start; gap: 0.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+    .requirement-references a:hover { border-color: var(--accent); color: var(--accent); }
+    .context-items { min-width: 0; }
+    .input-references { margin: 0 0 1.25rem; padding: 0; list-style: none; }
+    .input-references > li { padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
+    .input-references > li:first-child { border-top: 1px solid var(--line); }
+    .input-references a { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; text-decoration: none; }
+    .input-references a code { color: var(--muted); font-size: 0.75rem; }
+    .input-references p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.86rem; }
+    .context-item { border-bottom: 1px solid var(--line); }
+    .context-item:first-child { border-top: 1px solid var(--line); }
+    .context-item > summary { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; font-weight: 680; }
+    .context-item > summary::before { content: "+"; width: 1rem; color: var(--muted); font-weight: 500; }
+    .context-item[open] > summary::before { content: "−"; }
+    .context-item > summary > span:first-child { flex: 1; }
+    .context-kind { color: var(--muted); font-size: 0.76rem; font-weight: 500; }
+    .context-content { padding: 0.25rem 0 1rem 2rem; }
+    .context-content > p { color: var(--muted); font-size: 0.88rem; }
+    .skill p { color: var(--muted); font-size: 0.88rem; }
+    .access { margin-bottom: 1.25rem; }
+    .access p { margin-bottom: 0.35rem; font-size: 0.88rem; }
+    .limit-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+    .limits > .limit-columns { grid-column: 2; }
+    .limit-columns h4, .limit-columns h5, .limit-columns h6 { margin-top: 0; }
+    .raw-input { grid-column: 1 / -1; margin-top: 0.5rem; border-top: 1px solid var(--line); }
+    .raw-input > summary { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 0; color: var(--muted); font-size: 0.78rem; }
+    .raw-input > summary span:last-child { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; overflow-wrap: anywhere; }
+
+    .binding-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .binding-table th, .binding-table td { padding: 0.8rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .binding-table th { width: 18%; }
+    .binding-table td { overflow-wrap: anywhere; }
+    .verification-wrap { padding: 0 0 3rem; border-top: 1px solid var(--line); }
+    .verification > summary { display: flex; justify-content: space-between; gap: 1rem; padding: 1.25rem 0; font-weight: 720; }
+    .verification > summary::after { content: "+"; }
+    .verification[open] > summary::after { content: "−"; }
+    .verification-content { padding: 0 0 1.5rem; }
+    .verification-content section { padding: 1.5rem 0; border-top: 1px solid var(--line); }
+    .phase-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; margin-bottom: 0.45rem; }
+    .phase-summary strong { font-size: 1.05rem; }
+    .phase-summary .passed { color: var(--success); }
+    .phase-summary span { color: var(--muted); font-size: 0.86rem; }
+    .phase-description { margin-bottom: 0.35rem; }
+    .phase-boundary { margin-bottom: 0; color: var(--muted); font-size: 0.88rem; }
+    .implementation-checks { max-width: 620px; margin: 1rem 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+    .implementation-checks li { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--line); }
+    .implementation-checks li + li { margin-top: 0; }
+    .implementation-checks strong { color: var(--muted); font-size: 0.82rem; }
+    .verification-meta { display: grid; gap: 0.65rem; margin: 0; }
+    .verification-meta div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 1rem; }
+    .verification-meta dt { color: var(--muted); }
+    .verification-meta dd { margin: 0; overflow-wrap: anywhere; }
+    .audit-links { display: flex; flex-wrap: wrap; gap: 0.85rem 1.25rem; }
+
+    .footer { padding: 2rem 0 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; }
+
+    @media (max-width: 760px) {
+      h1 { font-size: 2rem; }
+      .hero { padding: 3rem 0 2.5rem; }
+      .slice-header { display: grid; gap: 0.75rem; }
+      .approval-ready { grid-template-columns: 1fr; gap: 0.35rem; }
+      .requirement-list > li { grid-template-columns: 1fr; gap: 0.75rem; }
+      .input-usage li { grid-template-columns: 1fr; gap: 0.2rem; }
+      .accepted-input > summary { grid-template-columns: minmax(0, 1fr) 1.25rem; gap: 0.35rem 0.75rem; }
+      .accepted-input > summary::after { grid-column: 2; grid-row: 1; }
+      .context-recipients { grid-column: 1 / -1; grid-row: 2; justify-content: start; }
+      .file-package > summary { gap: 0.6rem; }
+      .package-section { grid-template-columns: 1fr; gap: 0.75rem; }
+      .input-references a { display: grid; gap: 0.2rem; }
+      .limit-columns { grid-template-columns: 1fr; gap: 1rem; }
+      .limits > .limit-columns { grid-column: 1; }
+      .raw-input > summary span:last-child { display: none; }
+      .binding-table { display: block; overflow-x: auto; }
+      .implementation-checks li { align-items: start; }
+      .verification-meta div { grid-template-columns: 1fr; gap: 0.15rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      .shell { width: 100%; }
+      .topbar { display: none; }
+      .hero, .slice { padding: 1.5rem 0; }
+      .file-package { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell">
+      <span class="product-name">SCORE Plan Review</span>
+      <span>No decision recorded</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="shell">
+        <h1>Account Status two-file change</h1>
+        <p class="lede">Add the accepted account status declaration and pure account label formatter without changing any other file.</p>
+        <div class="plan-shape" aria-label="Plan scope">
+          <p class="change-count"><strong>2 files will change</strong></p>
+          <p class="change-breakdown">1 new · 1 modified · 2 isolated file-agents</p>
+          <p class="approval-note">Approval freezes these instructions. It does not run them.</p>
+        </div>
+
+      </div>
+    </section>
+
+
+
+<div class="slice">
+      <div class="shell">
+
+        <section class="slice-overview file-relationship-map" aria-labelledby="file-map-260f0dda-64de-464b-88a9-2a984e9538b2">
+      <h2 id="file-map-260f0dda-64de-464b-88a9-2a984e9538b2">How the files fit together</h2>
+      <p class="section-help">Declaration owners appear before the files that use them. Agents still work independently.</p>
+      <div class="file-map-scroll" role="region" aria-label="File relationships" tabindex="0">
+        <table class="file-map">
+          <thead><tr><th scope="col">File</th><th scope="col">Action</th><th scope="col">Purpose</th><th scope="col">Uses</th></tr></thead>
+          <tbody><tr>
+          <th scope="row"><a href="#slice-1-file-src-schema-ts"><code>src/schema.ts</code></a></th>
+          <td>Modify</td>
+          <td>Replace src/schema.ts so Account keeps id and name and gains required status with exactly the active and suspended values.</td>
+          <td><span class="empty">None</span></td>
+        </tr><tr>
+          <th scope="row"><a href="#slice-1-file-src-account-label-ts"><code>src/account-label.ts</code></a></th>
+          <td>Create</td>
+          <td>Create src/account-label.ts with a named pure formatAccountLabel function for the fixed Account declaration.</td>
+          <td><ul class="file-map-uses"><li><strong>Account</strong> from <code>src/schema.ts</code></li></ul></td>
+        </tr></tbody>
+        </table>
+      </div>
+    </section>
+        <section class="files slice-overview" aria-labelledby="files-260f0dda-64de-464b-88a9-2a984e9538b2">
+          <h2 id="files-260f0dda-64de-464b-88a9-2a984e9538b2" class="files-heading">Files to change</h2>
+          <p class="files-help">One isolated agent handles each file. Open a row for its complete instructions.</p>
+
+    <details class="file-package" id="slice-1-file-src-schema-ts" name="slice-1-files">
+      <summary>
+        <div class="file-summary-main">
+          <h3 class="file-name"><code>src/schema.ts</code></h3>
+          <p class="file-purpose">Replace src/schema.ts so Account keeps id and name and gains required status with exactly the active and suspended values.</p>
+          <p class="file-context-preview"><span class="context-preview-label">Receives</span></p>
+        </div>
+        <span class="file-operation">Modify</span>
+      </summary>
+      <div class="file-package-content">
+<section class="package-section purpose">
+          <h4>Purpose</h4>
+          <div><p>Replace src/schema.ts so Account keeps id and name and gains required status with exactly the active and suspended values.</p><p class="prompt-outcome"><strong>Expected result:</strong> The complete replacement file exports Account with id, name, and required status: &quot;active&quot; | &quot;suspended&quot;.</p></div>
+        </section>
+
+<section class="package-section">
+      <h4>Requirements</h4>
+      <ul class="requirement-references"><li><a href="#slice-1-requirement-ar-1"><span class="requirement-id">AR-1</span><span>Account has id, name, and the required status field.</span></a></li><li><a href="#slice-1-requirement-ar-3"><span class="requirement-id">AR-3</span><span>The Pass replaces one declared file and creates one declared file only.</span></a></li></ul>
+    </section>
+
+<section class="package-section"><h4>Declarations</h4><div class="context-items">
+      <details class="context-item">
+        <summary><span>Account</span><span class="context-kind">Implement here</span></summary>
+        <div class="context-content">
+          <p>Represents an account with the required status used by callers and the formatter.</p>
+          <pre><code>export interface Account {
+  id: string;
+  name: string;
+  status: &quot;active&quot; | &quot;suspended&quot;;
+}</code></pre>
+        </div>
+      </details></div></section>
+
+<section class="package-section">
+      <h4>Context supplied</h4>
+      <div class="context-items"><details class="context-item target-state">
+      <summary><span>Current file · <code>src/schema.ts</code></span><span class="context-kind">Frozen base state</span></summary>
+      <div class="context-content"><pre class="document-code"><code>export interface Account {
+  id: string;
+  name: string;
+}
+</code></pre></div>
+    </details></div>
+    </section>
+
+<section class="package-section limits">
+          <h4>Limits</h4>
+        <div class="access">
+          <p><strong>File access:</strong> Read this file, Modify this file</p>
+          <p><strong>No access to:</strong> network, shell, repository discovery.</p>
+        </div>
+          <div class="limit-columns">
+            <div><h5>Rules</h5><ul><li>Preserve the existing exported Account interface and its id and name fields.</li><li>Add required status: &quot;active&quot; | &quot;suspended&quot;.</li><li>Produce the complete content of src/schema.ts.</li></ul></div>
+            <div><h5>Not allowed</h5><ul><li>Do not read, create, modify, or delete any other file.</li><li>Do not change the fixed Account Contract.</li></ul></div>
+          </div>
+        </section>
+
+        <details class="raw-input">
+          <summary><span><strong>Machine evidence</strong> · Exact Agent Input JSON</span><span>sha256:fafc255479c89937ff9c149bf813967d2f39b72629ca1c74fd9b2c11b24bd2a1</span></summary>
+          <pre><code>{
+  &quot;objective&quot;: &quot;Replace src/schema.ts so Account keeps id and name and gains required status with exactly the active and suspended values.&quot;,
+  &quot;target&quot;: {
+    &quot;path&quot;: &quot;src/schema.ts&quot;,
+    &quot;operation&quot;: &quot;replace&quot;,
+    &quot;content&quot;: &quot;export interface Account {\n  id: string;\n  name: string;\n}\n&quot;,
+    &quot;media_type&quot;: &quot;text/typescript; charset=utf-8&quot;,
+    &quot;state_at_base_revision&quot;: &quot;present&quot;
+  },
+  &quot;intended_outcome&quot;: &quot;The complete replacement file exports Account with id, name, and required status: \&quot;active\&quot; | \&quot;suspended\&quot;.&quot;,
+  &quot;declarations&quot;: {
+    &quot;owned&quot;: [
+      {
+        &quot;name&quot;: &quot;Account&quot;,
+        &quot;declaration&quot;: &quot;export interface Account {\n  id: string;\n  name: string;\n  status: \&quot;active\&quot; | \&quot;suspended\&quot;;\n}&quot;,
+        &quot;description&quot;: &quot;Represents an account with the required status used by callers and the formatter.&quot;
+      }
+    ],
+    &quot;consumed&quot;: []
+  },
+  &quot;input_bindings&quot;: [
+    {
+      &quot;contract_input&quot;: &quot;accepted-requirements&quot;,
+      &quot;purpose&quot;: &quot;Give the replacement agent its exact accepted obligations and file boundary.&quot;,
+      &quot;kind&quot;: &quot;accepted_requirements&quot;,
+      &quot;version&quot;: &quot;1.0.0&quot;,
+      &quot;content&quot;: [
+        {
+          &quot;id&quot;: &quot;AR-1&quot;,
+          &quot;statement&quot;: &quot;Account has id, name, and the required status field.&quot;
+        },
+        {
+          &quot;id&quot;: &quot;AR-3&quot;,
+          &quot;statement&quot;: &quot;The Pass replaces one declared file and creates one declared file only.&quot;
+        }
+      ]
+    },
+    {
+      &quot;contract_input&quot;: &quot;target-state&quot;,
+      &quot;purpose&quot;: &quot;Give the replacement agent the exact current bytes of its only target.&quot;,
+      &quot;kind&quot;: &quot;target_state&quot;,
+      &quot;version&quot;: &quot;1.0.0&quot;,
+      &quot;content&quot;: {
+        &quot;content&quot;: &quot;export interface Account {\n  id: string;\n  name: string;\n}\n&quot;,
+        &quot;media_type&quot;: &quot;text/typescript; charset=utf-8&quot;,
+        &quot;path&quot;: &quot;src/schema.ts&quot;,
+        &quot;state_at_base_revision&quot;: &quot;present&quot;
+      }
+    }
+  ],
+  &quot;required_capabilities&quot;: [
+    {
+      &quot;capability&quot;: &quot;score.coding.filesystem.single-target&quot;,
+      &quot;version_rule&quot;: &quot;=1.0.0&quot;,
+      &quot;required&quot;: true,
+      &quot;configuration&quot;: {
+        &quot;allowed_operations&quot;: [
+          &quot;read_assigned_target&quot;,
+          &quot;replace_assigned_target&quot;
+        ],
+        &quot;network&quot;: false,
+        &quot;repository_discovery&quot;: false,
+        &quot;shell&quot;: false,
+        &quot;target_path&quot;: &quot;src/schema.ts&quot;
+      }
+    }
+  ],
+  &quot;constraints&quot;: [
+    &quot;Preserve the existing exported Account interface and its id and name fields.&quot;,
+    &quot;Add required status: \&quot;active\&quot; | \&quot;suspended\&quot;.&quot;,
+    &quot;Produce the complete content of src/schema.ts.&quot;
+  ],
+  &quot;prohibited_effects&quot;: [
+    &quot;Do not read, create, modify, or delete any other file.&quot;,
+    &quot;Do not change the fixed Account Contract.&quot;
+  ]
+}</code></pre>
+        </details>
+      </div>
+    </details>
+    <details class="file-package" id="slice-1-file-src-account-label-ts" name="slice-1-files">
+      <summary>
+        <div class="file-summary-main">
+          <h3 class="file-name"><code>src/account-label.ts</code></h3>
+          <p class="file-purpose">Create src/account-label.ts with a named pure formatAccountLabel function for the fixed Account declaration.</p>
+          <p class="file-context-preview"><span class="context-preview-label">Receives</span></p>
+        </div>
+        <span class="file-operation">Create</span>
+      </summary>
+      <div class="file-package-content">
+<section class="package-section purpose">
+          <h4>Purpose</h4>
+          <div><p>Create src/account-label.ts with a named pure formatAccountLabel function for the fixed Account declaration.</p><p class="prompt-outcome"><strong>Expected result:</strong> The new file imports Account from ./schema.js and exports formatAccountLabel(account), returning exactly `${account.name} [${account.status}]`.</p></div>
+        </section>
+
+<section class="package-section">
+      <h4>Requirements</h4>
+      <ul class="requirement-references"><li><a href="#slice-1-requirement-ar-2"><span class="requirement-id">AR-2</span><span>formatAccountLabel(account) returns exactly name [status].</span></a></li><li><a href="#slice-1-requirement-ar-3"><span class="requirement-id">AR-3</span><span>The Pass replaces one declared file and creates one declared file only.</span></a></li></ul>
+    </section>
+
+<section class="package-section"><h4>Declarations</h4><div class="context-items">
+      <details class="context-item">
+        <summary><span>formatAccountLabel</span><span class="context-kind">Implement here</span></summary>
+        <div class="context-content">
+          <p>Returns the account name and status exactly as name [status].</p>
+          <pre><code>export declare function formatAccountLabel(account: Account): string;</code></pre>
+        </div>
+      </details>
+      <details class="context-item">
+        <summary><span>Account</span><span class="context-kind">Use from <code>src/schema.ts</code></span></summary>
+        <div class="context-content">
+          <p>Represents an account with the required status used by callers and the formatter.</p>
+          <p>Use this documented interface as read-only context. Do not redefine it in this file.</p><pre><code>export interface Account {
+  id: string;
+  name: string;
+  status: &quot;active&quot; | &quot;suspended&quot;;
+}</code></pre>
+        </div>
+      </details></div></section>
+
+<section class="package-section">
+      <h4>Context supplied</h4>
+      <div class="context-items"><details class="context-item target-state">
+      <summary><span>Current file · <code>src/account-label.ts</code></span><span class="context-kind">New file</span></summary>
+      <div class="context-content"><p class="empty">This file does not exist at the frozen base revision.</p></div>
+    </details></div>
+    </section>
+
+<section class="package-section"><h4>Skills</h4><div>
+        <div class="skill">
+          <strong>TypeScript module boundaries</strong>
+          <p>Preserve type ownership and prevent a type-only dependency from becoming a runtime module dependency.</p>
+          <pre><code># TypeScript Module Boundaries
+
+When this module consumes a type owned by another module:
+
+- Import type-only dependencies with `import type`.
+- Use the owning module&#39;s exported type; never recreate or widen it locally.
+- Keep module initialization free of side effects.
+- Do not introduce barrel exports or new runtime dependencies.
+- The module is complete only when its public exports exactly match the supplied Contract.</code></pre>
+        </div></div></section>
+
+<section class="package-section limits">
+          <h4>Limits</h4>
+        <div class="access">
+          <p><strong>File access:</strong> Create this file</p>
+          <p><strong>No access to:</strong> network, shell, repository discovery.</p>
+        </div>
+          <div class="limit-columns">
+            <div><h5>Rules</h5><ul><li>Export formatAccountLabel as a named function.</li><li>Import Account from ./schema.js.</li><li>Return exactly `${account.name} [${account.status}]`.</li><li>Produce the complete content of src/account-label.ts.</li></ul></div>
+            <div><h5>Not allowed</h5><ul><li>Do not read, create, modify, or delete any other file.</li><li>Do not redefine or extend the supplied Account declaration.</li></ul></div>
+          </div>
+        </section>
+
+        <details class="raw-input">
+          <summary><span><strong>Machine evidence</strong> · Exact Agent Input JSON</span><span>sha256:d743fb7f064076594e7940ae76facd94d52b8a4d7485cce5fee837c3c18c3bd7</span></summary>
+          <pre><code>{
+  &quot;objective&quot;: &quot;Create src/account-label.ts with a named pure formatAccountLabel function for the fixed Account declaration.&quot;,
+  &quot;target&quot;: {
+    &quot;path&quot;: &quot;src/account-label.ts&quot;,
+    &quot;operation&quot;: &quot;create&quot;,
+    &quot;state_at_base_revision&quot;: &quot;absent&quot;
+  },
+  &quot;intended_outcome&quot;: &quot;The new file imports Account from ./schema.js and exports formatAccountLabel(account), returning exactly `${account.name} [${account.status}]`.&quot;,
+  &quot;declarations&quot;: {
+    &quot;owned&quot;: [
+      {
+        &quot;name&quot;: &quot;formatAccountLabel&quot;,
+        &quot;declaration&quot;: &quot;export declare function formatAccountLabel(account: Account): string;&quot;,
+        &quot;description&quot;: &quot;Returns the account name and status exactly as name [status].&quot;
+      }
+    ],
+    &quot;consumed&quot;: [
+      {
+        &quot;name&quot;: &quot;Account&quot;,
+        &quot;declaration&quot;: &quot;export interface Account {\n  id: string;\n  name: string;\n  status: \&quot;active\&quot; | \&quot;suspended\&quot;;\n}&quot;,
+        &quot;description&quot;: &quot;Represents an account with the required status used by callers and the formatter.&quot;
+      }
+    ]
+  },
+  &quot;input_bindings&quot;: [
+    {
+      &quot;contract_input&quot;: &quot;accepted-requirements&quot;,
+      &quot;purpose&quot;: &quot;Give the creator agent its exact accepted behavior and file boundary.&quot;,
+      &quot;kind&quot;: &quot;accepted_requirements&quot;,
+      &quot;version&quot;: &quot;1.0.0&quot;,
+      &quot;content&quot;: [
+        {
+          &quot;id&quot;: &quot;AR-2&quot;,
+          &quot;statement&quot;: &quot;formatAccountLabel(account) returns exactly name [status].&quot;
+        },
+        {
+          &quot;id&quot;: &quot;AR-3&quot;,
+          &quot;statement&quot;: &quot;The Pass replaces one declared file and creates one declared file only.&quot;
+        }
+      ]
+    },
+    {
+      &quot;contract_input&quot;: &quot;target-state&quot;,
+      &quot;purpose&quot;: &quot;Tell the creator agent exactly that its assigned target is absent at the base revision.&quot;,
+      &quot;kind&quot;: &quot;target_state&quot;,
+      &quot;version&quot;: &quot;1.0.0&quot;,
+      &quot;content&quot;: {
+        &quot;path&quot;: &quot;src/account-label.ts&quot;,
+        &quot;state_at_base_revision&quot;: &quot;absent&quot;
+      }
+    },
+    {
+      &quot;contract_input&quot;: &quot;typescript-module-boundaries&quot;,
+      &quot;purpose&quot;: &quot;Preserve type ownership and prevent a type-only dependency from becoming a runtime module dependency.&quot;,
+      &quot;kind&quot;: &quot;skill&quot;,
+      &quot;version&quot;: &quot;1.0.0&quot;,
+      &quot;content&quot;: &quot;# TypeScript Module Boundaries\n\nWhen this module consumes a type owned by another module:\n\n- Import type-only dependencies with `import type`.\n- Use the owning module&#39;s exported type; never recreate or widen it locally.\n- Keep module initialization free of side effects.\n- Do not introduce barrel exports or new runtime dependencies.\n- The module is complete only when its public exports exactly match the supplied Contract.&quot;
+    }
+  ],
+  &quot;required_capabilities&quot;: [
+    {
+      &quot;capability&quot;: &quot;score.coding.filesystem.single-target&quot;,
+      &quot;version_rule&quot;: &quot;=1.0.0&quot;,
+      &quot;required&quot;: true,
+      &quot;configuration&quot;: {
+        &quot;allowed_operations&quot;: [
+          &quot;create_assigned_target&quot;
+        ],
+        &quot;network&quot;: false,
+        &quot;repository_discovery&quot;: false,
+        &quot;shell&quot;: false,
+        &quot;target_path&quot;: &quot;src/account-label.ts&quot;
+      }
+    }
+  ],
+  &quot;constraints&quot;: [
+    &quot;Export formatAccountLabel as a named function.&quot;,
+    &quot;Import Account from ./schema.js.&quot;,
+    &quot;Return exactly `${account.name} [${account.status}]`.&quot;,
+    &quot;Produce the complete content of src/account-label.ts.&quot;
+  ],
+  &quot;prohibited_effects&quot;: [
+    &quot;Do not read, create, modify, or delete any other file.&quot;,
+    &quot;Do not redefine or extend the supplied Account declaration.&quot;
+  ]
+}</code></pre>
+        </details>
+      </div>
+    </details>
+        </section>
+        <section class="slice-overview requirement-coverage" aria-labelledby="requirements-260f0dda-64de-464b-88a9-2a984e9538b2">
+      <h2 id="requirements-260f0dda-64de-464b-88a9-2a984e9538b2">Requirement coverage</h2>
+      <p class="section-help">What each requirement changes or tests.</p>
+      <ol class="requirement-list">
+        <li id="slice-1-requirement-ar-1">
+              <div class="requirement-copy"><span class="requirement-id">AR-1</span><p>Account has id, name, and the required status field.</p></div>
+              <ul class="coverage-files"><li><a href="#slice-1-file-src-schema-ts"><code>src/schema.ts</code></a></li></ul>
+            </li><li id="slice-1-requirement-ar-2">
+              <div class="requirement-copy"><span class="requirement-id">AR-2</span><p>formatAccountLabel(account) returns exactly name [status].</p></div>
+              <ul class="coverage-files"><li><a href="#slice-1-file-src-account-label-ts"><code>src/account-label.ts</code></a></li></ul>
+            </li><li id="slice-1-requirement-ar-3">
+              <div class="requirement-copy"><span class="requirement-id">AR-3</span><p>The Pass replaces one declared file and creates one declared file only.</p></div>
+              <ul class="coverage-files"><li><a href="#slice-1-file-src-schema-ts"><code>src/schema.ts</code></a></li><li><a href="#slice-1-file-src-account-label-ts"><code>src/account-label.ts</code></a></li></ul>
+            </li>
+      </ol>
+    </section>
+        <section class="slice-overview accepted-inputs" aria-labelledby="accepted-inputs-260f0dda-64de-464b-88a9-2a984e9538b2">
+      <h2 id="accepted-inputs-260f0dda-64de-464b-88a9-2a984e9538b2">Read-only context</h2>
+      <p class="section-help">Supplied to file-agents. SCORE will not create or edit these sources.</p>
+      <div class="accepted-input-list"><p class="empty">No read-only project files were supplied.</p></div>
+    </section>
+      </div>
+    </div>
+
+    <section class="verification-wrap">
+      <div class="shell">
+        <details class="verification">
+          <summary>Plan validation and audit</summary>
+          <div class="verification-content">
+            <section aria-labelledby="plan-validation-status">
+              <h3 id="plan-validation-status">Plan validation</h3>
+              <p class="phase-summary"><strong class="passed">Passed</strong><span>0 plan findings</span></p>
+              <p class="phase-description">The plan is complete and internally consistent. It is ready for approval.</p>
+              <p class="phase-boundary">This validates the plan only. It does not test an implementation.</p>
+            </section>
+            <section aria-labelledby="implementation-status">
+              <h3 id="implementation-status">Implementation status</h3>
+              <p class="phase-summary"><strong>Not started</strong></p>
+              <p class="phase-description">No candidates have been generated or applied from this plan.</p>
+              <p class="phase-boundary">Implementation quality is evaluated outside SCORE.</p>
+            </section>
+            <section>
+              <h3>Review record</h3>
+              <dl class="verification-meta">
+                <div><dt>Decision</dt><dd>No decision recorded</dd></div>
+                <div><dt>Review ID</dt><dd><code>41256f65-e56e-4357-a112-99b8b12ccc5a</code></dd></div>
+                <div><dt>Created</dt><dd><time datetime="2026-08-05T20:31:00.000Z">2026-08-05 20:31:00 UTC</time></dd></div>
+                <div><dt>Renderer</dt><dd><code>score.coding.publication-review-html @ 0.1.0-alpha.21</code></dd></div>
+              </dl>
+            </section>
+            <section>
+              <h3>Approval binding</h3>
+              <div role="region" aria-label="Approval binding digests" tabindex="0">
+                <table class="binding-table">
+                  <thead><tr><th>Object</th><th>Protocol ID</th><th>Content digest</th></tr></thead>
+                  <tbody>
+        <tr>
+          <th scope="row">Plan Manifest</th>
+          <td><code>71017ec7-25dc-4fdb-b424-42d369f65cd5</code></td>
+          <td><code>sha256:fbfc6e54bedcff499b7d626aa7adb7883c196ada1ec005923dd1d1c837587345</code></td>
+        </tr>
+        <tr>
+          <th scope="row">Compilation Report</th>
+          <td><code>573a1e63-5758-4f19-ac23-27bcff336f5c</code></td>
+          <td><code>sha256:7e86e37fc34f18a2afdbfb7dad382f421d1f90d8b8c9a90141dd5a937332c316</code></td>
+        </tr>
+        <tr>
+          <th scope="row">Reviewed work</th>
+          <td><code>260f0dda-64de-464b-88a9-2a984e9538b2</code></td>
+          <td><code>sha256:760af2460ded4442710090cf95c0cceca06ce5356b48fd708d686863128fda15</code></td>
+        </tr>
+        <tr>
+          <th scope="row">src/account-label.ts</th>
+          <td><code>3f5cf524-7753-4894-ad43-c02f271ed443</code></td>
+          <td><code>sha256:62f2054749e9e0d4768be86d06d7705af4cbb58a78846891b1e1a85fb236379a</code></td>
+        </tr>
+        <tr>
+          <th scope="row">src/schema.ts</th>
+          <td><code>22f194ed-03c4-4bbf-a9a6-8d88576c586b</code></td>
+          <td><code>sha256:bee4a182312d293707601cfab176b0020c97b4e0a75914710f1a9441e25e6f11</code></td>
+        </tr></tbody>
+                </table>
+              </div>
+            </section>
+            <section>
+              <h3>Plan checks performed</h3>
+              <ul><li>one reviewed work revision with exactly its declared file scope</li><li>file operations match the Source Snapshot</li><li>required Contract Input cardinality</li><li>binding membership, kind, and exact-version compatibility</li><li>every Context Set member has an explicit binding</li><li>every Accepted Requirement has a traceability path</li><li>one Agent Package per file</li><li>documented interface context is routed only to its declared owners and consumers</li><li>Run Rules, Agent Input, and Agent Package digests reproduce</li><li>Run Rules match the Plan Manifest, reviewed work, File Brief, target, and operation</li></ul>
+            </section>
+            <section>
+              <h3>Plan compiler</h3>
+              <p>Compiled by <strong>codex-existing-agent</strong> using <code>openai/gpt-5</code>.</p>
+              <p class="muted">Submission <code>7a267225-45d0-40b5-bc1c-21284cb7331a</code> · Compiled plan <code>sha256:4e94f9564fe5cb7d0f0bacabf29107ea22d3be81f29e819a2d1553f260223876</code></p>
+            </section>
+            <section>
+              <h3>Audit files</h3>
+              <nav class="audit-links" aria-label="Machine evidence files">
+                <a href="./publication-review.snapshot.json">Structured review snapshot</a>
+                <a href="./digest-set.json">Exact digest set</a>
+                <a href="./inspection.json">SQLite inspection views</a>
+                <a href="./evidence.json">Reproduction evidence</a>
+              </nav>
+            </section>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell">Generated deterministically by SCORE. No LLM wrote or rewrote this page.</div>
+  </footer>
+  <script>
+    (() => {
+      let printState = null;
+
+      window.addEventListener("beforeprint", () => {
+        if (printState !== null) return;
+        printState = Array.from(document.querySelectorAll("details"), (details) => ({
+          details,
+          open: details.open,
+          name: details.getAttribute("name")
+        }));
+        for (const item of printState) item.details.removeAttribute("name");
+        for (const item of printState) item.details.open = true;
+      });
+
+      window.addEventListener("afterprint", () => {
+        if (printState === null) return;
+        for (const item of printState) item.details.open = item.open;
+        for (const item of printState) {
+          if (item.name === null) item.details.removeAttribute("name");
+          else item.details.setAttribute("name", item.name);
+        }
+        printState = null;
+      });
+    })();
+  </script>
+</body>
+</html>

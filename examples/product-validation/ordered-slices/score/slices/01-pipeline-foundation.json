@@ -1,0 +1,42 @@
+{
+  "slice_id": "pipeline-foundation",
+  "title": "Pipeline foundation",
+  "objective": "Create the normalized base greeting used by later pipeline capabilities.",
+  "requirements": [
+    "baseMessage trims surrounding whitespace from the name and returns Hello, followed by the normalized name."
+  ],
+  "files": [
+    {
+      "path": "src/pipeline.ts",
+      "operation": "create",
+      "task": "Create the pipeline's pure base greeting function.",
+      "requirements": [
+        "baseMessage trims surrounding whitespace from the name and returns Hello, followed by the normalized name."
+      ],
+      "owns": [
+        {
+          "name": "baseMessage",
+          "description": "Normalizes a name and returns the pipeline's base greeting.",
+          "declaration": "export function baseMessage(name: string): string;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/pipeline-intent.md",
+          "purpose": "Defines the first capability and its role in the ordered sequence."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Foundation behavior",
+          "content": "Implement one pure function. Normalize with String.trim and return `Hello, ${normalizedName}`. Export only the planned function."
+        }
+      ],
+      "constraints": [
+        "Do not anticipate later emphasis or summary behavior.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

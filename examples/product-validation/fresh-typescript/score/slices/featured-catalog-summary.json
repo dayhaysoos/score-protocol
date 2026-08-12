@@ -1,0 +1,128 @@
+{
+  "slice_id": "featured-catalog-summary",
+  "title": "Featured catalog summary",
+  "objective": "Create a small typed catalog dependency chain that formats products and summarizes the featured selection.",
+  "requirements": [
+    "Product records expose id, name, priceCents, and featured fields with the exact planned types.",
+    "formatProduct renders the product name, an em dash, and a dollar price with exactly two decimal places.",
+    "summarizeCatalog preserves input order, includes only featured products, reports the featured count, and returns No featured products when none qualify."
+  ],
+  "files": [
+    {
+      "path": "src/product.ts",
+      "operation": "create",
+      "task": "Define the catalog product contract.",
+      "requirements": [
+        "Product records expose id, name, priceCents, and featured fields with the exact planned types."
+      ],
+      "owns": [
+        {
+          "name": "Product",
+          "description": "Describes one catalog product and whether it belongs in the featured selection.",
+          "declaration": "export interface Product { id: string; name: string; priceCents: number; featured: boolean; }"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines the catalog vocabulary and price representation."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Minimal domain contract",
+          "content": "Export exactly the planned Product interface. Keep every property required and add no runtime behavior or extra exports."
+        }
+      ],
+      "constraints": [
+        "Do not change another file.",
+        "Do not add declarations beyond Product."
+      ]
+    },
+    {
+      "path": "src/format-product.ts",
+      "operation": "create",
+      "task": "Format one product with stable copy and currency precision.",
+      "requirements": [
+        "formatProduct renders the product name, an em dash, and a dollar price with exactly two decimal places."
+      ],
+      "owns": [
+        {
+          "name": "formatProduct",
+          "description": "Formats one product name and integer-cent price for display.",
+          "declaration": "export function formatProduct(product: Product): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Product",
+          "from": "src/product.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines exact price and label behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext TypeScript boundary",
+          "content": "Use an import type for Product and the exact NodeNext-relative module specifier supplied in the Agent Input. Convert integer cents to a two-decimal dollar string without mutating the product."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Product } from \"./product.js\";`.",
+        "Use an em dash surrounded by spaces.",
+        "Export only formatProduct.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/catalog-summary.ts",
+      "operation": "create",
+      "task": "Compose the catalog summary from the shared product formatter.",
+      "requirements": [
+        "summarizeCatalog preserves input order, includes only featured products, reports the featured count, and returns No featured products when none qualify."
+      ],
+      "owns": [
+        {
+          "name": "summarizeCatalog",
+          "description": "Builds the ordered human-readable summary of featured products.",
+          "declaration": "export function summarizeCatalog(products: readonly Product[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Product",
+          "from": "src/product.ts"
+        },
+        {
+          "name": "formatProduct",
+          "from": "src/format-product.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines filtering, ordering, header, and empty behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Stable summary composition",
+          "content": "Filter without sorting or mutating. For one featured product use `1 featured product`; otherwise use `{count} featured products`. Put each formatted product on its own following line. Return exactly `No featured products` when the filtered list is empty."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Product } from \"./product.js\";`.",
+        "Use exactly `import { formatProduct } from \"./format-product.js\";`.",
+        "Call formatProduct(product) for each featured product.",
+        "Delegate each product row to formatProduct.",
+        "Export only summarizeCatalog.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

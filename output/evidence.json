@@ -1,0 +1,272 @@
+{
+  "experiment": "SCORE Protocol Account Status SQLite alpha",
+  "phase": "Phase 1 draft awaiting Human Gate 1",
+  "experiment_path": ".",
+  "database_path": "output/score.db",
+  "authored_bundle_path": "fixtures/account-status.bundle.json",
+  "authoring_skill_path": "skills/score-authoring/SKILL.md",
+  "compiler_provenance": {
+    "compiler_name": "codex-existing-agent",
+    "model_id": "openai/gpt-5",
+    "procedure_id": "d6ce0b6a-f30f-4559-9bf2-fa86f84282f8",
+    "procedure_digest": "sha256:788f79d552d36cc23c25345feab014107f08a53c073e32199dacc8552b2fff24"
+  },
+  "invalid_submissions": [
+    {
+      "label": "replace-target-absent",
+      "submission_id": "bea96735-3116-4286-85b2-b060c5cca5ed",
+      "bundle_digest": "sha256:22f541859f9651335324491c88f23371d9bb4a5c5b42c4575f95021ea7b56948",
+      "outcome": "invalid",
+      "finding_codes": [
+        "CAPABILITY_TARGET_MISMATCH",
+        "TARGET_REPLACE_ABSENT"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "create-target-present",
+      "submission_id": "764642fb-de5c-4c39-a57d-d2c5037b22d7",
+      "bundle_digest": "sha256:c47639659d95f74d38666180a58ea43a3a883faea8c96cf1e8792bb7bfe7d16a",
+      "outcome": "invalid",
+      "finding_codes": [
+        "CAPABILITY_TARGET_MISMATCH",
+        "DUPLICATE_TARGET_WRITER",
+        "TARGET_CREATE_PRESENT"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "duplicate-writer",
+      "submission_id": "2d7d32a6-b394-4fa7-86a0-54a94c72d5af",
+      "bundle_digest": "sha256:656862ba6b873653e9362b6945d56aa62a1e0333c539788cee80c0418f953bb5",
+      "outcome": "invalid",
+      "finding_codes": [
+        "CONTEXT_SET_MULTIPLE_CAPSULES",
+        "DOCUMENTED_DECLARATIONS_BINDING_CARDINALITY",
+        "DUPLICATE_TARGET_WRITER",
+        "CONTEXT_ITEM_UNBOUND",
+        "CONTEXT_ITEM_UNBOUND",
+        "CONTEXT_ITEM_UNBOUND"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "required-binding-missing",
+      "submission_id": "ac091e58-c521-4b97-8b3b-7640e1db7c68",
+      "bundle_digest": "sha256:be877e516a8e4e72693869e4ad4fd1b98707bd13f81c443bfab421c69ad3c13b",
+      "outcome": "invalid",
+      "finding_codes": [
+        "BINDING_REQUIRED_MISSING",
+        "CONTEXT_ITEM_UNBOUND"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "binding-item-dangling",
+      "submission_id": "67750e82-1c71-4c9d-9b23-ebc1476207bb",
+      "bundle_digest": "sha256:1bd3a5350cd5de0575249c6aed6c4a3fe6e1d6617ae31abc96fc4eb0882e0613",
+      "outcome": "invalid",
+      "finding_codes": [
+        "BINDING_REQUIRED_MISSING",
+        "CONTEXT_ITEM_UNBOUND",
+        "BINDING_ITEM_DANGLING"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "binding-kind-incompatible",
+      "submission_id": "d33ed2bf-4917-4310-ac21-88e48fb543c2",
+      "bundle_digest": "sha256:dafda3deb5d875ac3f15837518a7c52225ce496f8c7b9f17e20ab7c4b4965286",
+      "outcome": "invalid",
+      "finding_codes": [
+        "BINDING_KIND_MISMATCH"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "context-item-unexplained",
+      "submission_id": "6f7158ea-b84a-4a4f-b912-a1c47db1e334",
+      "bundle_digest": "sha256:426d67d05a44b2125f7059cff956d02a59e201ad10c093635b803536a8607c69",
+      "outcome": "invalid",
+      "finding_codes": [
+        "CONTEXT_ITEM_UNBOUND"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "required-fact-lookup",
+      "submission_id": "0d83d1e8-7ba6-4193-bf4d-e63f97ba53f0",
+      "bundle_digest": "sha256:a100c550a38f4a3c23c10498801d12d0ad12eb63dd783b886bf079d9f9a23c0f",
+      "outcome": "invalid",
+      "finding_codes": [
+        "CONTEXT_LOOKUP_INSTRUCTION"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    },
+    {
+      "label": "unknown-bundle-field",
+      "submission_id": "89e99364-197c-4977-bc12-e86c7f83026e",
+      "bundle_digest": "sha256:a8f624667eebd45456a2a4d9cf716ef4ff3a3a93e3055a74d8b4bfe9fac8f385",
+      "outcome": "invalid",
+      "finding_codes": [
+        "SCHEMA_ADDITIONAL_PROPERTY"
+      ],
+      "draft_definition_counts_after_submission": {
+        "run_manifests": 0,
+        "contracts": 0,
+        "coding_passes": 0,
+        "capsules": 0,
+        "context_items": 0
+      }
+    }
+  ],
+  "valid_submission": {
+    "submission_id": "7a267225-45d0-40b5-bc1c-21284cb7331a",
+    "bundle_digest": "sha256:4e94f9564fe5cb7d0f0bacabf29107ea22d3be81f29e819a2d1553f260223876",
+    "outcome": "valid",
+    "findings": [],
+    "manifest_id": "71017ec7-25dc-4fdb-b424-42d369f65cd5"
+  },
+  "final_counts": {
+    "compilation_submissions": 10,
+    "compilation_submission_findings": 20,
+    "run_manifests": 1,
+    "contracts": 1,
+    "coding_passes": 1,
+    "capsules": 2,
+    "project_settings": 0,
+    "planned_declarations": 0,
+    "context_items": 7,
+    "harness_payloads": 2,
+    "publication_validation_runs": 1,
+    "publication_reviews": 1,
+    "publication_decisions": 0
+  },
+  "deterministic_reproduction": {
+    "digest_set_byte_identical": true,
+    "publication_review_html_byte_identical": true,
+    "publication_review_snapshot_digest_identical": true,
+    "agent_input_markdown_digests_identical": true
+  },
+  "publication_gate": {
+    "review_id": "41256f65-e56e-4357-a112-99b8b12ccc5a",
+    "review_snapshot_digest": "sha256:ac40554d291d35ca2d285425f846d384c759cc6d2552de707fd0bef271c62334",
+    "review_html_digest": "sha256:717d801815f97a813b39a590f985969891a79b338832e36f1a3e966cb03a83a0",
+    "blockers": [],
+    "warnings": [],
+    "compilation_gaps": [],
+    "persisted_definition_validation": {
+      "validation_run_id": "16fa5d4f-fea2-479d-8586-af4c672ff6c6",
+      "validator_id": "score-alpha.persisted-definition-validator",
+      "validator_version": "0.1.0-alpha.4",
+      "validated_at": "2026-08-05T20:31:00.000Z",
+      "checks": [
+        "one reviewed work revision with exactly its declared file scope",
+        "file operations match the Source Snapshot",
+        "required Contract Input cardinality",
+        "binding membership, kind, and exact-version compatibility",
+        "every Context Set member has an explicit binding",
+        "every Accepted Requirement has a traceability path",
+        "one Agent Package per file",
+        "documented interface context is routed only to its declared owners and consumers",
+        "Run Rules, Agent Input, and Agent Package digests reproduce",
+        "Run Rules match the Plan Manifest, reviewed work, File Brief, target, and operation"
+      ],
+      "outcome": "valid",
+      "finding_count": 0
+    },
+    "pre_approval_export_rejected": true,
+    "rejection_message": "Coding Pass 260f0dda-64de-464b-88a9-2a984e9538b2 is not approved with a complete frozen payload set",
+    "publication_decision_count": 0,
+    "exact_digest_set": {
+      "manifest": {
+        "protocol_id": "71017ec7-25dc-4fdb-b424-42d369f65cd5",
+        "content_digest": "sha256:fbfc6e54bedcff499b7d626aa7adb7883c196ada1ec005923dd1d1c837587345"
+      },
+      "compilation_report": {
+        "protocol_id": "573a1e63-5758-4f19-ac23-27bcff336f5c",
+        "content_digest": "sha256:7e86e37fc34f18a2afdbfb7dad382f421d1f90d8b8c9a90141dd5a937332c316"
+      },
+      "pass": {
+        "protocol_id": "260f0dda-64de-464b-88a9-2a984e9538b2",
+        "content_digest": "sha256:760af2460ded4442710090cf95c0cceca06ce5356b48fd708d686863128fda15"
+      },
+      "payloads": [
+        {
+          "payload_id": "3f5cf524-7753-4894-ad43-c02f271ed443",
+          "target_path": "src/account-label.ts",
+          "control_digest": "sha256:df6c832f6a1a50ab47ea82d9fc717dab858b04976c14c42227769196bde86b5d",
+          "agent_input_digest": "sha256:d743fb7f064076594e7940ae76facd94d52b8a4d7485cce5fee837c3c18c3bd7",
+          "payload_digest": "sha256:62f2054749e9e0d4768be86d06d7705af4cbb58a78846891b1e1a85fb236379a"
+        },
+        {
+          "payload_id": "22f194ed-03c4-4bbf-a9a6-8d88576c586b",
+          "target_path": "src/schema.ts",
+          "control_digest": "sha256:3a8e9228079e0658d158517f59302d68c27669d57da7f1d5e5f1ef220004d2ab",
+          "agent_input_digest": "sha256:fafc255479c89937ff9c149bf813967d2f39b72629ca1c74fd9b2c11b24bd2a1",
+          "payload_digest": "sha256:bee4a182312d293707601cfab176b0020c97b4e0a75914710f1a9441e25e6f11"
+        }
+      ]
+    }
+  },
+  "manual_interventions": [
+    "The current Codex agent authored the complete Bundle while following the versioned local SCORE authoring skill.",
+    "During artifact review, the agent sharpened the authoring skill completion criterion and updated the Bundle's Compilation Procedure and Compiler Input Revision source digests to the newly accepted bytes before the final clean reproduction.",
+    "No SQL row, persistent Protocol Identifier, proposed-object digest, Harness Payload, or Markdown prompt was manually authored.",
+    "No validation repair was applied to the valid Bundle; the malformed submissions are deliberate conformance mutations."
+  ],
+  "deviations_and_limitations": [
+    "The relational DDL is the smallest experimental schema needed by this fixture; docs/sqlite-alpha.md explicitly labels its table list provisional.",
+    "Opaque Protocol Identifiers are assigned by deterministic experiment code so independent clean reproductions can be compared; they remain distinct from Content Digests.",
+    "The disposable ScoreAlpha class still co-locates several materializer and publication responsibilities; an independent Standards review flagged that maintainability seam, but it was not split into production architecture for this narrow proof.",
+    "This evidence proves only compilation, deterministic storage/materialization, review, and the publication/export gate. No Cursor agent ran and no application file was produced."
+  ]
+}

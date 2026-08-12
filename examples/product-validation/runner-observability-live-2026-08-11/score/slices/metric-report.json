@@ -1,0 +1,127 @@
+{
+  "slice_id": "runner-observability-three-file",
+  "title": "Runner observability three-file proof",
+  "objective": "Create a small typed metric dependency chain whose three independent File Jobs make concurrent Runner progress visible.",
+  "requirements": [
+    "Metric records expose key, label, value, unit, and highlighted fields with the exact planned types.",
+    "formatMetric emits the metric label, a colon, its numeric value, and its unit with stable spacing.",
+    "summarizeMetrics preserves input order, includes only highlighted metrics, reports the highlighted count, and returns No highlighted metrics when none qualify."
+  ],
+  "files": [
+    {
+      "path": "src/metric.ts",
+      "operation": "create",
+      "task": "Define the metric contract.",
+      "requirements": [
+        "Metric records expose key, label, value, unit, and highlighted fields with the exact planned types."
+      ],
+      "owns": [
+        {
+          "name": "Metric",
+          "description": "Describes one measured value and whether it belongs in the highlighted report.",
+          "declaration": "export interface Metric { key: string; label: string; value: number; unit: string; highlighted: boolean; }"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/report-intent.md",
+          "purpose": "Defines the metric vocabulary and output behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Minimal metric contract",
+          "content": "Export exactly the planned Metric interface. Keep every property required and add no runtime behavior or extra exports."
+        }
+      ],
+      "constraints": [
+        "Do not change another file.",
+        "Do not add declarations beyond Metric."
+      ]
+    },
+    {
+      "path": "src/format-metric.ts",
+      "operation": "create",
+      "task": "Format one metric with stable punctuation and spacing.",
+      "requirements": [
+        "formatMetric emits the metric label, a colon, its numeric value, and its unit with stable spacing."
+      ],
+      "owns": [
+        {
+          "name": "formatMetric",
+          "description": "Formats one metric label, numeric value, and unit for display.",
+          "declaration": "export function formatMetric(metric: Metric): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Metric",
+          "from": "src/metric.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/report-intent.md",
+          "purpose": "Defines the exact metric label behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext metric formatter",
+          "content": "Use an import type for Metric and the exact NodeNext-relative module specifier supplied in the Agent Input. Return the label, colon, value, and unit without mutating the metric."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Metric } from \"./metric.js\";`.",
+        "Return exactly `${metric.label}: ${metric.value} ${metric.unit}`.",
+        "Export only formatMetric.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/metric-report.ts",
+      "operation": "create",
+      "task": "Compose the highlighted metric report from the shared formatter.",
+      "requirements": [
+        "summarizeMetrics preserves input order, includes only highlighted metrics, reports the highlighted count, and returns No highlighted metrics when none qualify."
+      ],
+      "owns": [
+        {
+          "name": "summarizeMetrics",
+          "description": "Builds the ordered human-readable report of highlighted metrics.",
+          "declaration": "export function summarizeMetrics(metrics: readonly Metric[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Metric",
+          "from": "src/metric.ts"
+        },
+        {
+          "name": "formatMetric",
+          "from": "src/format-metric.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/report-intent.md",
+          "purpose": "Defines filtering, ordering, header, and empty behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Stable metric report",
+          "content": "Filter without sorting or mutating. For one highlighted metric use `1 highlighted metric`; otherwise use `{count} highlighted metrics`. Put each formatted metric on its own following line. Return exactly `No highlighted metrics` when the filtered list is empty."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Metric } from \"./metric.js\";`.",
+        "Use exactly `import { formatMetric } from \"./format-metric.js\";`.",
+        "Call formatMetric(metric) for each highlighted metric.",
+        "Export only summarizeMetrics.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "slice_id": "pipeline-summary",
+  "after": ["pipeline-emphasis"],
+  "title": "Pipeline summary",
+  "objective": "Add the final labeled pipeline result while retaining both applied predecessor capabilities.",
+  "requirements": [
+    "baseMessage and emphasizeMessage retain their applied behavior.",
+    "summarizePipeline returns Result: followed by one space and the emphasized message."
+  ],
+  "files": [
+    {
+      "path": "src/pipeline.ts",
+      "operation": "modify",
+      "task": "Preserve both applied functions and add the final summary composer.",
+      "requirements": [
+        "baseMessage and emphasizeMessage retain their applied behavior.",
+        "summarizePipeline returns Result: followed by one space and the emphasized message."
+      ],
+      "owns": [
+        {
+          "name": "baseMessage",
+          "description": "Preserves the applied normalized base greeting.",
+          "declaration": "export function baseMessage(name: string): string;"
+        },
+        {
+          "name": "emphasizeMessage",
+          "description": "Preserves the applied emphasized greeting.",
+          "declaration": "export function emphasizeMessage(name: string): string;"
+        },
+        {
+          "name": "summarizePipeline",
+          "description": "Labels the emphasized greeting as the final pipeline result.",
+          "declaration": "export function summarizePipeline(name: string): string;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/pipeline-intent.md",
+          "purpose": "Defines final composition and predecessor preservation."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Final pipeline composition",
+          "content": "Keep both functions from the supplied target content semantically unchanged. Add summarizePipeline as a pure function that delegates to emphasizeMessage and returns `Result: ${emphasized}`. Export exactly the three planned functions."
+        }
+      ],
+      "constraints": [
+        "Do not duplicate greeting or emphasis logic.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

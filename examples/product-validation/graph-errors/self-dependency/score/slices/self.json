@@ -1,0 +1,18 @@
+{
+  "slice_id": "self-dependent",
+  "after": ["self-dependent"],
+  "title": "Self dependency",
+  "objective": "Reference this same slice as a predecessor.",
+  "requirements": ["value returns self."],
+  "files": [{
+    "path": "src/value.ts",
+    "operation": "modify",
+    "task": "Return self.",
+    "requirements": ["value returns self."],
+    "owns": [{"name":"value","description":"Returns the value for the self-dependency fixture.","declaration":"export function value(): string;"}],
+    "consumes": [],
+    "context": [],
+    "skills": [{"name":"Exact value","content":"Return the string self."}],
+    "constraints": ["Do not change another file."]
+  }]
+}

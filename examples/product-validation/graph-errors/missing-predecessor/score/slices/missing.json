@@ -1,0 +1,18 @@
+{
+  "slice_id": "needs-missing",
+  "after": ["not-present"],
+  "title": "Missing predecessor",
+  "objective": "Reference a predecessor absent from the draft set.",
+  "requirements": ["value returns missing."],
+  "files": [{
+    "path": "src/value.ts",
+    "operation": "modify",
+    "task": "Return missing.",
+    "requirements": ["value returns missing."],
+    "owns": [{"name":"value","description":"Returns the value for the missing-predecessor fixture.","declaration":"export function value(): string;"}],
+    "consumes": [],
+    "context": [],
+    "skills": [{"name":"Exact value","content":"Return the string missing."}],
+    "constraints": ["Do not change another file."]
+  }]
+}

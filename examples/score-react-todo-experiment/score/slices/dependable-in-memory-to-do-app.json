@@ -1,0 +1,147 @@
+{
+  "slice_id": "dependable-in-memory-to-do-app",
+  "title": "Dependable in-memory to-do app",
+  "objective": "Produce the accepted in-memory to-do experience while keeping pure task-state behavior separate from semantic UI.",
+  "requirements": [
+    "The page presents one primary Tasks heading, a semantic task-creation form labeled New task with an Add task submit action, an identified All/Active/Completed filter group whose current selection is programmatically exposed, and an always-present semantic task list with one labeled native checkbox per visible task.",
+    "Adding a title trims leading and trailing whitespace, rejects empty or whitespace-only input, and appends one active task in creation order.",
+    "Submitting a valid title clears the task input, while submitting an invalid title adds no task.",
+    "Toggling a task changes only that task's completion state while preserving every task's identity, title, and order.",
+    "Filtering for all, active, or completed tasks returns only matching tasks in creation order without mutating or reordering the underlying collection.",
+    "All is selected initially, changing filters only changes the visible view, the current filter is programmatically exposed, and each selected view has concise filter-specific empty-state copy.",
+    "Task and filter state remain in React memory for the current page session, with no persistence, accounts, backend, routing, synchronization, or networking.",
+    "The implementation preserves the existing starter container and stylesheet unchanged, uses native keyboard-operable controls with logical focus order and visible browser focus, and remains usable at a 320-pixel viewport without horizontal page scrolling."
+  ],
+  "files": [
+    {
+      "path": "src/todo.ts",
+      "operation": "modify",
+      "task": "Own the task contract and pure immutable operations for adding, toggling, and filtering tasks.",
+      "requirements": [
+        "Adding a title trims leading and trailing whitespace, rejects empty or whitespace-only input, and appends one active task in creation order.",
+        "Toggling a task changes only that task's completion state while preserving every task's identity, title, and order.",
+        "Filtering for all, active, or completed tasks returns only matching tasks in creation order without mutating or reordering the underlying collection."
+      ],
+      "owns": [
+        {
+          "name": "Task",
+          "description": "Defines one in-memory task's identity, title, and completion state.",
+          "declaration": "export interface Task { id: number; title: string; completed: boolean; }"
+        },
+        {
+          "name": "addTask",
+          "description": "Returns a collection with one normalized active task appended for valid input.",
+          "declaration": "export declare function addTask(tasks: readonly Task[], title: string): readonly Task[];"
+        },
+        {
+          "name": "toggleTask",
+          "description": "Returns a collection with only the matching task's completion state toggled.",
+          "declaration": "export declare function toggleTask(tasks: readonly Task[], taskId: number): readonly Task[];"
+        },
+        {
+          "name": "filterTasks",
+          "description": "Returns the tasks visible for the selected filter without reordering them.",
+          "declaration": "export declare function filterTasks(tasks: readonly Task[], filter: \"all\" | \"active\" | \"completed\"): readonly Task[];"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/product-brief.md",
+          "purpose": "Defines accepted task behavior, in-memory lifetime, and non-goals for the state module."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines the exact state transitions, ordering, and non-mutation behavior this module must support."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Immutable task-state transitions",
+          "content": "Implement these operations as small deterministic functions. Never mutate the input array or existing task objects. For a valid addition, trim the title, derive the next numeric id as one greater than the greatest existing id (starting at 1), and append exactly one active task. Return the original array for a blank title. Toggle by id by replacing only the matching task object. Filter without sorting so input order is retained. Export only the declarations owned by this file."
+        }
+      ],
+      "constraints": [
+        "Use no browser, React, storage, time, random, or network APIs.",
+        "Use the exact exported declarations and explicit parameter and return types in the shared contract.",
+        "Do not add persistence or expand the accepted task model.",
+        "Do not change any other file."
+      ]
+    },
+    {
+      "path": "src/App.tsx",
+      "operation": "modify",
+      "task": "Own the semantic in-memory to-do interface backed by the shared task-state operations.",
+      "requirements": [
+        "The page presents one primary Tasks heading, a semantic task-creation form labeled New task with an Add task submit action, an identified All/Active/Completed filter group whose current selection is programmatically exposed, and an always-present semantic task list with one labeled native checkbox per visible task.",
+        "Adding a title trims leading and trailing whitespace, rejects empty or whitespace-only input, and appends one active task in creation order.",
+        "Submitting a valid title clears the task input, while submitting an invalid title adds no task.",
+        "Toggling a task changes only that task's completion state while preserving every task's identity, title, and order.",
+        "Filtering for all, active, or completed tasks returns only matching tasks in creation order without mutating or reordering the underlying collection.",
+        "All is selected initially, changing filters only changes the visible view, the current filter is programmatically exposed, and each selected view has concise filter-specific empty-state copy.",
+        "Task and filter state remain in React memory for the current page session, with no persistence, accounts, backend, routing, synchronization, or networking.",
+        "The implementation preserves the existing starter container and stylesheet unchanged, uses native keyboard-operable controls with logical focus order and visible browser focus, and remains usable at a 320-pixel viewport without horizontal page scrolling."
+      ],
+      "owns": [
+        {
+          "name": "App",
+          "description": "Owns the in-memory task experience and composes creation, toggling, filtering, and empty states.",
+          "declaration": "export declare function App(): JSX.Element;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/todo.ts"
+        },
+        {
+          "name": "addTask",
+          "from": "src/todo.ts"
+        },
+        {
+          "name": "toggleTask",
+          "from": "src/todo.ts"
+        },
+        {
+          "name": "filterTasks",
+          "from": "src/todo.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/product-brief.md",
+          "purpose": "Defines the full accepted user behavior, in-memory lifetime, and non-goals for the app."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines the observable initial, add, toggle, filter, ordering, and empty-state behavior."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines exact copy, semantic structure, accessibility, keyboard, focus, and 320-pixel constraints."
+        },
+        {
+          "path": "src/styles.css",
+          "purpose": "Shows the frozen starter container and available class names that the component must preserve without editing CSS."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Accessible native React interactions",
+          "content": "Prefer native form, button, list, label, and checkbox elements so keyboard behavior and accessible names require no custom event emulation. Keep one controlled text input, in-memory task state, and an all|active|completed filter state initialized to all. On submit, always delegate normalization and blank rejection to addTask, and clear the field only when addTask returns a changed collection. Render filter buttons in a named group with aria-pressed true only on the current filter. Always render the semantic task list, including when it has no visible tasks, and render concise filter-specific empty copy alongside an empty list. Export only App and annotate its return type exactly as planned."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./todo\";`.",
+        "Use exactly `import { addTask, filterTasks, toggleTask } from \"./todo\";`.",
+        "Call the domain functions with exactly `addTask(tasks, title)`, `toggleTask(tasks, taskId)`, and `filterTasks(tasks, filter)`.",
+        "Keep main.starter as the outer container and retain the existing SCORE experiment eyebrow.",
+        "Use type-only imports for JSX and Task and value imports for addTask, toggleTask, and filterTasks.",
+        "Do not implement task-state rules a second time in the component.",
+        "Do not edit styles.css or use inline visual styling.",
+        "Do not add editing, deletion, persistence, routing, networking, or dependencies.",
+        "Do not change any other file."
+      ]
+    }
+  ]
+}

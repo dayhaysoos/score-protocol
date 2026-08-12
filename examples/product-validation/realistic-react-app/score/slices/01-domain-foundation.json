@@ -1,0 +1,139 @@
+{
+  "slice_id": "focus-board-domain",
+  "title": "Focus Board domain foundation",
+  "objective": "Create the immutable task contract, state transitions, filtering, and completion count for Focus Board.",
+  "requirements": [
+    "Task exposes a numeric id, title, completed state, and work-or-personal group with the exact planned types.",
+    "createTask trims titles, rejects blank input by returning the original collection, appends one active task in creation order, and allocates one greater than the greatest existing id starting at 1.",
+    "toggleTask changes only the matching task's completed state without mutating the input collection or other task objects.",
+    "filterTasks returns all, active, or completed tasks in creation order without mutating input, and countCompleted returns the completed count."
+  ],
+  "files": [
+    {
+      "path": "src/domain/task.ts",
+      "operation": "create",
+      "task": "Own the stable task contract shared by state and interface modules.",
+      "requirements": [
+        "Task exposes a numeric id, title, completed state, and work-or-personal group with the exact planned types."
+      ],
+      "owns": [
+        {
+          "name": "Task",
+          "description": "Defines the complete task data shared by domain operations and interface components.",
+          "declaration": "export interface Task { id: number; title: string; completed: boolean; group: \"work\" | \"personal\"; }"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines the accepted task identity, title, completion, and group fields."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Stable domain contract",
+          "content": "Export exactly the planned Task interface with four required properties. Add no values, defaults, aliases, runtime behavior, or extra exports."
+        }
+      ],
+      "constraints": [
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/domain/task-operations.ts",
+      "operation": "create",
+      "task": "Own immutable task creation and toggle transitions.",
+      "requirements": [
+        "createTask trims titles, rejects blank input by returning the original collection, appends one active task in creation order, and allocates one greater than the greatest existing id starting at 1.",
+        "toggleTask changes only the matching task's completed state without mutating the input collection or other task objects."
+      ],
+      "owns": [
+        {
+          "name": "createTask",
+          "description": "Returns a task collection with one normalized active task appended when the title is valid.",
+          "declaration": "export function createTask(tasks: readonly Task[], title: string, group: \"work\" | \"personal\"): readonly Task[];"
+        },
+        {
+          "name": "toggleTask",
+          "description": "Returns a task collection with only the matching task's completion state toggled.",
+          "declaration": "export function toggleTask(tasks: readonly Task[], taskId: number): readonly Task[];"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/domain/task.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines task creation, blank rejection, ordering, and toggle behavior."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Provides concrete state-transition examples for QA."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Immutable state transitions",
+          "content": "Use a type-only Task import from the supplied module path. Never mutate the input array or existing objects. For createTask, trim once, return the original array for blank input, derive the next id from the greatest current id or 1 when empty, and append an active task with the supplied group. For toggleTask, map and replace only the matching object; return unchanged objects for every other task. Export only the two planned functions."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./task\";`.",
+        "Use no browser, time, random, storage, or network APIs.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/domain/task-query.ts",
+      "operation": "create",
+      "task": "Own ordered task filtering and completion counting.",
+      "requirements": [
+        "filterTasks returns all, active, or completed tasks in creation order without mutating input, and countCompleted returns the completed count."
+      ],
+      "owns": [
+        {
+          "name": "filterTasks",
+          "description": "Selects tasks for the requested filter while preserving their creation order.",
+          "declaration": "export function filterTasks(tasks: readonly Task[], filter: \"all\" | \"active\" | \"completed\"): readonly Task[];"
+        },
+        {
+          "name": "countCompleted",
+          "description": "Counts the completed tasks in the supplied collection.",
+          "declaration": "export function countCompleted(tasks: readonly Task[]): number;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/domain/task.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines filter vocabulary, ordering, and summary behavior."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines observable filter and completion-count expectations."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Pure query functions",
+          "content": "Use a type-only Task import from the supplied module path. Return the original collection for `all`; filter for active or completed without sorting; count completed tasks without mutation. Export only filterTasks and countCompleted."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./task\";`.",
+        "Use no browser or React APIs.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

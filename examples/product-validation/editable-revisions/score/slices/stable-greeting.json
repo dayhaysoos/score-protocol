@@ -1,0 +1,37 @@
+{
+  "slice_id": "stable-greeting",
+  "title": "Warm greeting",
+  "objective": "Make the existing greeting welcoming and explicit while preserving its signature.",
+  "requirements": [
+    "greeting returns Welcome, followed by the supplied name and an exclamation mark."
+  ],
+  "files": [
+    {
+      "path": "src/greeting.ts",
+      "operation": "modify",
+      "task": "Update the greeting word and punctuation without changing the public function boundary.",
+      "requirements": [
+        "greeting returns Welcome, followed by the supplied name and an exclamation mark."
+      ],
+      "owns": [
+        {
+          "name": "greeting",
+          "description": "Returns the supplied name in the accepted welcoming sentence.",
+          "declaration": "export function greeting(name: string): string;"
+        }
+      ],
+      "consumes": [],
+      "context": [],
+      "skills": [
+        {
+          "name": "Exact greeting copy",
+          "content": "Keep the function pure and return `Welcome, ${name}!` without trimming or changing the supplied name."
+        }
+      ],
+      "constraints": [
+        "Preserve the exported signature.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

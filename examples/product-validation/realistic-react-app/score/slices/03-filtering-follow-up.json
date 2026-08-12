@@ -1,0 +1,183 @@
+{
+  "slice_id": "focus-board-filtering",
+  "after": ["focus-board-interface"],
+  "title": "Focus Board filtering follow-up",
+  "objective": "Add a programmatically exposed filter control and completion summary to the applied primary interface.",
+  "requirements": [
+    "FilterBar renders All, Active, and Completed native buttons in a group named Task filters, with aria-pressed true only for the current filter.",
+    "App initializes the current filter to all, delegates visible-task selection and completion counting to the applied query functions, preserves underlying task order and state, and displays {completed} of {total} complete.",
+    "Each filtered view keeps the semantic task list and shows concise filter-specific empty copy when it has no visible tasks."
+  ],
+  "files": [
+    {
+      "path": "src/components/FilterBar.tsx",
+      "operation": "modify",
+      "task": "Create the accessible three-option task filter control.",
+      "requirements": [
+        "FilterBar renders All, Active, and Completed native buttons in a group named Task filters, with aria-pressed true only for the current filter."
+      ],
+      "owns": [
+        {
+          "name": "FilterBarProps",
+          "description": "Defines the selected filter and callback used to request a filter change.",
+          "declaration": "export interface FilterBarProps { current: \"all\" | \"active\" | \"completed\"; onChange: (filter: \"all\" | \"active\" | \"completed\") => void; }"
+        },
+        {
+          "name": "FilterBar",
+          "description": "Renders the accessible filter controls and reports selections through onChange.",
+          "declaration": "export function FilterBar(props: FilterBarProps): JSX.Element;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines filter copy, programmatic selected state, and keyboard behavior."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines group naming and frozen filter class names."
+        },
+        {
+          "path": "src/styles.css",
+          "purpose": "Provides filter-group and filter-button classes including visible selected state."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Accessible pressed-button group",
+          "content": "Import type { JSX } from react. Export exactly FilterBarProps and FilterBar with the planned signatures and `props` identifier. In FilterBarProps, repeat the exact inline union `\"all\" | \"active\" | \"completed\"` for both current and the onChange parameter; do not substitute a type alias. Render a div.filter-group with role=group and aria-label exactly `Task filters`. Render All, Active, and Completed as native type=button elements with class filter-button, aria-pressed comparing each exact lowercase ID to props.current, and onClick calling props.onChange with that ID."
+        }
+      ],
+      "constraints": [
+        "Do not create custom keyboard handling for native buttons.",
+        "Do not edit CSS or another file."
+      ]
+    },
+    {
+      "path": "src/App.tsx",
+      "operation": "modify",
+      "task": "Extend the applied interface with filtering, summary, and filter-specific empty messaging.",
+      "requirements": [
+        "App initializes the current filter to all, delegates visible-task selection and completion counting to the applied query functions, preserves underlying task order and state, and displays {completed} of {total} complete.",
+        "Each filtered view keeps the semantic task list and shows concise filter-specific empty copy when it has no visible tasks."
+      ],
+      "owns": [
+        {
+          "name": "App",
+          "description": "Composes task state, filtering, completion summary, creation, and list rendering.",
+          "declaration": "export function App(): JSX.Element;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "FilterBarProps",
+          "from": "src/components/FilterBar.tsx"
+        },
+        {
+          "name": "FilterBar",
+          "from": "src/components/FilterBar.tsx"
+        },
+        {
+          "name": "TaskListProps",
+          "from": "src/components/TaskList.tsx"
+        },
+        {
+          "name": "TaskList",
+          "from": "src/components/TaskList.tsx"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/domain/task-query.ts",
+          "purpose": "Supplies the applied filterTasks and countCompleted functions for delegation."
+        },
+        {
+          "path": "src/components/TaskList.tsx",
+          "purpose": "Shows the applied always-present semantic list and its generic empty behavior."
+        },
+        {
+          "path": "docs/product-intent.md",
+          "purpose": "Defines initial filter, summary copy, ordering, and non-goals."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines observable filter transitions, summary updates, and empty views."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines board-toolbar, summary, and filter placement."
+        },
+        {
+          "path": "src/styles.css",
+          "purpose": "Provides frozen toolbar, summary, filter, and empty-state styling."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Applied-interface extension",
+          "content": "Preserve the complete applied add-and-toggle interface and its imports, including import type { JSX } from react. Export only App with the exact planned signature. Add local filter state typed as `all | active | completed` and initialized to all. Import filterTasks and countCompleted from ./domain/task-query and delegate visible selection/counting. Import FilterBar from its exact supplied path and pass the filter state with the exact prop name `current` plus the setter with the exact prop name `onChange`; do not invent alternate prop names. Between composer and list render div.board-toolbar containing p.summary with `${completed} of ${tasks.length} complete` and FilterBar. Choose exactly one emptyMessage: `No active tasks.` for active, `No completed tasks.` for completed, and `No tasks yet.` for all. Pass filtered tasks, the existing toggle callback, and emptyMessage to TaskList. Do not render another empty-state paragraph in App; TaskList owns the sole empty message and always-present ul."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import { countCompleted, filterTasks } from \"./domain/task-query\";`.",
+        "Use exactly `import { FilterBar } from \"./components/FilterBar\";`.",
+        "Use exactly `import { TaskList } from \"./components/TaskList\";`.",
+        "Pass filter state and its change callback through the exact FilterBar JSX prop names `current` and `onChange`.",
+        "Pass the visible collection, toggle callback, and empty-state copy through the exact TaskList JSX prop names `tasks`, `onToggle`, and `emptyMessage`.",
+        "Do not filter or reorder the underlying task state.",
+        "Do not edit CSS, other components, configuration, or another file."
+      ]
+    },
+    {
+      "path": "src/components/TaskList.tsx",
+      "operation": "modify",
+      "task": "Let the applied semantic list render one caller-supplied empty message.",
+      "requirements": [
+        "Each filtered view keeps the semantic task list and shows concise filter-specific empty copy when it has no visible tasks."
+      ],
+      "owns": [
+        {
+          "name": "TaskListProps",
+          "description": "Defines the visible tasks, toggle callback, and caller-selected empty-state message.",
+          "declaration": "export interface TaskListProps { tasks: readonly Task[]; onToggle: (taskId: number) => void; emptyMessage: string; }"
+        },
+        {
+          "name": "TaskList",
+          "description": "Renders the semantic task list and the supplied empty-state message when needed.",
+          "declaration": "export function TaskList(props: TaskListProps): JSX.Element;"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/components/TaskItem.tsx",
+          "purpose": "Supplies the applied TaskItem named import preserved by the list."
+        },
+        {
+          "path": "src/domain/task.ts",
+          "purpose": "Supplies the exact applied Task contract preserved by the list."
+        },
+        {
+          "path": "docs/acceptance.md",
+          "purpose": "Defines the always-present list and filter-specific empty copy."
+        },
+        {
+          "path": "docs/design.md",
+          "purpose": "Defines the frozen task-list and empty-state classes."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Single semantic empty state",
+          "content": "Preserve the applied named imports, ordered task mapping, TaskItem delegation, and always-present ul.task-list. Export exactly TaskListProps and TaskList with the planned signatures and `props` identifier. Add the exact emptyMessage string prop to TaskListProps. When props.tasks is empty, render exactly one p.empty-state beside the ul using props.emptyMessage; otherwise render no empty-state paragraph."
+        }
+      ],
+      "constraints": [
+        "Do not reimplement TaskItem.",
+        "Do not sort tasks.",
+        "Do not edit CSS or another file."
+      ]
+    }
+  ]
+}

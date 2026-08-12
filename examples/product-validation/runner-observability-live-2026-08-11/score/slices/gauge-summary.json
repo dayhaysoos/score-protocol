@@ -1,0 +1,127 @@
+{
+  "slice_id": "runner-observability-terminal-safe-three-file",
+  "title": "Runner observability terminal-safe three-file proof",
+  "objective": "Create a small typed gauge dependency chain whose three isolated File Jobs validate the final terminal-safe Runner live feed.",
+  "requirements": [
+    "Gauge records expose label, amount, suffix, and featured fields with the exact planned types.",
+    "formatGauge emits the gauge label, a colon, its numeric amount, and its suffix with stable spacing.",
+    "summarizeGauges preserves input order, includes only featured gauges, reports the featured count, and returns No featured gauges when none qualify."
+  ],
+  "files": [
+    {
+      "path": "src/gauge.ts",
+      "operation": "create",
+      "task": "Define the gauge contract.",
+      "requirements": [
+        "Gauge records expose label, amount, suffix, and featured fields with the exact planned types."
+      ],
+      "owns": [
+        {
+          "name": "Gauge",
+          "description": "Describes one gauge and whether it belongs in the featured summary.",
+          "declaration": "export interface Gauge { label: string; amount: number; suffix: string; featured: boolean; }"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/gauge-intent.md",
+          "purpose": "Defines the gauge vocabulary and summary behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Minimal gauge contract",
+          "content": "Export exactly the planned Gauge interface. Keep every property required and add no runtime behavior or extra exports."
+        }
+      ],
+      "constraints": [
+        "Do not change another file.",
+        "Do not add declarations beyond Gauge."
+      ]
+    },
+    {
+      "path": "src/format-gauge.ts",
+      "operation": "create",
+      "task": "Format one gauge with stable punctuation and spacing.",
+      "requirements": [
+        "formatGauge emits the gauge label, a colon, its numeric amount, and its suffix with stable spacing."
+      ],
+      "owns": [
+        {
+          "name": "formatGauge",
+          "description": "Formats one gauge label, numeric amount, and suffix for display.",
+          "declaration": "export function formatGauge(gauge: Gauge): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Gauge",
+          "from": "src/gauge.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/gauge-intent.md",
+          "purpose": "Defines the exact gauge label behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext gauge formatter",
+          "content": "Use an import type for Gauge and the exact NodeNext-relative module specifier supplied in the Agent Input. Return the label, colon, amount, and suffix without mutating the gauge."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Gauge } from \"./gauge.js\";`.",
+        "Return exactly `${gauge.label}: ${gauge.amount} ${gauge.suffix}`.",
+        "Export only formatGauge.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/gauge-summary.ts",
+      "operation": "create",
+      "task": "Compose the featured-gauge summary from the shared formatter.",
+      "requirements": [
+        "summarizeGauges preserves input order, includes only featured gauges, reports the featured count, and returns No featured gauges when none qualify."
+      ],
+      "owns": [
+        {
+          "name": "summarizeGauges",
+          "description": "Builds the ordered human-readable summary of featured gauges.",
+          "declaration": "export function summarizeGauges(gauges: readonly Gauge[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Gauge",
+          "from": "src/gauge.ts"
+        },
+        {
+          "name": "formatGauge",
+          "from": "src/format-gauge.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/gauge-intent.md",
+          "purpose": "Defines filtering, ordering, header, and empty behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Stable gauge summary",
+          "content": "Filter without sorting or mutating. For one featured gauge use `1 featured gauge`; otherwise use `{count} featured gauges`. Put each formatted gauge on its own following line. Return exactly `No featured gauges` when the filtered list is empty."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Gauge } from \"./gauge.js\";`.",
+        "Use exactly `import { formatGauge } from \"./format-gauge.js\";`.",
+        "Call formatGauge(gauge) for each featured gauge.",
+        "Export only summarizeGauges.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

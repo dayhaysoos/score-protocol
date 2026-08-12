@@ -1,0 +1,191 @@
+{
+  "slice_id": "task-board-status-report",
+  "title": "Task board status report",
+  "objective": "Add assignee-aware task formatting and a concise board summary across the five-file dependency chain.",
+  "requirements": [
+    "Every Task records an assignee name.",
+    "priorityLabel returns the uppercase label LOW, MEDIUM, or HIGH.",
+    "formatTask returns [PRIORITY] title — assignee and appends a check mark when the task is complete.",
+    "formatTaskList preserves input order and returns one formatted task per line.",
+    "summarizeTasks starts with the total and completed counts, followed by the formatted task list when tasks exist."
+  ],
+  "files": [
+    {
+      "path": "src/task.ts",
+      "operation": "modify",
+      "task": "Add the required assignee field to the Task contract.",
+      "requirements": [
+        "Every Task records an assignee name."
+      ],
+      "owns": [
+        {
+          "name": "Task",
+          "description": "Defines the task identity, display fields, priority, completion state, and assignee.",
+          "declaration": "export interface Task { id: string; title: string; priority: \"low\" | \"medium\" | \"high\"; completed: boolean; assignee: string; }"
+        }
+      ],
+      "consumes": [],
+      "context": [],
+      "skills": [
+        {
+          "name": "Contract discipline",
+          "content": "Preserve every existing Task property and add only the planned required property."
+        }
+      ],
+      "constraints": [
+        "Keep Task exported.",
+        "Do not make assignee optional."
+      ]
+    },
+    {
+      "path": "src/priority.ts",
+      "operation": "modify",
+      "task": "Return stable uppercase labels for every supported task priority.",
+      "requirements": [
+        "priorityLabel returns the uppercase label LOW, MEDIUM, or HIGH."
+      ],
+      "owns": [
+        {
+          "name": "priorityLabel",
+          "description": "Maps a task priority to its stable uppercase display label.",
+          "declaration": "export function priorityLabel(priority: Task[\"priority\"]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/task.ts"
+        }
+      ],
+      "context": [],
+      "skills": [
+        {
+          "name": "Exhaustive domain mapping",
+          "content": "Handle every declared priority explicitly and do not add a fallback for values outside the Task contract."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./task.js\";`.",
+        "Keep the function pure.",
+        "Preserve the exported signature."
+      ]
+    },
+    {
+      "path": "src/format-task.ts",
+      "operation": "modify",
+      "task": "Format one task with its uppercase priority, title, assignee, and completion state.",
+      "requirements": [
+        "formatTask returns [PRIORITY] title — assignee and appends a check mark when the task is complete."
+      ],
+      "owns": [
+        {
+          "name": "formatTask",
+          "description": "Formats one task with its priority, title, assignee, and completion marker.",
+          "declaration": "export function formatTask(task: Task): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/task.ts"
+        },
+        {
+          "name": "priorityLabel",
+          "from": "src/priority.ts"
+        }
+      ],
+      "context": [],
+      "skills": [
+        {
+          "name": "TypeScript module boundaries",
+          "content": "Use import type for type-only dependencies and NodeNext .js specifiers for relative imports."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./task.js\";`.",
+        "Use exactly `import { priorityLabel } from \"./priority.js\";`.",
+        "Call exactly `priorityLabel(task.priority)` to obtain the display label.",
+        "Use an em dash between the title and assignee.",
+        "Append the check mark only for completed tasks."
+      ]
+    },
+    {
+      "path": "src/task-list.ts",
+      "operation": "modify",
+      "task": "Render tasks in their supplied order using the shared task formatter.",
+      "requirements": [
+        "formatTaskList preserves input order and returns one formatted task per line."
+      ],
+      "owns": [
+        {
+          "name": "formatTaskList",
+          "description": "Formats tasks in supplied order with one task on each line.",
+          "declaration": "export function formatTaskList(tasks: readonly Task[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/task.ts"
+        },
+        {
+          "name": "formatTask",
+          "from": "src/format-task.ts"
+        }
+      ],
+      "context": [],
+      "skills": [
+        {
+          "name": "Stable collection formatting",
+          "content": "Do not sort or mutate the input array. Join the shared formatter results with a newline and add no bullet prefix."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./task.js\";`.",
+        "Use exactly `import { formatTask } from \"./format-task.js\";`.",
+        "Call exactly `formatTask(task)` for every task in supplied order.",
+        "Return an empty string for an empty task array.",
+        "Do not duplicate the single-task formatting logic."
+      ]
+    },
+    {
+      "path": "src/index.ts",
+      "operation": "modify",
+      "task": "Produce the board-level count summary and append the formatted task list when non-empty.",
+      "requirements": [
+        "summarizeTasks starts with the total and completed counts, followed by the formatted task list when tasks exist."
+      ],
+      "owns": [
+        {
+          "name": "summarizeTasks",
+          "description": "Builds the board-level total and completion summary followed by the formatted list.",
+          "declaration": "export function summarizeTasks(tasks: readonly Task[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Task",
+          "from": "src/task.ts"
+        },
+        {
+          "name": "formatTaskList",
+          "from": "src/task-list.ts"
+        }
+      ],
+      "context": [],
+      "skills": [
+        {
+          "name": "Summary composition",
+          "content": "Count completed tasks without mutating input. Use the exact header form {total} tasks · {complete} complete and add the formatted list on the next line only when tasks exist."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Task } from \"./task.js\";`.",
+        "Use exactly `import { formatTaskList } from \"./task-list.js\";`.",
+        "Call exactly `formatTaskList(tasks)` for the list portion.",
+        "Keep summarizeTasks pure.",
+        "Do not reimplement formatTaskList."
+      ]
+    }
+  ]
+}

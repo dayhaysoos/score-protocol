@@ -1,0 +1,127 @@
+{
+  "slice_id": "manual-runner-live-feed",
+  "title": "Manual Runner live-feed test",
+  "objective": "Create a small typed sensor dependency chain whose three isolated File Jobs make concurrent Runner progress easy to inspect.",
+  "requirements": [
+    "SensorReading records expose label, value, unit, and featured fields with the exact planned types.",
+    "formatSensor emits the reading label, a colon, its numeric value, and its unit with stable spacing.",
+    "summarizeSensors preserves input order, includes only featured readings, reports the featured count, and returns No featured readings when none qualify."
+  ],
+  "files": [
+    {
+      "path": "src/sensor.ts",
+      "operation": "create",
+      "task": "Define the sensor-reading contract.",
+      "requirements": [
+        "SensorReading records expose label, value, unit, and featured fields with the exact planned types."
+      ],
+      "owns": [
+        {
+          "name": "SensorReading",
+          "description": "Describes one sensor reading and whether it belongs in the featured summary.",
+          "declaration": "export interface SensorReading { label: string; value: number; unit: string; featured: boolean; }"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/sensor-intent.md",
+          "purpose": "Defines the sensor vocabulary and summary behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Minimal sensor contract",
+          "content": "Export exactly the planned SensorReading interface. Keep every property required and add no runtime behavior or extra exports."
+        }
+      ],
+      "constraints": [
+        "Do not change another file.",
+        "Do not add declarations beyond SensorReading."
+      ]
+    },
+    {
+      "path": "src/format-sensor.ts",
+      "operation": "create",
+      "task": "Format one sensor reading with stable punctuation and spacing.",
+      "requirements": [
+        "formatSensor emits the reading label, a colon, its numeric value, and its unit with stable spacing."
+      ],
+      "owns": [
+        {
+          "name": "formatSensor",
+          "description": "Formats one sensor label, numeric value, and unit for display.",
+          "declaration": "export function formatSensor(reading: SensorReading): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "SensorReading",
+          "from": "src/sensor.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/sensor-intent.md",
+          "purpose": "Defines the exact sensor label behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext sensor formatter",
+          "content": "Use an import type for SensorReading and the exact NodeNext-relative module specifier supplied in the Agent Input. Return the label, colon, value, and unit without mutating the reading."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { SensorReading } from \"./sensor.js\";`.",
+        "Return exactly `${reading.label}: ${reading.value} ${reading.unit}`.",
+        "Export only formatSensor.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/sensor-summary.ts",
+      "operation": "create",
+      "task": "Compose the featured sensor summary from the shared formatter.",
+      "requirements": [
+        "summarizeSensors preserves input order, includes only featured readings, reports the featured count, and returns No featured readings when none qualify."
+      ],
+      "owns": [
+        {
+          "name": "summarizeSensors",
+          "description": "Builds the ordered human-readable summary of featured sensor readings.",
+          "declaration": "export function summarizeSensors(readings: readonly SensorReading[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "SensorReading",
+          "from": "src/sensor.ts"
+        },
+        {
+          "name": "formatSensor",
+          "from": "src/format-sensor.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/sensor-intent.md",
+          "purpose": "Defines filtering, ordering, header, and empty behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Stable sensor summary",
+          "content": "Filter without sorting or mutating. For one featured reading use `1 featured reading`; otherwise use `{count} featured readings`. Put each formatted reading on its own following line. Return exactly `No featured readings` when the filtered list is empty."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { SensorReading } from \"./sensor.js\";`.",
+        "Use exactly `import { formatSensor } from \"./format-sensor.js\";`.",
+        "Call formatSensor(reading) for each featured reading.",
+        "Export only summarizeSensors.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

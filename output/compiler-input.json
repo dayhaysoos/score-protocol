@@ -1,0 +1,108 @@
+{
+  "schema": "score.compiler-input-packet",
+  "version": "0.1.0-alpha.4",
+  "accepted_specification": {
+    "protocol_id": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+    "authority": "human-and-llm-deliberation",
+    "accepted_at": "2026-08-05T20:00:00.000Z",
+    "content": {
+      "statement": "Add an account status with the values active and suspended. Update the shared account declaration and create a pure formatter that returns \"<name> [<status>]\". No other file may change.",
+      "accepted_requirements": [
+        {
+          "protocol_id": "66bacb25-b52c-4898-bf49-6789cdf09d87",
+          "label": "AR-1",
+          "statement": "Account has id, name, and the required status field.",
+          "content_digest": "sha256:f9876a0c0154a3dbe7f614f7d198526e5623ef2657bdfbc25fe11a17b12319ee"
+        },
+        {
+          "protocol_id": "36b34c82-c940-4d5b-8762-8f5a38f60e4e",
+          "label": "AR-2",
+          "statement": "formatAccountLabel(account) returns exactly name [status].",
+          "content_digest": "sha256:94ef09f7d5d96b79ecf07ada402f8e9bc19522f23244f81ca750986b458fcef9"
+        },
+        {
+          "protocol_id": "f872366e-dc5c-40c4-a250-70d27d064e08",
+          "label": "AR-3",
+          "statement": "The Pass replaces one declared file and creates one declared file only.",
+          "content_digest": "sha256:ffe3183dbc0ac4151d5714251c4bdaccae38de15d9e88646a87f1d825b47d9b0"
+        }
+      ]
+    },
+    "content_digest": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+  },
+  "accepted_requirements": [
+    {
+      "protocol_id": "66bacb25-b52c-4898-bf49-6789cdf09d87",
+      "label": "AR-1",
+      "statement": "Account has id, name, and the required status field.",
+      "content_digest": "sha256:f9876a0c0154a3dbe7f614f7d198526e5623ef2657bdfbc25fe11a17b12319ee"
+    },
+    {
+      "protocol_id": "36b34c82-c940-4d5b-8762-8f5a38f60e4e",
+      "label": "AR-2",
+      "statement": "formatAccountLabel(account) returns exactly name [status].",
+      "content_digest": "sha256:94ef09f7d5d96b79ecf07ada402f8e9bc19522f23244f81ca750986b458fcef9"
+    },
+    {
+      "protocol_id": "f872366e-dc5c-40c4-a250-70d27d064e08",
+      "label": "AR-3",
+      "statement": "The Pass replaces one declared file and creates one declared file only.",
+      "content_digest": "sha256:ffe3183dbc0ac4151d5714251c4bdaccae38de15d9e88646a87f1d825b47d9b0"
+    }
+  ],
+  "compilation_procedure": {
+    "protocol_id": "d6ce0b6a-f30f-4559-9bf2-fa86f84282f8",
+    "name": "score-authoring",
+    "version": "0.1.0-alpha.4",
+    "profile": "score.coding@0.1.0-alpha.4",
+    "source": "fixtures/account-status-authoring-procedure.md",
+    "content": "---\nname: score-authoring\nversion: 0.1.0-alpha.4\ndescription: Author one complete SCORE Compilation Bundle for the canonical Account Status alpha proof.\n---\n\n# SCORE authoring procedure\n\nUse this procedure only for the current local alpha proof targeting\n`score.compilation-bundle@0.1.0-alpha.4` and `score.coding@0.1.0-alpha.4`.\n\nThe governing meaning and alpha implementation live in this repository. Read\nand follow:\n\n- `README.md`\n- `docs/sqlite-alpha.md`\n- `examples/coding-profile-run.md`\n- `profiles/coding/README.md`\n- `CONTEXT.md`\n- `docs/decisions.md`, especially D-045 through D-066\n\n## Procedure\n\n1. Consume the exact accepted compiler-input packet. Do not reinterpret the\n   accepted Account Status specification or add another target.\n2. Act as the Context Compiler and author one complete Compilation Bundle—not\n   SQL, database rows, persistent identifiers, digests for proposed objects,\n   Harness Payloads, Markdown prompts, approval records, or execution records.\n3. Use readable Bundle-local handles for every proposed object and resolve every\n   internal reference. Deterministic software assigns opaque stored identities.\n4. Compile the full domain graph: Manifest, Compilation Report, Contract Set,\n   Contract and Contract Inputs, Coding Pass, both File Capsules, documented\n   interface Context Items for owners and consumers, Context Sets, typed\n   bindings, capabilities/effects, requirement traceability, and source\n   citations/bindings.\n5. Put every required file-agent fact inline. A path, URL, symbol, source\n   citation, or lookup instruction cannot stand in for required content.\n6. Treat declaration text and descriptions as opaque authored context. Preserve\n   them exactly; do not parse source, infer imports, or derive type semantics.\n7. Give each File Capsule a distinct self-contained Agent Input source graph.\n   Give an owning Capsule its exact documented interface and give a consuming\n   Capsule the same exact documented interface as read-only context. Put any\n   required import statement and supporting type text directly in the authored\n   file instructions or documented interface.\n   Bind every supplied Context Item to at least one Contract Input. Embed the\n   complete TypeScript Module Boundaries skill only for the creator Capsule.\n8. Preserve traceability from all three Accepted Requirements and from each\n   material source citation to the compiled objects it supports.\n9. Put only attributable heuristic warnings in `compiler_findings.warnings`.\n   Put a concrete missing or ambiguous blocking fact in\n   `compiler_findings.compilation_gaps`. Do not label LLM judgment as a\n   deterministic Validation Finding or claim that the context is complete.\n10. Submit the whole Bundle through the compiler-facing interface. React only to\n   its structured deterministic findings; every repair is a linked new\n   submission. Stop if meaning, repository interpretation, a warning waiver, or\n   a Compilation Gap requires human judgment.\n11. After a valid import, request deterministic Publication Review and stop for\n    explicit human approval of the exact identities and digests. Do not record\n    approval, export payloads, or invoke an Executor Adapter yourself.\n\nCompletion criterion: one schema-valid complete Bundle has imported without\nmanual protocol-row or prompt authoring; every Accepted Requirement, Contract\nInput, Context Item, Capsule, skill, and source citation has an explicit path in\nthe review; and work is stopped before Publication Decision.\n\nThe strict schema is\n`schema/compilation-bundle.schema.json`.\n",
+    "content_digest": "sha256:788f79d552d36cc23c25345feab014107f08a53c073e32199dacc8552b2fff24"
+  },
+  "repository_revision": {
+    "protocol_id": "e18bba9e-c676-480a-9dca-bd6905d589ed",
+    "label": "account-status-r1",
+    "files": [
+      {
+        "path": "src/schema.ts",
+        "media_type": "text/typescript; charset=utf-8",
+        "content": "export interface Account {\n  id: string;\n  name: string;\n}\n",
+        "content_digest": "sha256:f5015bbb8e5fd4b979f39d84d21f28f9df2ad02e67ba34595f77e4eea9957371"
+      }
+    ],
+    "absent_paths": [
+      "src/account-label.ts"
+    ],
+    "ordered_manifest": [
+      {
+        "path": "src/schema.ts",
+        "media_type": "text/typescript; charset=utf-8",
+        "content_digest": "sha256:f5015bbb8e5fd4b979f39d84d21f28f9df2ad02e67ba34595f77e4eea9957371"
+      }
+    ],
+    "content_digest": "sha256:1ddc51d8716e7aaa2b371f772d29ffa61b564d9ca47e460e8989cd46248a6783"
+  },
+  "compiler_input_revision": {
+    "protocol_id": "fe0c4e3e-f897-4f34-b5be-634d54cebf65",
+    "authority": "local-alpha-fixture",
+    "accepted_at": "2026-08-05T20:00:00.000Z",
+    "content": {
+      "accepted_specification": {
+        "protocol_id": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+        "content_digest": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+      },
+      "repository_revision": {
+        "protocol_id": "e18bba9e-c676-480a-9dca-bd6905d589ed",
+        "content_digest": "sha256:1ddc51d8716e7aaa2b371f772d29ffa61b564d9ca47e460e8989cd46248a6783"
+      },
+      "compilation_procedure": {
+        "protocol_id": "d6ce0b6a-f30f-4559-9bf2-fa86f84282f8",
+        "content_digest": "sha256:788f79d552d36cc23c25345feab014107f08a53c073e32199dacc8552b2fff24"
+      },
+      "absent_paths": [
+        "src/account-label.ts"
+      ]
+    },
+    "content_digest": "sha256:38bfcdcbab177fa081301b9876b5fc687b9bea1c07eedb6ee3c46b8d115b5131"
+  }
+}

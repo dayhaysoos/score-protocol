@@ -1,0 +1,71 @@
+{
+  "source": "score:status after the guided process exited",
+  "runId": "redacted",
+  "passId": "redacted",
+  "state": "completed",
+  "providerId": "opencode",
+  "modelId": "gpt-5.6-luna",
+  "variantId": "medium",
+  "sdkVersion": "0.0.0-next-17111",
+  "cliVersion": "0.0.0-next-17111",
+  "maxConcurrency": 3,
+  "createdAt": "2026-08-11T19:20:58.952Z",
+  "lastObservedAt": "2026-08-11T19:21:10.259Z",
+  "terminalAt": "2026-08-11T19:21:10.259Z",
+  "sequence": 24,
+  "phase": "applied",
+  "failureCategory": null,
+  "failureMessage": null,
+  "application": {
+    "state": "applied",
+    "appliedAt": "2026-08-11T19:21:10.259Z",
+    "filesApplied": true
+  },
+  "files": [
+    {
+      "jobId": "redacted",
+      "attemptId": "redacted",
+      "runtimeSessionId": null,
+      "targetPath": "src/format-metric.ts",
+      "operation": "create",
+      "stage": "succeeded",
+      "source": "runner",
+      "claimedAt": "2026-08-11T19:20:58.980Z",
+      "observedAt": "2026-08-11T19:21:10.168Z",
+      "terminalAt": "2026-08-11T19:21:10.168Z",
+      "sequence": 6,
+      "failureStage": null,
+      "targetOutputState": "present"
+    },
+    {
+      "jobId": "redacted",
+      "attemptId": "redacted",
+      "runtimeSessionId": null,
+      "targetPath": "src/metric-report.ts",
+      "operation": "create",
+      "stage": "succeeded",
+      "source": "runner",
+      "claimedAt": "2026-08-11T19:20:59.580Z",
+      "observedAt": "2026-08-11T19:21:08.005Z",
+      "terminalAt": "2026-08-11T19:21:08.005Z",
+      "sequence": 6,
+      "failureStage": null,
+      "targetOutputState": "present"
+    },
+    {
+      "jobId": "redacted",
+      "attemptId": "redacted",
+      "runtimeSessionId": null,
+      "targetPath": "src/metric.ts",
+      "operation": "create",
+      "stage": "succeeded",
+      "source": "runner",
+      "claimedAt": "2026-08-11T19:20:59.583Z",
+      "observedAt": "2026-08-11T19:21:06.390Z",
+      "terminalAt": "2026-08-11T19:21:06.390Z",
+      "sequence": 6,
+      "failureStage": null,
+      "targetOutputState": "present"
+    }
+  ]
+}

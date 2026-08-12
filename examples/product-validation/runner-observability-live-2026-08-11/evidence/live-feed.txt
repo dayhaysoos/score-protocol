@@ -1,0 +1,49 @@
+Curated ANSI-free excerpt from the real TTY capture on 2026-08-11.
+Repeated repaint frames and interactive selection keystrokes are omitted.
+
+Running Runner observability three-file proof · GPT-5.6 Luna · OpenCode Zen · Medium reasoning
+Run 2edf30e5 · 00:00 elapsed
+○ src/format-metric.ts · waiting
+○ src/metric-report.ts · waiting
+○ src/metric.ts · waiting
+Generating candidates · 0 of 3 complete · nothing has been applied
+
+● src/format-metric.ts · starting · 00:00
+● src/metric-report.ts · starting · 00:00
+● src/metric.ts · starting · 00:00
+
+Run 2edf30e5 · 00:05 elapsed
+● src/format-metric.ts · Agent working · 00:04
+● src/metric-report.ts · Agent working · 00:04
+● src/metric.ts · Agent working · 00:04
+
+Run 2edf30e5 · 00:07 elapsed
+● src/format-metric.ts · Agent working · 00:07
+● src/metric-report.ts · Agent working · 00:06
+● src/metric.ts · checking output · 00:06
+● src/metric.ts · candidate ready · 00:06
+✓ src/metric.ts · succeeded · 00:06
+Generating candidates · 1 of 3 complete · nothing has been applied
+
+Run 2edf30e5 · 00:09 elapsed
+● src/format-metric.ts · Agent working · 00:09
+● src/metric-report.ts · checking output · 00:08
+● src/metric-report.ts · candidate ready · 00:08
+✓ src/metric-report.ts · succeeded · 00:08
+✓ src/metric.ts · succeeded · 00:06
+Generating candidates · 2 of 3 complete · nothing has been applied
+
+Run 2edf30e5 · 00:11 elapsed
+● src/format-metric.ts · checking output · 00:11
+● src/format-metric.ts · candidate ready · 00:11
+✓ src/format-metric.ts · succeeded · 00:11
+✓ src/metric-report.ts · succeeded · 00:08
+✓ src/metric.ts · succeeded · 00:06
+Generating candidates · 3 of 3 complete · nothing has been applied
+Checking current target state · 3 of 3 complete · nothing has been applied
+Checking the complete set · 3 of 3 complete · nothing has been applied
+Applying all candidates · 3 of 3 complete · atomic application in progress; final outcome pending
+Applied · 3 of 3 complete · all candidates were applied
+
+All 3 candidates were generated and applied.
+Run ID: redacted

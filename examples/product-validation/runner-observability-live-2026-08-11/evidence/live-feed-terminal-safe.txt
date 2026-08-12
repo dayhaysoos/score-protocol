@@ -1,0 +1,44 @@
+Sanitized excerpt from the final real TTY capture.
+Original local capture: .score/live-feed-terminal-safe.raw
+
+Running Runner observability terminal-safe three-file proof · GPT-5.6 Luna · OpenCode Zen · Medium reasoning
+Run 81c52fd8 · 00:00 elapsed
+○ src/format-gauge.ts · waiting
+○ src/gauge-summary.ts · waiting
+○ src/gauge.ts · waiting
+Generating candidates · 0 of 3 complete · nothing has been applied
+
+● src/format-gauge.ts · starting · 00:00
+● src/gauge-summary.ts · starting · 00:00
+● src/gauge.ts · starting · 00:00
+
+Run 81c52fd8 · 00:02 elapsed
+● src/format-gauge.ts · Agent working · 00:02
+● src/gauge-summary.ts · Agent working · 00:02
+● src/gauge.ts · Agent working · 00:02
+
+Run 81c52fd8 · 00:05 elapsed
+● src/format-gauge.ts · Agent working · 00:05
+● src/gauge-summary.ts · Agent working · 00:05
+● src/gauge.ts · Agent working · 00:05
+
+● src/gauge-summary.ts · checking output · 00:07
+● src/gauge-summary.ts · candidate ready · 00:07
+✓ src/gauge-summary.ts · succeeded · 00:07
+Generating candidates · 1 of 3 complete · nothing has been applied
+
+● src/format-gauge.ts · checking output · 00:10
+● src/format-gauge.ts · candidate ready · 00:10
+✓ src/format-gauge.ts · succeeded · 00:10
+Generating candidates · 2 of 3 complete · nothing has been applied
+
+● src/gauge.ts · checking output · 00:14
+● src/gauge.ts · candidate ready · 00:14
+✓ src/gauge.ts · succeeded · 00:14
+Generating candidates · 3 of 3 complete · nothing has been applied
+Checking current target state · 3 of 3 complete · nothing has been applied
+Checking the complete set · 3 of 3 complete · nothing has been applied
+Applying all candidates · 3 of 3 complete · atomic application in progress; final outcome pending
+Applied · 3 of 3 complete · all candidates were applied
+
+Run ID: redacted

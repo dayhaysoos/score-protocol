@@ -1,0 +1,18 @@
+{
+  "slice_id": "cycle-a",
+  "after": ["cycle-b"],
+  "title": "Cycle A",
+  "objective": "First half of a dependency cycle.",
+  "requirements": ["valueA returns A."],
+  "files": [{
+    "path": "src/value-a.ts",
+    "operation": "modify",
+    "task": "Return A.",
+    "requirements": ["valueA returns A."],
+    "owns": [{"name":"valueA","description":"Returns the fixed Cycle A value.","declaration":"export function valueA(): string;"}],
+    "consumes": [],
+    "context": [],
+    "skills": [{"name":"Exact value","content":"Return the string A."}],
+    "constraints": ["Do not change another file."]
+  }]
+}

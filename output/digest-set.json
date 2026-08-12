@@ -1,0 +1,30 @@
+{
+  "manifest": {
+    "protocol_id": "71017ec7-25dc-4fdb-b424-42d369f65cd5",
+    "content_digest": "sha256:fbfc6e54bedcff499b7d626aa7adb7883c196ada1ec005923dd1d1c837587345"
+  },
+  "compilation_report": {
+    "protocol_id": "573a1e63-5758-4f19-ac23-27bcff336f5c",
+    "content_digest": "sha256:7e86e37fc34f18a2afdbfb7dad382f421d1f90d8b8c9a90141dd5a937332c316"
+  },
+  "pass": {
+    "protocol_id": "260f0dda-64de-464b-88a9-2a984e9538b2",
+    "content_digest": "sha256:760af2460ded4442710090cf95c0cceca06ce5356b48fd708d686863128fda15"
+  },
+  "payloads": [
+    {
+      "payload_id": "3f5cf524-7753-4894-ad43-c02f271ed443",
+      "target_path": "src/account-label.ts",
+      "control_digest": "sha256:df6c832f6a1a50ab47ea82d9fc717dab858b04976c14c42227769196bde86b5d",
+      "agent_input_digest": "sha256:d743fb7f064076594e7940ae76facd94d52b8a4d7485cce5fee837c3c18c3bd7",
+      "payload_digest": "sha256:62f2054749e9e0d4768be86d06d7705af4cbb58a78846891b1e1a85fb236379a"
+    },
+    {
+      "payload_id": "22f194ed-03c4-4bbf-a9a6-8d88576c586b",
+      "target_path": "src/schema.ts",
+      "control_digest": "sha256:3a8e9228079e0658d158517f59302d68c27669d57da7f1d5e5f1ef220004d2ab",
+      "agent_input_digest": "sha256:fafc255479c89937ff9c149bf813967d2f39b72629ca1c74fd9b2c11b24bd2a1",
+      "payload_digest": "sha256:bee4a182312d293707601cfab176b0020c97b4e0a75914710f1a9441e25e6f11"
+    }
+  ]
+}

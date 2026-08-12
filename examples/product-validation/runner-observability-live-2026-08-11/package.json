@@ -1,0 +1,14 @@
+{
+  "name": "score-runner-observability-live",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "score:prepare": "../../../node_modules/.bin/tsx score/prepare.mjs",
+    "score:list": "../../../node_modules/.bin/tsx ../../../src/runner/cli.ts list --score-db .score/score.db --runner-db .score/runner.db",
+    "score:start": "../../../node_modules/.bin/tsx ../../../src/runner/cli.ts start --score-db .score/score.db --runner-db .score/runner.db",
+    "score:status": "../../../node_modules/.bin/tsx ../../../src/runner/cli.ts status --score-db .score/score.db --runner-db .score/runner.db",
+    "typecheck": "../../../node_modules/.bin/tsc -p tsconfig.json --noEmit",
+    "build": "../../../node_modules/.bin/tsc -p tsconfig.json --rootDir src",
+    "qa": "node qa/acceptance.mjs"
+  }
+}

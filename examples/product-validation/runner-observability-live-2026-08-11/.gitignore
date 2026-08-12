@@ -1,0 +1,5 @@
+.score/
+.opencode/
+dist/
+node_modules/
+*.log

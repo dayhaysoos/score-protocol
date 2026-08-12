@@ -1,0 +1,17 @@
+{
+  "slice_id": "duplicate",
+  "title": "Duplicate one",
+  "objective": "First duplicate-ID draft.",
+  "requirements": ["value returns one."],
+  "files": [{
+    "path": "src/value.ts",
+    "operation": "modify",
+    "task": "Return one.",
+    "requirements": ["value returns one."],
+    "owns": [{"name":"value","description":"Returns the first duplicate draft value.","declaration":"export function value(): string;"}],
+    "consumes": [],
+    "context": [],
+    "skills": [{"name":"Exact value","content":"Return the string one."}],
+    "constraints": ["Do not change another file."]
+  }]
+}

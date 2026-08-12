@@ -1,0 +1,17 @@
+{
+  "slice_id": "duplicate",
+  "title": "Duplicate two",
+  "objective": "Second duplicate-ID draft.",
+  "requirements": ["value returns two."],
+  "files": [{
+    "path": "src/value.ts",
+    "operation": "modify",
+    "task": "Return two.",
+    "requirements": ["value returns two."],
+    "owns": [{"name":"value","description":"Returns the second duplicate draft value.","declaration":"export function value(): string;"}],
+    "consumes": [],
+    "context": [],
+    "skills": [{"name":"Exact value","content":"Return the string two."}],
+    "constraints": ["Do not change another file."]
+  }]
+}

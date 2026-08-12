@@ -1,0 +1,26 @@
+{
+  "name": "score-product-validation-realistic-react-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit --pretty false",
+    "score:prepare": "../../../node_modules/.bin/tsx score/prepare.mjs",
+    "score:list": "../../../node_modules/.bin/tsx ../../../src/runner/cli.ts list --score-db .score/score.db --runner-db .score/runner.db",
+    "score:start": "../../../node_modules/.bin/tsx ../../../src/runner/cli.ts start --score-db .score/score.db --runner-db .score/runner.db",
+    "qa": "../../../node_modules/.bin/tsx qa/acceptance.ts"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  }
+}

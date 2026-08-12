@@ -1,0 +1,19 @@
+{
+  "name": "score-change-authoring-dogfood",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "doctor": "score doctor",
+    "prepare": "score change --input - < score/change.json",
+    "start": "score start --score-db .score/score.db --runner-db .score/runner.db",
+    "status": "score status --runner-db .score/runner.db",
+    "reset": "node score/reset.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "qa": "node qa/acceptance.mjs",
+    "check": "npm run typecheck && npm run build && npm run qa"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

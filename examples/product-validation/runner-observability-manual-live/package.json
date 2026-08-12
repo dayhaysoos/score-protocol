@@ -1,0 +1,14 @@
+{
+  "name": "score-runner-observability-manual-live",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "../../../node_modules/.bin/tsx score/prepare.mjs && ../../../node_modules/.bin/tsx ../../../src/runner/cli.ts start --score-db .score/score.db --runner-db .score/runner.db",
+    "status": "../../../node_modules/.bin/tsx score/status-latest.mjs",
+    "reset": "../../../node_modules/.bin/tsx score/reset.mjs",
+    "typecheck": "../../../node_modules/.bin/tsc -p tsconfig.json --noEmit",
+    "build": "../../../node_modules/.bin/tsc -p tsconfig.json --rootDir src",
+    "qa": "node qa/acceptance.mjs",
+    "check": "npm run typecheck && npm run build && npm run qa"
+  }
+}

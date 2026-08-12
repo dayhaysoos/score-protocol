@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://score-protocol.local/schema/compilation-bundle-0.1.0-alpha.4.json",
+  "title": "SCORE Compilation Bundle 0.1.0-alpha.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "profile",
+    "profile_version",
+    "source_bindings",
+    "proposed_definition",
+    "compiler_findings"
+  ],
+  "properties": {
+    "schema": { "const": "score.compilation-bundle" },
+    "schema_version": { "const": "0.1.0-alpha.4" },
+    "profile": { "const": "score.coding" },
+    "profile_version": { "const": "0.1.0-alpha.4" },
+    "source_bindings": { "$ref": "#/$defs/sourceBindings" },
+    "proposed_definition": { "$ref": "#/$defs/proposedDefinition" },
+    "compiler_findings": { "$ref": "#/$defs/compilerFindings" }
+  },
+  "$defs": {
+    "handle": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "protocolId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_id", "content_digest"],
+      "properties": {
+        "protocol_id": { "$ref": "#/$defs/protocolId" },
+        "content_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "sourceBindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accepted_specification",
+        "repository_revision",
+        "compilation_procedure",
+        "compiler_input_revision"
+      ],
+      "properties": {
+        "accepted_specification": { "$ref": "#/$defs/sourceReference" },
+        "repository_revision": { "$ref": "#/$defs/sourceReference" },
+        "compilation_procedure": { "$ref": "#/$defs/sourceReference" },
+        "compiler_input_revision": { "$ref": "#/$defs/sourceReference" }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "label", "objective", "rationale"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "label": { "$ref": "#/$defs/nonEmptyString" },
+        "objective": { "$ref": "#/$defs/nonEmptyString" },
+        "rationale": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "compilationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "summary"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "summary": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "contractSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "logical_name", "version", "purpose"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "logical_name": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "purpose": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "contract_set_handle", "logical_name", "version", "kind", "content"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "contract_set_handle": { "$ref": "#/$defs/handle" },
+        "logical_name": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "kind": { "$ref": "#/$defs/nonEmptyString" },
+        "content": {}
+      }
+    },
+    "contractInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handle",
+        "contract_handle",
+        "logical_name",
+        "required",
+        "expected_kind",
+        "version_rule",
+        "min_cardinality",
+        "max_cardinality",
+        "purpose"
+      ],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "contract_handle": { "$ref": "#/$defs/handle" },
+        "logical_name": { "$ref": "#/$defs/nonEmptyString" },
+        "required": { "type": "boolean" },
+        "expected_kind": { "$ref": "#/$defs/nonEmptyString" },
+        "version_rule": { "$ref": "#/$defs/nonEmptyString" },
+        "min_cardinality": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "max_cardinality": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "purpose": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "codingPass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "manifest_handle", "contract_set_handle", "objective"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "manifest_handle": { "$ref": "#/$defs/handle" },
+        "contract_set_handle": { "$ref": "#/$defs/handle" },
+        "objective": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "pass_handle", "dependent_capsule_handle", "prerequisite_kind", "prerequisite_handle", "description"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "pass_handle": { "$ref": "#/$defs/handle" },
+        "dependent_capsule_handle": { "$ref": "#/$defs/handle" },
+        "prerequisite_kind": { "enum": ["capsule", "contract"] },
+        "prerequisite_handle": { "$ref": "#/$defs/handle" },
+        "description": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "contextItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "kind", "version", "purpose", "source", "resolution", "content"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "kind": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "purpose": { "$ref": "#/$defs/nonEmptyString" },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "locator", "version"],
+          "properties": {
+            "kind": { "$ref": "#/$defs/nonEmptyString" },
+            "locator": { "$ref": "#/$defs/nonEmptyString" },
+            "version": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        },
+        "resolution": { "enum": ["inline", "lookup"] },
+        "content": {}
+      }
+    },
+    "contextSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "member_handles"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "member_handles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/handle" }
+        }
+      }
+    },
+    "capsule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handle",
+        "pass_handle",
+        "context_set_handle",
+        "target_path",
+        "operation",
+        "objective",
+        "intended_outcome",
+        "constraints",
+        "prohibited_effects"
+      ],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "pass_handle": { "$ref": "#/$defs/handle" },
+        "context_set_handle": { "$ref": "#/$defs/handle" },
+        "target_path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+        "operation": { "enum": ["create", "replace", "delete"] },
+        "objective": { "$ref": "#/$defs/nonEmptyString" },
+        "intended_outcome": { "$ref": "#/$defs/nonEmptyString" },
+        "constraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        },
+        "prohibited_effects": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        }
+      }
+    },
+    "capsuleContractRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capsule_handle", "contract_handle", "role"],
+      "properties": {
+        "capsule_handle": { "$ref": "#/$defs/handle" },
+        "contract_handle": { "$ref": "#/$defs/handle" },
+        "role": { "enum": ["implements", "consumes"] }
+      }
+    },
+    "contractInputBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capsule_handle",
+        "contract_input_handle",
+        "context_item_handle",
+        "actual_kind",
+        "actual_version",
+        "position"
+      ],
+      "properties": {
+        "capsule_handle": { "$ref": "#/$defs/handle" },
+        "contract_input_handle": { "$ref": "#/$defs/handle" },
+        "context_item_handle": { "$ref": "#/$defs/handle" },
+        "actual_kind": { "$ref": "#/$defs/nonEmptyString" },
+        "actual_version": { "$ref": "#/$defs/nonEmptyString" },
+        "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "capabilityRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "capsule_handle", "capability", "version_rule", "required", "configuration"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "capsule_handle": { "$ref": "#/$defs/handle" },
+        "capability": { "$ref": "#/$defs/nonEmptyString" },
+        "version_rule": { "$ref": "#/$defs/nonEmptyString" },
+        "required": { "type": "boolean" },
+        "configuration": {}
+      }
+    },
+    "requirementTraceability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_protocol_id", "contract_handles", "capsule_handles", "dependency_handles", "context_item_handles"],
+      "properties": {
+        "requirement_protocol_id": { "$ref": "#/$defs/protocolId" },
+        "contract_handles": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/handle" } },
+        "capsule_handles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/handle" } },
+        "dependency_handles": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/handle" } },
+        "context_item_handles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/handle" } }
+      }
+    },
+    "sourceCitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "repository_revision_protocol_id", "location", "source_digest", "purpose", "excerpt"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "repository_revision_protocol_id": { "$ref": "#/$defs/protocolId" },
+        "location": { "$ref": "#/$defs/nonEmptyString" },
+        "source_digest": { "$ref": "#/$defs/digest" },
+        "purpose": { "$ref": "#/$defs/nonEmptyString" },
+        "excerpt": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "sourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["citation_handle", "target_kind", "target_handle", "purpose"],
+      "properties": {
+        "citation_handle": { "$ref": "#/$defs/handle" },
+        "target_kind": { "enum": ["contract", "dependency", "capsule", "context_item"] },
+        "target_handle": { "$ref": "#/$defs/handle" },
+        "purpose": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "code", "affected_path", "message", "basis", "provenance"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "code": { "$ref": "#/$defs/nonEmptyString" },
+        "affected_path": { "$ref": "#/$defs/nonEmptyString" },
+        "message": { "$ref": "#/$defs/nonEmptyString" },
+        "basis": { "$ref": "#/$defs/nonEmptyString" },
+        "provenance": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "compilationGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "affected_obligation", "basis", "detector_provenance", "required_resolution"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "affected_obligation": { "$ref": "#/$defs/nonEmptyString" },
+        "basis": { "$ref": "#/$defs/nonEmptyString" },
+        "detector_provenance": { "$ref": "#/$defs/nonEmptyString" },
+        "required_resolution": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "compilerFindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warnings", "compilation_gaps"],
+      "properties": {
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } },
+        "compilation_gaps": { "type": "array", "items": { "$ref": "#/$defs/compilationGap" } }
+      }
+    },
+    "proposedDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest",
+        "compilation_report",
+        "contract_set",
+        "contracts",
+        "contract_inputs",
+        "coding_pass",
+        "dependencies",
+        "context_items",
+        "context_sets",
+        "capsules",
+        "capsule_contract_roles",
+        "contract_input_bindings",
+        "capability_requirements",
+        "requirement_traceability",
+        "source_citations",
+        "source_bindings"
+      ],
+      "properties": {
+        "manifest": { "$ref": "#/$defs/manifest" },
+        "compilation_report": { "$ref": "#/$defs/compilationReport" },
+        "contract_set": { "$ref": "#/$defs/contractSet" },
+        "contracts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contract" } },
+        "contract_inputs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contractInput" } },
+        "coding_pass": { "$ref": "#/$defs/codingPass" },
+        "dependencies": { "type": "array", "items": { "$ref": "#/$defs/dependency" } },
+        "context_items": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contextItem" } },
+        "context_sets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contextSet" } },
+        "capsules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/capsule" } },
+        "capsule_contract_roles": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/capsuleContractRole" } },
+        "contract_input_bindings": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contractInputBinding" } },
+        "capability_requirements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/capabilityRequirement" } },
+        "requirement_traceability": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/requirementTraceability" } },
+        "source_citations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sourceCitation" } },
+        "source_bindings": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sourceBinding" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "score-react-todo-experiment",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "score:prepare": "../../node_modules/.bin/tsx score/prepare.mjs",
+    "score:list": "../../node_modules/.bin/tsx ../../src/runner/cli.ts list --score-db .score/score.db",
+    "score:start": "../../node_modules/.bin/tsx ../../src/runner/cli.ts start --score-db .score/score.db",
+    "runner": "../../node_modules/.bin/tsx ../../src/runner/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}

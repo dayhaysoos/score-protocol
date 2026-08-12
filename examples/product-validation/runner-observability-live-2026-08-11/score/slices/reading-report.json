@@ -1,0 +1,127 @@
+{
+  "slice_id": "runner-observability-final-three-file",
+  "title": "Runner observability final three-file proof",
+  "objective": "Create a second small typed reading dependency chain whose three isolated File Jobs validate the final nonblocking Runner live feed.",
+  "requirements": [
+    "Reading records expose name, value, unit, and included fields with the exact planned types.",
+    "formatReading emits the reading name, a colon, its numeric value, and its unit with stable spacing.",
+    "summarizeReadings preserves input order, includes only selected readings, reports the included count, and returns No included readings when none qualify."
+  ],
+  "files": [
+    {
+      "path": "src/reading.ts",
+      "operation": "create",
+      "task": "Define the reading contract.",
+      "requirements": [
+        "Reading records expose name, value, unit, and included fields with the exact planned types."
+      ],
+      "owns": [
+        {
+          "name": "Reading",
+          "description": "Describes one measured reading and whether it belongs in the report.",
+          "declaration": "export interface Reading { name: string; value: number; unit: string; included: boolean; }"
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/reading-intent.md",
+          "purpose": "Defines the reading vocabulary and output behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Minimal reading contract",
+          "content": "Export exactly the planned Reading interface. Keep every property required and add no runtime behavior or extra exports."
+        }
+      ],
+      "constraints": [
+        "Do not change another file.",
+        "Do not add declarations beyond Reading."
+      ]
+    },
+    {
+      "path": "src/format-reading.ts",
+      "operation": "create",
+      "task": "Format one reading with stable punctuation and spacing.",
+      "requirements": [
+        "formatReading emits the reading name, a colon, its numeric value, and its unit with stable spacing."
+      ],
+      "owns": [
+        {
+          "name": "formatReading",
+          "description": "Formats one reading name, numeric value, and unit for display.",
+          "declaration": "export function formatReading(reading: Reading): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Reading",
+          "from": "src/reading.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/reading-intent.md",
+          "purpose": "Defines the exact reading label behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "NodeNext reading formatter",
+          "content": "Use an import type for Reading and the exact NodeNext-relative module specifier supplied in the Agent Input. Return the name, colon, value, and unit without mutating the reading."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Reading } from \"./reading.js\";`.",
+        "Return exactly `${reading.name}: ${reading.value} ${reading.unit}`.",
+        "Export only formatReading.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/reading-report.ts",
+      "operation": "create",
+      "task": "Compose the included-reading report from the shared formatter.",
+      "requirements": [
+        "summarizeReadings preserves input order, includes only selected readings, reports the included count, and returns No included readings when none qualify."
+      ],
+      "owns": [
+        {
+          "name": "summarizeReadings",
+          "description": "Builds the ordered human-readable report of included readings.",
+          "declaration": "export function summarizeReadings(readings: readonly Reading[]): string;"
+        }
+      ],
+      "consumes": [
+        {
+          "name": "Reading",
+          "from": "src/reading.ts"
+        },
+        {
+          "name": "formatReading",
+          "from": "src/format-reading.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "docs/reading-intent.md",
+          "purpose": "Defines filtering, ordering, header, and empty behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Stable reading report",
+          "content": "Filter without sorting or mutating. For one included reading use `1 included reading`; otherwise use `{count} included readings`. Put each formatted reading on its own following line. Return exactly `No included readings` when the filtered list is empty."
+        }
+      ],
+      "constraints": [
+        "Use exactly `import type { Reading } from \"./reading.js\";`.",
+        "Use exactly `import { formatReading } from \"./format-reading.js\";`.",
+        "Call formatReading(reading) for each included reading.",
+        "Export only summarizeReadings.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

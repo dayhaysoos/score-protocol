@@ -1,0 +1,505 @@
+{
+  "schema": "score.compilation-bundle",
+  "schema_version": "0.1.0-alpha.4",
+  "profile": "score.coding",
+  "profile_version": "0.1.0-alpha.4",
+  "source_bindings": {
+    "accepted_specification": {
+      "protocol_id": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+      "content_digest": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+    },
+    "repository_revision": {
+      "protocol_id": "e18bba9e-c676-480a-9dca-bd6905d589ed",
+      "content_digest": "sha256:1ddc51d8716e7aaa2b371f772d29ffa61b564d9ca47e460e8989cd46248a6783"
+    },
+    "compilation_procedure": {
+      "protocol_id": "d6ce0b6a-f30f-4559-9bf2-fa86f84282f8",
+      "content_digest": "sha256:788f79d552d36cc23c25345feab014107f08a53c073e32199dacc8552b2fff24"
+    },
+    "compiler_input_revision": {
+      "protocol_id": "fe0c4e3e-f897-4f34-b5be-634d54cebf65",
+      "content_digest": "sha256:38bfcdcbab177fa081301b9876b5fc687b9bea1c07eedb6ee3c46b8d115b5131"
+    }
+  },
+  "proposed_definition": {
+    "manifest": {
+      "handle": "account_status_manifest",
+      "label": "Account Status two-file change",
+      "objective": "Add the accepted account status declaration and pure account label formatter without changing any other file.",
+      "rationale": "Compile the frozen Account Status conformance fixture into two closed File Briefs coordinated by one fixed Contract."
+    },
+    "compilation_report": {
+      "handle": "account_status_report",
+      "summary": "All three accepted requirements trace to the shared Contract, the two target-specific File Briefs, their resolved Context Items, and the one fixed Contract dependency."
+    },
+    "contract_set": {
+      "handle": "account_contracts_v1",
+      "logical_name": "account-contracts",
+      "version": "1.0.0",
+      "purpose": "Fix the future Account type and formatter interface before either file agent executes."
+    },
+    "contracts": [
+      {
+        "handle": "account_contract",
+        "contract_set_handle": "account_contracts_v1",
+        "logical_name": "account-status-contract",
+        "version": "1.0.0",
+        "kind": "typescript-interface",
+        "content": {
+          "formatter_behavior": "Return exactly `${account.name} [${account.status}]`.",
+          "guarantees": [
+            "Account.status is required and has only the values active and suspended.",
+            "formatAccountLabel is a named pure function from Account to string."
+          ]
+        }
+      }
+    ],
+    "contract_inputs": [
+      {
+        "handle": "target_state_input",
+        "contract_handle": "account_contract",
+        "logical_name": "target-state",
+        "required": true,
+        "expected_kind": "target_state",
+        "version_rule": "=1.0.0",
+        "min_cardinality": 1,
+        "max_cardinality": 1,
+        "purpose": "Supply the exact base state of the assigned file."
+      },
+      {
+        "handle": "accepted_requirements_input",
+        "contract_handle": "account_contract",
+        "logical_name": "accepted-requirements",
+        "required": true,
+        "expected_kind": "accepted_requirements",
+        "version_rule": "=1.0.0",
+        "min_cardinality": 1,
+        "max_cardinality": 1,
+        "purpose": "Supply the exact accepted obligations relevant to the assigned file."
+      },
+      {
+        "handle": "documented_declarations_input",
+        "contract_handle": "account_contract",
+        "logical_name": "documented-declarations",
+        "required": true,
+        "expected_kind": "documented_declarations",
+        "version_rule": "=1.0.0",
+        "min_cardinality": 1,
+        "max_cardinality": 1,
+        "purpose": "Supply the exact documented interfaces owned or consumed by the assigned file."
+      },
+      {
+        "handle": "typescript_module_boundaries_input",
+        "contract_handle": "account_contract",
+        "logical_name": "typescript-module-boundaries",
+        "required": false,
+        "expected_kind": "skill",
+        "version_rule": "=1.0.0",
+        "min_cardinality": 0,
+        "max_cardinality": 1,
+        "purpose": "Supply the TypeScript module-boundary rules only to the file that consumes the shared Account type."
+      }
+    ],
+    "coding_pass": {
+      "handle": "account_status_pass",
+      "manifest_handle": "account_status_manifest",
+      "contract_set_handle": "account_contracts_v1",
+      "objective": "Replace src/schema.ts and create src/account-label.ts against the same fixed Account Contract."
+    },
+    "dependencies": [
+      {
+        "handle": "formatter_depends_on_contract",
+        "pass_handle": "account_status_pass",
+        "dependent_capsule_handle": "create_account_label",
+        "prerequisite_kind": "capsule",
+        "prerequisite_handle": "replace_schema",
+        "description": "The formatter consumes the fixed Account declaration; this is a definition dependency, not an execution-order or cross-agent-read dependency."
+      }
+    ],
+    "context_items": [
+      {
+        "handle": "schema_target_state",
+        "kind": "target_state",
+        "version": "1.0.0",
+        "purpose": "Give the replacement agent the exact current bytes of its only target.",
+        "source": {
+          "kind": "repository_file",
+          "locator": "account-status-r1:src/schema.ts",
+          "version": "sha256:f5015bbb8e5fd4b979f39d84d21f28f9df2ad02e67ba34595f77e4eea9957371"
+        },
+        "resolution": "inline",
+        "content": {
+          "path": "src/schema.ts",
+          "state_at_base_revision": "present",
+          "media_type": "text/typescript; charset=utf-8",
+          "content": "export interface Account {\n  id: string;\n  name: string;\n}\n"
+        }
+      },
+      {
+        "handle": "schema_requirements",
+        "kind": "accepted_requirements",
+        "version": "1.0.0",
+        "purpose": "Give the replacement agent its exact accepted obligations and file boundary.",
+        "source": {
+          "kind": "accepted_specification",
+          "locator": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+          "version": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+        },
+        "resolution": "inline",
+        "content": [
+          {
+            "id": "AR-1",
+            "statement": "Account has id, name, and the required status field."
+          },
+          {
+            "id": "AR-3",
+            "statement": "The Pass replaces one declared file and creates one declared file only."
+          }
+        ]
+      },
+      {
+        "handle": "schema_documented_declarations",
+        "kind": "documented_declarations",
+        "version": "1.0.0",
+        "purpose": "Supply the exact documented interface implemented by the schema file.",
+        "source": {
+          "kind": "accepted_specification",
+          "locator": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+          "version": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+        },
+        "resolution": "inline",
+        "content": {
+          "owned": [
+            {
+              "name": "Account",
+              "declaration": "export interface Account {\n  id: string;\n  name: string;\n  status: \"active\" | \"suspended\";\n}",
+              "description": "Represents an account with the required status used by callers and the formatter."
+            }
+          ],
+          "consumed": []
+        }
+      },
+      {
+        "handle": "label_target_state",
+        "kind": "target_state",
+        "version": "1.0.0",
+        "purpose": "Tell the creator agent exactly that its assigned target is absent at the base revision.",
+        "source": {
+          "kind": "repository_revision",
+          "locator": "account-status-r1 absence declaration:src/account-label.ts",
+          "version": "sha256:1ddc51d8716e7aaa2b371f772d29ffa61b564d9ca47e460e8989cd46248a6783"
+        },
+        "resolution": "inline",
+        "content": {
+          "path": "src/account-label.ts",
+          "state_at_base_revision": "absent"
+        }
+      },
+      {
+        "handle": "label_requirements",
+        "kind": "accepted_requirements",
+        "version": "1.0.0",
+        "purpose": "Give the creator agent its exact accepted behavior and file boundary.",
+        "source": {
+          "kind": "accepted_specification",
+          "locator": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+          "version": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+        },
+        "resolution": "inline",
+        "content": [
+          {
+            "id": "AR-2",
+            "statement": "formatAccountLabel(account) returns exactly name [status]."
+          },
+          {
+            "id": "AR-3",
+            "statement": "The Pass replaces one declared file and creates one declared file only."
+          }
+        ]
+      },
+      {
+        "handle": "label_documented_declarations",
+        "kind": "documented_declarations",
+        "version": "1.0.0",
+        "purpose": "Supply the exact documented interfaces implemented and consumed by the formatter file.",
+        "source": {
+          "kind": "accepted_specification",
+          "locator": "e94cf478-10d1-4c66-8914-2983f6e73c48",
+          "version": "sha256:33916213d93584865721d9d7af860e2457d14e72021713a96b7e56a91c2273e4"
+        },
+        "resolution": "inline",
+        "content": {
+          "owned": [
+            {
+              "name": "formatAccountLabel",
+              "declaration": "export declare function formatAccountLabel(account: Account): string;",
+              "description": "Returns the account name and status exactly as name [status]."
+            }
+          ],
+          "consumed": [
+            {
+              "name": "Account",
+              "declaration": "export interface Account {\n  id: string;\n  name: string;\n  status: \"active\" | \"suspended\";\n}",
+              "description": "Represents an account with the required status used by callers and the formatter."
+            }
+          ]
+        }
+      },
+      {
+        "handle": "typescript_module_boundaries_skill",
+        "kind": "skill",
+        "version": "1.0.0",
+        "purpose": "Preserve type ownership and prevent a type-only dependency from becoming a runtime module dependency.",
+        "source": {
+          "kind": "frozen_fixture_skill",
+          "locator": "examples/coding-profile-run.md#file-brief-f2-create-the-formatter",
+          "version": "1.0.0"
+        },
+        "resolution": "inline",
+        "content": "# TypeScript Module Boundaries\n\nWhen this module consumes a type owned by another module:\n\n- Import type-only dependencies with `import type`.\n- Use the owning module's exported type; never recreate or widen it locally.\n- Keep module initialization free of side effects.\n- Do not introduce barrel exports or new runtime dependencies.\n- The module is complete only when its public exports exactly match the supplied Contract."
+      }
+    ],
+    "context_sets": [
+      {
+        "handle": "schema_context",
+        "member_handles": [
+          "schema_target_state",
+          "schema_requirements",
+          "schema_documented_declarations"
+        ]
+      },
+      {
+        "handle": "label_context",
+        "member_handles": [
+          "label_target_state",
+          "label_requirements",
+          "label_documented_declarations",
+          "typescript_module_boundaries_skill"
+        ]
+      }
+    ],
+    "capsules": [
+      {
+        "handle": "replace_schema",
+        "pass_handle": "account_status_pass",
+        "context_set_handle": "schema_context",
+        "target_path": "src/schema.ts",
+        "operation": "replace",
+        "objective": "Replace src/schema.ts so Account keeps id and name and gains required status with exactly the active and suspended values.",
+        "intended_outcome": "The complete replacement file exports Account with id, name, and required status: \"active\" | \"suspended\".",
+        "constraints": [
+          "Preserve the existing exported Account interface and its id and name fields.",
+          "Add required status: \"active\" | \"suspended\".",
+          "Produce the complete content of src/schema.ts."
+        ],
+        "prohibited_effects": [
+          "Do not read, create, modify, or delete any other file.",
+          "Do not change the fixed Account Contract."
+        ]
+      },
+      {
+        "handle": "create_account_label",
+        "pass_handle": "account_status_pass",
+        "context_set_handle": "label_context",
+        "target_path": "src/account-label.ts",
+        "operation": "create",
+        "objective": "Create src/account-label.ts with a named pure formatAccountLabel function for the fixed Account declaration.",
+        "intended_outcome": "The new file imports Account from ./schema.js and exports formatAccountLabel(account), returning exactly `${account.name} [${account.status}]`.",
+        "constraints": [
+          "Export formatAccountLabel as a named function.",
+          "Import Account from ./schema.js.",
+          "Return exactly `${account.name} [${account.status}]`.",
+          "Produce the complete content of src/account-label.ts."
+        ],
+        "prohibited_effects": [
+          "Do not read, create, modify, or delete any other file.",
+          "Do not redefine or extend the supplied Account declaration."
+        ]
+      }
+    ],
+    "capsule_contract_roles": [
+      {
+        "capsule_handle": "replace_schema",
+        "contract_handle": "account_contract",
+        "role": "implements"
+      },
+      {
+        "capsule_handle": "create_account_label",
+        "contract_handle": "account_contract",
+        "role": "consumes"
+      }
+    ],
+    "contract_input_bindings": [
+      {
+        "capsule_handle": "replace_schema",
+        "contract_input_handle": "target_state_input",
+        "context_item_handle": "schema_target_state",
+        "actual_kind": "target_state",
+        "actual_version": "1.0.0",
+        "position": 0
+      },
+      {
+        "capsule_handle": "replace_schema",
+        "contract_input_handle": "accepted_requirements_input",
+        "context_item_handle": "schema_requirements",
+        "actual_kind": "accepted_requirements",
+        "actual_version": "1.0.0",
+        "position": 0
+      },
+      {
+        "capsule_handle": "replace_schema",
+        "contract_input_handle": "documented_declarations_input",
+        "context_item_handle": "schema_documented_declarations",
+        "actual_kind": "documented_declarations",
+        "actual_version": "1.0.0",
+        "position": 0
+      },
+      {
+        "capsule_handle": "create_account_label",
+        "contract_input_handle": "target_state_input",
+        "context_item_handle": "label_target_state",
+        "actual_kind": "target_state",
+        "actual_version": "1.0.0",
+        "position": 0
+      },
+      {
+        "capsule_handle": "create_account_label",
+        "contract_input_handle": "accepted_requirements_input",
+        "context_item_handle": "label_requirements",
+        "actual_kind": "accepted_requirements",
+        "actual_version": "1.0.0",
+        "position": 0
+      },
+      {
+        "capsule_handle": "create_account_label",
+        "contract_input_handle": "documented_declarations_input",
+        "context_item_handle": "label_documented_declarations",
+        "actual_kind": "documented_declarations",
+        "actual_version": "1.0.0",
+        "position": 0
+      },
+      {
+        "capsule_handle": "create_account_label",
+        "contract_input_handle": "typescript_module_boundaries_input",
+        "context_item_handle": "typescript_module_boundaries_skill",
+        "actual_kind": "skill",
+        "actual_version": "1.0.0",
+        "position": 0
+      }
+    ],
+    "capability_requirements": [
+      {
+        "handle": "schema_single_target_filesystem",
+        "capsule_handle": "replace_schema",
+        "capability": "score.coding.filesystem.single-target",
+        "version_rule": "=1.0.0",
+        "required": true,
+        "configuration": {
+          "target_path": "src/schema.ts",
+          "allowed_operations": ["read_assigned_target", "replace_assigned_target"],
+          "shell": false,
+          "network": false,
+          "repository_discovery": false
+        }
+      },
+      {
+        "handle": "label_single_target_filesystem",
+        "capsule_handle": "create_account_label",
+        "capability": "score.coding.filesystem.single-target",
+        "version_rule": "=1.0.0",
+        "required": true,
+        "configuration": {
+          "target_path": "src/account-label.ts",
+          "allowed_operations": ["create_assigned_target"],
+          "shell": false,
+          "network": false,
+          "repository_discovery": false
+        }
+      }
+    ],
+    "requirement_traceability": [
+      {
+        "requirement_protocol_id": "66bacb25-b52c-4898-bf49-6789cdf09d87",
+        "contract_handles": ["account_contract"],
+        "capsule_handles": ["replace_schema"],
+        "dependency_handles": [],
+        "context_item_handles": [
+          "schema_target_state",
+          "schema_requirements",
+          "schema_documented_declarations"
+        ]
+      },
+      {
+        "requirement_protocol_id": "36b34c82-c940-4d5b-8762-8f5a38f60e4e",
+        "contract_handles": ["account_contract"],
+        "capsule_handles": ["create_account_label"],
+        "dependency_handles": ["formatter_depends_on_contract"],
+        "context_item_handles": [
+          "label_requirements",
+          "label_documented_declarations",
+          "typescript_module_boundaries_skill"
+        ]
+      },
+      {
+        "requirement_protocol_id": "f872366e-dc5c-40c4-a250-70d27d064e08",
+        "contract_handles": ["account_contract"],
+        "capsule_handles": ["replace_schema", "create_account_label"],
+        "dependency_handles": [],
+        "context_item_handles": [
+          "schema_target_state",
+          "schema_requirements",
+          "label_target_state",
+          "label_requirements"
+        ]
+      }
+    ],
+    "source_citations": [
+      {
+        "handle": "schema_source_citation",
+        "repository_revision_protocol_id": "e18bba9e-c676-480a-9dca-bd6905d589ed",
+        "location": "src/schema.ts",
+        "source_digest": "sha256:f5015bbb8e5fd4b979f39d84d21f28f9df2ad02e67ba34595f77e4eea9957371",
+        "purpose": "Support the replacement target state and the obligation to preserve id and name.",
+        "excerpt": "export interface Account {\n  id: string;\n  name: string;\n}\n"
+      },
+      {
+        "handle": "label_absence_citation",
+        "repository_revision_protocol_id": "e18bba9e-c676-480a-9dca-bd6905d589ed",
+        "location": "ordered manifest absence declaration for src/account-label.ts",
+        "source_digest": "sha256:1ddc51d8716e7aaa2b371f772d29ffa61b564d9ca47e460e8989cd46248a6783",
+        "purpose": "Support the create operation and the explicit absent target state.",
+        "excerpt": "src/account-label.ts is absent from account-status-r1."
+      }
+    ],
+    "source_bindings": [
+      {
+        "citation_handle": "schema_source_citation",
+        "target_kind": "capsule",
+        "target_handle": "replace_schema",
+        "purpose": "Establish that replace targets an existing stored file."
+      },
+      {
+        "citation_handle": "schema_source_citation",
+        "target_kind": "context_item",
+        "target_handle": "schema_target_state",
+        "purpose": "Bind the exact source bytes to the inline target snapshot."
+      },
+      {
+        "citation_handle": "label_absence_citation",
+        "target_kind": "capsule",
+        "target_handle": "create_account_label",
+        "purpose": "Establish that create targets an absent path."
+      },
+      {
+        "citation_handle": "label_absence_citation",
+        "target_kind": "context_item",
+        "target_handle": "label_target_state",
+        "purpose": "Bind the absence declaration to the inline target state."
+      }
+    ]
+  },
+  "compiler_findings": {
+    "warnings": [],
+    "compilation_gaps": []
+  }
+}
