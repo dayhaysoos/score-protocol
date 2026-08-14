@@ -2,7 +2,6 @@
   "slice_id": "single-target-runtime-workspace",
   "after": [
     "runtime-adapter-foundation",
-    "runtime-adapter-foundation-repair",
     "execution-flow-contracts"
   ],
   "title": "Disposable Agent workspace and lean context delivery",
