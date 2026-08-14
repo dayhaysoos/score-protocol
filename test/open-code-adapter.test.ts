@@ -19,12 +19,16 @@ import { Cause, Effect, Exit, Fiber, Layer } from "effect";
 
 import {
   OPENCODE_CLI_VERSION,
-  OpenCodeAdapter,
+  OPENCODE_V2_CLIENT_VERSION,
   OpenCodeAdapterLive,
   OpenCodeGateway,
   OpenCodeRuntimeLive
 } from "../src/runner/open-code-adapter.js";
 import { AttemptId, ClaimedJob, JobId, RunId } from "../src/runner/domain.js";
+import {
+  AdapterInvocationError,
+  RuntimeAdapter
+} from "../src/runner/runtime-adapter.js";
 import type {
   RuntimeAttemptFact,
   RuntimeAttemptReporter
@@ -35,8 +39,13 @@ function job(input: {
   readonly targetPath: string;
   readonly operation?: "create" | "replace";
   readonly variantId?: string | null;
+  readonly adapterKind?: "opencode" | "pi";
+  readonly sdkVersion?: string;
+  readonly cliVersion?: string;
+  readonly workerProtocolVersion?: string;
 }) {
   const operation = input.operation ?? "create";
+  const adapterKind = input.adapterKind ?? "opencode";
   const targetState =
     operation === "create"
       ? { path: input.targetPath, state_at_base_revision: "absent" }
@@ -68,10 +77,25 @@ function job(input: {
       ]
     }),
     packageDigest: `sha256:${input.id}`,
-    providerId: "test-provider",
-    modelId: "test-model",
-    variantId: input.variantId ?? null,
-    cliVersion: OPENCODE_CLI_VERSION
+    adapter:
+      adapterKind === "opencode"
+        ? {
+            kind: "opencode",
+            providerId: "test-provider",
+            modelId: "test-model",
+            variantId: input.variantId ?? null,
+            sdkVersion: input.sdkVersion ?? OPENCODE_V2_CLIENT_VERSION,
+            cliVersion: input.cliVersion ?? OPENCODE_CLI_VERSION
+          }
+        : {
+            kind: "pi",
+            providerId: "test-provider",
+            modelId: "test-model",
+            variantId: input.variantId ?? null,
+            sdkVersion: input.sdkVersion ?? "pi-sdk-test",
+            workerProtocolVersion:
+              input.workerProtocolVersion ?? "pi-worker-test"
+          }
   });
 }
 
@@ -580,7 +604,7 @@ function invokeFake(
 ) {
   return Effect.scoped(
     Effect.gen(function*() {
-      const adapter = yield* OpenCodeAdapter;
+      const adapter = yield* RuntimeAdapter;
       return yield* adapter.invoke(testJob, options.reporter);
     }).pipe(Effect.provide(runtimeFor(fixture, options)))
   );
@@ -695,7 +719,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       const invoke = (reporter?: RuntimeAttemptReporter) =>
         Effect.scoped(
           Effect.gen(function*() {
-            return yield* (yield* OpenCodeAdapter).invoke(creationJob(), reporter);
+            return yield* (yield* RuntimeAdapter).invoke(creationJob(), reporter);
           }).pipe(Effect.provide(adapterLayer))
         ).pipe(Effect.timeout("1 second"));
       const baseline = await Effect.runPromise(invoke());
@@ -727,7 +751,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       const candidates = await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function*() {
-            const adapter = yield* OpenCodeAdapter;
+            const adapter = yield* RuntimeAdapter;
             return yield* adapter.withRun((invoke) =>
               Effect.gen(function*() {
                 const created = yield* invoke(creationJob());
@@ -771,7 +795,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       const candidates = await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function*() {
-            const adapter = yield* OpenCodeAdapter;
+            const adapter = yield* RuntimeAdapter;
             return yield* adapter.withRun((invoke) =>
               Effect.all(jobs.map((item) => invoke(item)), { concurrency: "unbounded" })
             );
@@ -1182,7 +1206,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
         Effect.flip(
           Effect.scoped(
             Effect.gen(function*() {
-              return yield* (yield* OpenCodeAdapter).invoke(creationJob());
+              return yield* (yield* RuntimeAdapter).invoke(creationJob());
             }).pipe(Effect.provide(adapterLayer))
           )
         )
@@ -1229,7 +1253,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       const [created, unchanged] = await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function*() {
-            const adapter = yield* OpenCodeAdapter;
+            const adapter = yield* RuntimeAdapter;
             return [
               yield* adapter.invoke(creationJob()),
               yield* adapter.invoke(replacementJob())
@@ -1283,7 +1307,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
         Effect.flip(
           Effect.scoped(
             Effect.gen(function*() {
-              return yield* (yield* OpenCodeAdapter).invoke(creationJob());
+              return yield* (yield* RuntimeAdapter).invoke(creationJob());
             }).pipe(Effect.provide(extraLayer))
           )
         )
@@ -1319,7 +1343,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
         Effect.flip(
           Effect.scoped(
             Effect.gen(function*() {
-              return yield* (yield* OpenCodeAdapter).invoke(replacementJob());
+              return yield* (yield* RuntimeAdapter).invoke(replacementJob());
             }).pipe(Effect.provide(linkLayer))
           )
         )
@@ -1362,7 +1386,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function*() {
-            return yield* (yield* OpenCodeAdapter).invoke(creationJob());
+            return yield* (yield* RuntimeAdapter).invoke(creationJob());
           }).pipe(
             Effect.provide(runtimeFor(fixture, { authPath, providerConfigPath }))
           )
@@ -1483,7 +1507,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
         Effect.flip(
           Effect.scoped(
             Effect.gen(function*() {
-              return yield* (yield* OpenCodeAdapter).invoke(creationJob());
+            return yield* (yield* RuntimeAdapter).invoke(creationJob());
             }).pipe(Effect.provide(runtimeFor(fixture, { authPath })))
           )
         )
@@ -1494,6 +1518,66 @@ describe("OpenCode V2 Runtime Adapter", () => {
       assert.deepEqual(readdirSync(fixture.workspaceParent), []);
     } finally {
       fixture.cleanup();
+    }
+  });
+
+  it("rejects Pi and pinned OpenCode identity mismatches before gateway admission", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "score-runtime-adapter-mismatch-"));
+    const workspaceParent = join(directory, "workspaces");
+    mkdirSync(workspaceParent);
+    let gatewayAdmissions = 0;
+    try {
+      const adapterLayer = OpenCodeAdapterLive({ workspaceParent }).pipe(
+        Layer.provide(
+          Layer.succeed(
+            OpenCodeGateway,
+            testGateway(() => {
+              gatewayAdmissions += 1;
+              return Effect.die("the gateway must not be admitted for an incompatible Job");
+            })
+          )
+        )
+      );
+      const incompatibleJobs = [
+        job({
+          id: "pi-runtime",
+          targetPath: "src/pi-runtime.ts",
+          adapterKind: "pi"
+        }),
+        job({
+          id: "wrong-sdk",
+          targetPath: "src/wrong-sdk.ts",
+          sdkVersion: "0.0.0-mismatched-sdk"
+        }),
+        job({
+          id: "wrong-cli",
+          targetPath: "src/wrong-cli.ts",
+          cliVersion: "0.0.0-mismatched-cli"
+        })
+      ];
+
+      for (const incompatibleJob of incompatibleJobs) {
+        const error = (await Effect.runPromise(
+          Effect.flip(
+            Effect.scoped(
+              Effect.gen(function*() {
+                return yield* (yield* RuntimeAdapter).invoke(incompatibleJob);
+              }).pipe(Effect.provide(adapterLayer))
+            )
+          )
+        ));
+
+        assert.ok(error instanceof AdapterInvocationError);
+        assert.equal(error._tag, "AdapterInvocationError");
+        assert.equal(error.failureCategory, "runtime_startup");
+        assert.equal(error.targetOutputState, "not observed");
+        assert.equal(error.runtimeSessionId, undefined);
+        assert.match(error.message, /adapter|OpenCode|version/i);
+      }
+      assert.equal(gatewayAdmissions, 0);
+      assert.deepEqual(readdirSync(workspaceParent), []);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });

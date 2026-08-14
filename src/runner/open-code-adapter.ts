@@ -26,7 +26,7 @@ import {
 
 import { sha256Bytes } from "../canonical.js";
 import { sanitizeDiagnosticMessage as sanitizedMessage } from "./diagnostic-sanitization.js";
-import { JobId, type ClaimedJob } from "./domain.js";
+import { JobId, type ClaimedJob, type TargetOutputState } from "./domain.js";
 import {
   isolatedOpenCodeEnvironment,
   prepareOpenCodeIsolation
@@ -50,125 +50,17 @@ import type {
   RuntimeAttemptFact,
   RuntimeAttemptReporter
 } from "./runtime-attempt-observation.js";
+import {
+  AdapterBoundaryError,
+  AdapterInvocationError,
+  RuntimeAdapter,
+  type AdapterCandidate,
+  type AdapterFailureCategory,
+  type AdapterTerminalOutcome,
+  type RuntimeJobInvoke
+} from "./runtime-adapter.js";
 
-export class AdapterInvocationError extends Schema.TaggedError<AdapterInvocationError>()(
-  "AdapterInvocationError",
-  {
-    jobId: JobId,
-    message: Schema.String,
-    failureCategory: Schema.Literals([
-        "runtime_startup",
-        "provider",
-        "tool",
-        "timeout",
-        "interruption",
-        "missing_output",
-      "workspace_integrity",
-      "runtime_protocol",
-      "runtime_cleanup"
-    ]),
-    runtimeSessionId: Schema.optional(Schema.String),
-    terminalOutcome: Schema.optional(
-      Schema.Struct({
-        kind: Schema.Literals(["provider", "tool", "assistant", "runtime", "transport"]),
-        name: Schema.optional(Schema.String),
-        status: Schema.optional(
-          Schema.Literals(["completed", "error", "running", "streaming", "unknown", "aborted"])
-        ),
-        statusCode: Schema.optional(Schema.Number)
-      })
-    ),
-    targetOutputState: Schema.Literals([
-      "not observed",
-      "missing",
-      "present",
-      "unchanged",
-      "different"
-    ]),
-    targetOutputDigest: Schema.optional(Schema.String),
-    diagnosticContent: Schema.optional(Schema.String)
-  }
-) {}
-
-export class AdapterBoundaryError extends Schema.TaggedError<AdapterBoundaryError>()(
-  "AdapterBoundaryError",
-  {
-    jobId: JobId,
-    message: Schema.String,
-    failureCategory: Schema.Literals([
-        "runtime_startup",
-        "provider",
-        "tool",
-        "timeout",
-        "interruption",
-        "missing_output",
-      "workspace_integrity",
-      "runtime_protocol",
-      "runtime_cleanup"
-    ]),
-    runtimeSessionId: Schema.optional(Schema.String),
-    terminalOutcome: Schema.optional(
-      Schema.Struct({
-        kind: Schema.Literals(["provider", "tool", "assistant", "runtime", "transport"]),
-        name: Schema.optional(Schema.String),
-        status: Schema.optional(
-          Schema.Literals(["completed", "error", "running", "streaming", "unknown", "aborted"])
-        ),
-        statusCode: Schema.optional(Schema.Number)
-      })
-    ),
-    targetOutputState: Schema.Literals([
-      "not observed",
-      "missing",
-      "present",
-      "unchanged",
-      "different"
-    ]),
-    targetOutputDigest: Schema.optional(Schema.String),
-    diagnosticContent: Schema.optional(Schema.String)
-  }
-) {}
-
-export type AdapterFailureCategory =
-  | "runtime_startup"
-  | "provider"
-  | "tool"
-  | "timeout"
-  | "interruption"
-  | "missing_output"
-  | "workspace_integrity"
-  | "runtime_protocol"
-  | "runtime_cleanup";
-
-export type TargetOutputState =
-  | "not observed"
-  | "missing"
-  | "present"
-  | "unchanged"
-  | "different";
-
-export interface SanitizedTerminalOutcome {
-  readonly kind: "provider" | "tool" | "assistant" | "runtime" | "transport";
-  readonly name?: string | undefined;
-  readonly status?:
-    | "completed"
-    | "error"
-    | "running"
-    | "streaming"
-    | "unknown"
-    | "aborted"
-    | undefined;
-  readonly statusCode?: number | undefined;
-}
-
-export interface AdapterCandidate {
-  readonly content: string;
-  readonly runtimeSessionId: string;
-  readonly targetOutputState?: TargetOutputState;
-  readonly targetOutputDigest?: string;
-}
-
-export type OpenCodeAdapterError = AdapterInvocationError | AdapterBoundaryError;
+type SanitizedTerminalOutcome = AdapterTerminalOutcome;
 
 export interface OpenCodeGatewayInput {
   readonly jobId: JobId;
@@ -232,18 +124,6 @@ export class OpenCodeGateway extends Context.Service<OpenCodeGateway, {
     use: (invoke: OpenCodeGatewayInvoke) => Effect.Effect<A, E, R>
   ) => Effect.Effect<A, E | AdapterInvocationError, R>;
 }>()("score/OpenCodeGateway") {}
-
-export type OpenCodeJobInvoke = (
-  job: ClaimedJob,
-  reporter?: RuntimeAttemptReporter
-) => Effect.Effect<AdapterCandidate, OpenCodeAdapterError>;
-
-export class OpenCodeAdapter extends Context.Service<OpenCodeAdapter, {
-  readonly invoke: OpenCodeJobInvoke;
-  readonly withRun: <A, E, R>(
-    use: (invoke: OpenCodeJobInvoke) => Effect.Effect<A, E, R>
-  ) => Effect.Effect<A, E | OpenCodeAdapterError, R>;
-}>()("score/OpenCodeAdapter") {}
 
 const AgentTarget = Schema.Struct({
   path: Schema.String,
@@ -525,14 +405,41 @@ export interface OpenCodeAdapterLiveOptions {
   readonly workspaceParent?: string;
 }
 
+function admittedOpenCodeConfiguration(job: ClaimedJob) {
+  if (job.adapter.kind !== "opencode") {
+    return undefined;
+  }
+  if (
+    job.adapter.sdkVersion !== OPENCODE_V2_CLIENT_VERSION ||
+    job.adapter.cliVersion !== OPENCODE_CLI_VERSION
+  ) {
+    return undefined;
+  }
+  return job.adapter;
+}
+
+function unsupportedAdapterError(job: ClaimedJob): AdapterInvocationError {
+  return new AdapterInvocationError({
+    jobId: job.jobId,
+    message:
+      job.adapter.kind !== "opencode"
+        ? "OpenCode runtime cannot execute a non-OpenCode job"
+        : "OpenCode job configuration does not match the pinned SDK and CLI versions",
+    failureCategory: "runtime_startup",
+    targetOutputState: "not observed"
+  });
+}
+
 const makeOpenCodeAdapter = (options: OpenCodeAdapterLiveOptions) =>
   Effect.gen(function*() {
     const gateway = yield* OpenCodeGateway;
     const invokeWith = (gatewayInvoke: OpenCodeGatewayInvoke) =>
-      Effect.fn("OpenCodeAdapter.invoke")((
+      Effect.fn("RuntimeAdapter.invokeOpenCode")((
         job: ClaimedJob,
         reporter?: RuntimeAttemptReporter
       ) => {
+        const configuration = admittedOpenCodeConfiguration(job);
+        if (configuration === undefined) return Effect.fail(unsupportedAdapterError(job));
         const workspaceParent = options.workspaceParent ?? tmpdir();
         const accumulator: RuntimeAttemptAccumulator = {
           agentInputAdmitted: false
@@ -563,10 +470,12 @@ const makeOpenCodeAdapter = (options: OpenCodeAdapterLiveOptions) =>
                 workspacePath,
                 targetPath: prepared.targetPath,
                 agentInputJson: job.agentInputJson,
-                providerId: job.providerId,
-                modelId: job.modelId,
-                ...(job.variantId === null ? {} : { variantId: job.variantId }),
-                cliVersion: job.cliVersion,
+                providerId: configuration.providerId,
+                modelId: configuration.modelId,
+                ...(configuration.variantId === null
+                  ? {}
+                  : { variantId: configuration.variantId }),
+                cliVersion: configuration.cliVersion,
                 reporter: attemptReporter
               }).pipe(
                 Effect.matchEffect({
@@ -626,16 +535,18 @@ const makeOpenCodeAdapter = (options: OpenCodeAdapterLiveOptions) =>
         );
       });
     const withRun = <A, E, R>(
-      use: (invoke: OpenCodeJobInvoke) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | OpenCodeAdapterError, R> =>
+      use: (invoke: RuntimeJobInvoke) => Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E | AdapterInvocationError | AdapterBoundaryError, R> =>
       gateway.withRun((gatewayInvoke) => use(invokeWith(gatewayInvoke)));
-    const invoke: OpenCodeJobInvoke = (job, reporter) =>
+    const invoke: RuntimeJobInvoke = (job, reporter) =>
       withRun((runInvoke) => runInvoke(job, reporter));
-    return OpenCodeAdapter.of({ invoke, withRun });
+    return RuntimeAdapter.of({ invoke, withRun });
   });
 
-export const OpenCodeAdapterLive = (options: OpenCodeAdapterLiveOptions = {}) =>
-  Layer.effect(OpenCodeAdapter, makeOpenCodeAdapter(options));
+export const OpenCodeAdapterLive: (
+  options?: OpenCodeAdapterLiveOptions
+) => Layer.Layer<RuntimeAdapter, never, OpenCodeGateway> = (options = {}) =>
+  Layer.effect(RuntimeAdapter, makeOpenCodeAdapter(options));
 
 export const OPENCODE_V2_CLIENT_VERSION = "0.0.0-next-17111";
 export const OPENCODE_CLI_VERSION = "0.0.0-next-17111";
@@ -1422,7 +1333,9 @@ export const OpenCodeGatewayLive = (options: OpenCodeGatewayLiveOptions = {}) =>
 
 export type OpenCodeRuntimeLiveOptions = OpenCodeGatewayLiveOptions;
 
-export const OpenCodeRuntimeLive = (options: OpenCodeRuntimeLiveOptions = {}) =>
+export const OpenCodeRuntimeLive: (
+  options?: OpenCodeRuntimeLiveOptions
+) => Layer.Layer<RuntimeAdapter> = (options = {}) =>
   OpenCodeAdapterLive(
     options.workspaceParent === undefined ? {} : { workspaceParent: options.workspaceParent }
   ).pipe(

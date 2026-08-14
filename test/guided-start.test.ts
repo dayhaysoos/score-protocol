@@ -34,7 +34,7 @@ import {
 } from "../src/runner/guided-start-cli.js";
 import { formatApplicationSummary } from "../src/runner/application-summary.js";
 import { RunId, type AdapterConfiguration } from "../src/runner/domain.js";
-import { OpenCodeAdapter } from "../src/runner/open-code-adapter.js";
+import { RuntimeAdapter } from "../src/runner/runtime-adapter.js";
 import { RepositoryDriftError } from "../src/runner/repository-application.js";
 import { inspectRun } from "../src/runner/runner.js";
 import type {
@@ -44,10 +44,10 @@ import type {
 import type { ReviewedChangePlan } from "../src/score-alpha.js";
 import { ScoreAlpha } from "../src/score-alpha.js";
 
-function testOpenCodeAdapter(
-  input: Pick<typeof OpenCodeAdapter.Service, "invoke">,
-): typeof OpenCodeAdapter.Service {
-  return OpenCodeAdapter.of({
+function testRuntimeAdapter(
+  input: Pick<typeof RuntimeAdapter.Service, "invoke">,
+): typeof RuntimeAdapter.Service {
+  return RuntimeAdapter.of({
     ...input,
     withRun: (use) => use(input.invoke),
   });
@@ -1245,10 +1245,10 @@ describe("guided Runner start", () => {
       let progressClears = 0;
 
       const runtimeLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: (job) => {
-            claimedVariants.push(job.variantId);
+            claimedVariants.push(job.adapter.variantId);
 
             return Effect.succeed({
               content:
@@ -1508,8 +1508,8 @@ describe("guided Runner start", () => {
       assert.ok(plan);
 
       const runtimeLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.sync(() => {
               rmSync(join(projectRoot, "src", "example.ts"));
@@ -1609,8 +1609,8 @@ describe("guided Runner start", () => {
       assert.ok(plan);
 
       const runtimeLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: (job) =>
             Effect.sync(() => {
               if (job.targetPath === "src/schema.ts") {

@@ -16,7 +16,7 @@ export type FileOperation = typeof FileOperation.Type;
 
 export const MAX_RUNNER_CONCURRENCY = 32;
 
-export const AdapterConfiguration = Schema.Struct({
+export const OpenCodeAdapterConfiguration = Schema.Struct({
   kind: Schema.Literal("opencode"),
   providerId: Schema.String,
   modelId: Schema.String,
@@ -24,6 +24,22 @@ export const AdapterConfiguration = Schema.Struct({
   sdkVersion: Schema.String,
   cliVersion: Schema.String
 });
+export type OpenCodeAdapterConfiguration = typeof OpenCodeAdapterConfiguration.Type;
+
+export const PiAdapterConfiguration = Schema.Struct({
+  kind: Schema.Literal("pi"),
+  providerId: Schema.String,
+  modelId: Schema.String,
+  variantId: Schema.NullOr(Schema.String),
+  sdkVersion: Schema.String,
+  workerProtocolVersion: Schema.String
+});
+export type PiAdapterConfiguration = typeof PiAdapterConfiguration.Type;
+
+export const AdapterConfiguration = Schema.Union([
+  OpenCodeAdapterConfiguration,
+  PiAdapterConfiguration
+]);
 export type AdapterConfiguration = typeof AdapterConfiguration.Type;
 
 export const RunnerCounts = Schema.Struct({
@@ -190,15 +206,33 @@ export const RunFileObservation = Schema.Struct({
 });
 export type RunFileObservation = typeof RunFileObservation.Type;
 
+export const OpenCodeRunRuntimeVersion = Schema.Struct({
+  sdkVersion: Schema.String,
+  cliVersion: Schema.String
+});
+export type OpenCodeRunRuntimeVersion = typeof OpenCodeRunRuntimeVersion.Type;
+
+export const PiRunRuntimeVersion = Schema.Struct({
+  sdkVersion: Schema.String,
+  workerProtocolVersion: Schema.String
+});
+export type PiRunRuntimeVersion = typeof PiRunRuntimeVersion.Type;
+
+// runtimeVersion predates adapter-specific discriminators in the public status
+// JSON. Keep OpenCode's exact encoded shape while naming Pi's worker protocol
+// truthfully through the mutually exclusive version field.
+export const RunRuntimeVersion = Schema.Union([
+  OpenCodeRunRuntimeVersion,
+  PiRunRuntimeVersion
+]);
+export type RunRuntimeVersion = typeof RunRuntimeVersion.Type;
+
 export const RunObservation = Schema.Struct({
   runId: RunId,
   providerId: Schema.String,
   modelId: Schema.String,
   variantId: Schema.NullOr(Schema.String),
-  runtimeVersion: Schema.Struct({
-    sdkVersion: Schema.String,
-    cliVersion: Schema.String
-  }),
+  runtimeVersion: RunRuntimeVersion,
   createdAt: Schema.String,
   lastObservedAt: Schema.String,
   terminalAt: Schema.NullOr(Schema.String),
@@ -252,10 +286,7 @@ export const ClaimedJob = Schema.Struct({
   controlJson: Schema.String,
   agentInputJson: Schema.String,
   packageDigest: Schema.String,
-  providerId: Schema.String,
-  modelId: Schema.String,
-  variantId: Schema.NullOr(Schema.String),
-  cliVersion: Schema.String
+  adapter: AdapterConfiguration
 });
 export type ClaimedJob = typeof ClaimedJob.Type;
 

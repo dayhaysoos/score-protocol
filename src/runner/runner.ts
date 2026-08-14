@@ -34,10 +34,10 @@ import {
 } from "./domain.js";
 import { loadApprovedPlan } from "./approved-plan.js";
 import {
-  OpenCodeAdapter,
-  type AdapterFailureCategory,
-  type OpenCodeAdapterError
-} from "./open-code-adapter.js";
+  RuntimeAdapter,
+  type RuntimeAdapterError,
+  type AdapterFailureCategory
+} from "./runtime-adapter.js";
 import { RunnerStore, RunnerStoreLive } from "./runner-store.js";
 import type {
   RuntimeAttemptFact,
@@ -614,7 +614,7 @@ function stableFailureCategory(
   }
 }
 
-function stableTerminalOutcome(error: OpenCodeAdapterError): unknown {
+function stableTerminalOutcome(error: RuntimeAdapterError): unknown {
   const outcome = error.terminalOutcome;
   if (outcome === undefined) return undefined;
   const kind =
@@ -636,7 +636,7 @@ function stableTerminalOutcome(error: OpenCodeAdapterError): unknown {
 const runPendingJobsEffect = Effect.fn("Runner.runPendingJobs")(
   function*(runId: RunId, options: InternalRunExecutionOptions) {
     const store = yield* RunnerStore;
-    const adapter = yield* OpenCodeAdapter;
+    const adapter = yield* RuntimeAdapter;
     const delivery = options[runObservationDelivery];
     const publish = () =>
       delivery === undefined
@@ -782,7 +782,7 @@ export function runPendingJobs(
   runnerDatabasePath: string,
   runId: RunId,
   options: RunExecutionOptions = {}
-): Effect.Effect<RunSnapshot, RunRecoveryRequired | RunnerStoreError, OpenCodeAdapter> {
+): Effect.Effect<RunSnapshot, RunRecoveryRequired | RunnerStoreError, RuntimeAdapter> {
   const executionOptions = withRunObservationDelivery(options);
   return Effect.scoped(
     runPendingJobsEffect(runId, executionOptions).pipe(
@@ -1014,7 +1014,7 @@ export function runPendingJobsAndApply(
 ): Effect.Effect<
   RunSnapshot,
   RunRecoveryRequired | RunnerStoreError | RepositoryDriftError,
-  OpenCodeAdapter
+  RuntimeAdapter
 > {
   const executionOptions = withRunObservationDelivery(options);
   return inspectRun(runnerDatabasePath, runId).pipe(

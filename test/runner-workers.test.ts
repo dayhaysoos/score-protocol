@@ -20,8 +20,8 @@ import { createAcceptedInputPacket } from "../src/fixture-inputs.js";
 import { repositoryRevisionContentDigest } from "../src/repository-source-state.js";
 import {
   AdapterInvocationError,
-  OpenCodeAdapter
-} from "../src/runner/open-code-adapter.js";
+  RuntimeAdapter
+} from "../src/runner/runtime-adapter.js";
 import type { RuntimeAttemptFact } from "../src/runner/runtime-attempt-observation.js";
 import {
   enqueueApprovedPlan,
@@ -43,10 +43,10 @@ import { ScoreAlpha } from "../src/score-alpha.js";
 import type { ApprovedPassExport } from "../src/score-alpha.js";
 import { createFixtureGitRepository } from "./helpers/git-repository.js";
 
-function testOpenCodeAdapter(
-  input: Pick<typeof OpenCodeAdapter.Service, "invoke">
-): typeof OpenCodeAdapter.Service {
-  return OpenCodeAdapter.of({
+function testRuntimeAdapter(
+  input: Pick<typeof RuntimeAdapter.Service, "invoke">
+): typeof RuntimeAdapter.Service {
+  return RuntimeAdapter.of({
     ...input,
     withRun: (use) => use(input.invoke)
   });
@@ -178,8 +178,8 @@ describe("Runner worker pool", () => {
         END`);
       database.close();
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: (_job, reporter) =>
             Effect.gen(function*() {
               const report = (fact: RuntimeAttemptFact) =>
@@ -277,8 +277,8 @@ describe("Runner worker pool", () => {
         targetOutputState: "not observed"
       });
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        OpenCodeAdapter.of({
+        RuntimeAdapter,
+        RuntimeAdapter.of({
           invoke: () => Effect.fail(adapterFailure),
           withRun: () => Effect.fail(adapterFailure)
         })
@@ -346,8 +346,8 @@ describe("Runner worker pool", () => {
         targetOutputState: "not observed"
       });
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        OpenCodeAdapter.of({
+        RuntimeAdapter,
+        RuntimeAdapter.of({
           invoke: () => Effect.fail(rawFailure),
           withRun: () => Effect.fail(rawFailure)
         })
@@ -405,8 +405,8 @@ describe("Runner worker pool", () => {
         )
       );
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.succeed({
               content: "export const generated = true;\n",
@@ -547,8 +547,8 @@ describe("Runner worker pool", () => {
 
       let invocationCount = 0;
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.sync(() => {
               invocationCount += 1;
@@ -710,8 +710,8 @@ describe("Runner worker pool", () => {
         )
       );
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.succeed({
               content: candidate,
@@ -777,8 +777,8 @@ describe("Runner worker pool", () => {
       const candidate =
         "export interface Only { value: string; }\nexport function duplicate(): void {}\n";
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.succeed({
               content: candidate,
@@ -842,8 +842,8 @@ describe("Runner worker pool", () => {
         END`);
       database.close();
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.succeed({
               content: "export interface Only { value: string; }\n",
@@ -933,6 +933,13 @@ describe("Runner worker pool", () => {
         let runScopes = 0;
         let runScopeReleased = false;
         const claimedVariants: Array<string | null> = [];
+        const claimedJobs: Array<{
+          readonly attemptId: string;
+          readonly controlJson: string;
+          readonly agentInputJson: string;
+          readonly packageDigest: string;
+          readonly adapter: unknown;
+        }> = [];
         const observations: RunObservation[] = [];
         let releaseBarrier: (() => void) | undefined;
         const barrier = new Promise<void>((resolve) => {
@@ -942,7 +949,7 @@ describe("Runner worker pool", () => {
         const firstWorking = new Promise<void>((resolve) => {
           releaseFirstWorking = resolve;
         });
-        const invoke: typeof OpenCodeAdapter.Service["invoke"] = (job, reporter) =>
+        const invoke: typeof RuntimeAdapter.Service["invoke"] = (job, reporter) =>
               Effect.tryPromise({
                 try: async () => {
                   const report = async (fact: RuntimeAttemptFact) => {
@@ -952,7 +959,14 @@ describe("Runner worker pool", () => {
                       )
                     );
                   };
-                  claimedVariants.push(job.variantId);
+                  claimedVariants.push(job.adapter.variantId);
+                  claimedJobs.push({
+                    attemptId: job.attemptId,
+                    controlJson: job.controlJson,
+                    agentInputJson: job.agentInputJson,
+                    packageDigest: job.packageDigest,
+                    adapter: job.adapter
+                  });
                   active += 1;
                   maximumActive = Math.max(maximumActive, active);
                   started += 1;
@@ -999,8 +1013,8 @@ describe("Runner worker pool", () => {
                       })
               });
         const adapterLayer = Layer.succeed(
-          OpenCodeAdapter,
-          OpenCodeAdapter.of({
+          RuntimeAdapter,
+          RuntimeAdapter.of({
             invoke,
             withRun: (use) =>
               Effect.acquireUseRelease(
@@ -1047,6 +1061,21 @@ describe("Runner worker pool", () => {
         assert.equal(runScopes, 1);
         assert.equal(runScopeReleased, true);
         assert.deepEqual(claimedVariants, ["fast", "fast"]);
+        assert.equal(claimedJobs.length, 2);
+        for (const job of claimedJobs) {
+          assert.notEqual(job.attemptId, "");
+          assert.match(job.controlJson, /score\.compilation-bundle@0\.1\.0-alpha\.4/);
+          assert.match(job.agentInputJson, /score\.coding\.filesystem\.single-target/);
+          assert.match(job.packageDigest, /^sha256:[a-f0-9]{64}$/u);
+          assert.deepEqual(job.adapter, {
+            kind: "opencode",
+            providerId: "test-provider",
+            modelId: "test-model",
+            variantId: "fast",
+            sdkVersion: "0.0.0-next-17111",
+            cliVersion: "0.0.0-next-17111"
+          });
+        }
         assert.equal(completed.state, "completed_with_failures");
         assert.deepEqual(
           completed.jobs.map((job) => [job.targetPath, job.state]),
@@ -1167,8 +1196,8 @@ describe("Runner worker pool", () => {
 
       let invocationCount = 0;
       const adapterLayer = Layer.succeed(
-        OpenCodeAdapter,
-        testOpenCodeAdapter({
+        RuntimeAdapter,
+        testRuntimeAdapter({
           invoke: () =>
             Effect.sync(() => {
               invocationCount += 1;
@@ -1226,6 +1255,178 @@ describe("Runner worker pool", () => {
           ["src/schema.ts", "succeeded"]
         ]
       );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("round-trips authoritative OpenCode and Pi identities through the cli_version slot", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "score-runner-adapter-identities-"));
+    const runnerDatabasePath = join(directory, "runner.db");
+    try {
+      const enqueue = (adapter: Parameters<typeof RunnerStore.Service["enqueue"]>[0]["adapter"]) =>
+        Effect.scoped(
+          Effect.gen(function*() {
+            const store = yield* RunnerStore;
+            yield* store.initialize;
+            return yield* store.enqueue({
+              approvedPlan: singleCreateApprovedPlan(),
+              repositoryRoot: directory,
+              adapter,
+              maxConcurrency: 1
+            });
+          }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath)))
+        );
+      const historical = await Effect.runPromise(
+        enqueue({
+          kind: "opencode",
+          providerId: "historical-provider",
+          modelId: "historical-model",
+          variantId: null,
+          sdkVersion: "historical-sdk",
+          cliVersion: "historical-cli"
+        })
+      );
+      const current = await Effect.runPromise(
+        enqueue({
+          kind: "opencode",
+          providerId: "current-provider",
+          modelId: "current-model",
+          variantId: null,
+          sdkVersion: "current-sdk",
+          cliVersion: "current-cli"
+        })
+      );
+      const pi = await Effect.runPromise(
+        enqueue({
+          kind: "pi",
+          providerId: "pi-provider",
+          modelId: "pi-model",
+          variantId: null,
+          sdkVersion: "pi-sdk",
+          workerProtocolVersion: "pi-worker@1"
+        })
+      );
+      const database = new Database(runnerDatabasePath, { readonly: true });
+      const rawRows = database.prepare(
+        `SELECT run_id AS runId, adapter_kind AS adapterKind, variant_id AS variantId,
+                cli_version AS cliVersion
+         FROM runner_runs ORDER BY created_at, rowid`
+      ).all();
+      database.close();
+      assert.deepEqual(rawRows, [
+        { runId: historical.runId, adapterKind: "opencode", variantId: null, cliVersion: "historical-cli" },
+        { runId: current.runId, adapterKind: "opencode", variantId: null, cliVersion: "current-cli" },
+        { runId: pi.runId, adapterKind: "pi", variantId: null, cliVersion: "pi-worker@1" }
+      ]);
+      const historicalSnapshot = await Effect.runPromise(
+        inspectRun(runnerDatabasePath, historical.runId)
+      );
+      const currentSnapshot = await Effect.runPromise(
+        inspectRun(runnerDatabasePath, current.runId)
+      );
+      const piSnapshot = await Effect.runPromise(
+        inspectRun(runnerDatabasePath, pi.runId)
+      );
+      assert.deepEqual(historicalSnapshot.adapter, {
+        kind: "opencode", providerId: "historical-provider", modelId: "historical-model",
+        variantId: null, sdkVersion: "historical-sdk", cliVersion: "historical-cli"
+      });
+      assert.deepEqual(currentSnapshot.adapter, {
+        kind: "opencode", providerId: "current-provider", modelId: "current-model",
+        variantId: null, sdkVersion: "current-sdk", cliVersion: "current-cli"
+      });
+      assert.deepEqual(piSnapshot.adapter, {
+        kind: "pi", providerId: "pi-provider", modelId: "pi-model",
+        variantId: null, sdkVersion: "pi-sdk", workerProtocolVersion: "pi-worker@1"
+      });
+      assert.deepEqual(historicalSnapshot.observation.runtimeVersion, {
+        sdkVersion: "historical-sdk",
+        cliVersion: "historical-cli"
+      });
+      assert.deepEqual(currentSnapshot.observation.runtimeVersion, {
+        sdkVersion: "current-sdk",
+        cliVersion: "current-cli"
+      });
+      assert.deepEqual(piSnapshot.observation.runtimeVersion, {
+        sdkVersion: "pi-sdk",
+        workerProtocolVersion: "pi-worker@1"
+      });
+      assert.equal("cliVersion" in piSnapshot.observation.runtimeVersion, false);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects incompatible or malformed adapter selections before RuntimeAdapter input delivery", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "score-runner-adapter-gate-"));
+      const runnerDatabasePath = join(directory, "runner.db");
+    try {
+      const incompatible = structuredClone(singleCreateApprovedPlan());
+      const payload = incompatible.payloads[0] as unknown as Record<string, unknown>;
+      const agentInput = payload.agent_input as {
+        required_capabilities: Array<{ configuration: { allowed_operations: string[] } }>;
+      };
+      agentInput.required_capabilities[0]!.configuration.allowed_operations = ["shell"];
+      payload.payload = { control: payload.control, agent_input: agentInput };
+      payload.agent_input_digest = sha256Json(agentInput);
+      payload.payload_digest = sha256Json(payload.payload);
+      const incompatibleError = await Effect.runPromise(Effect.flip(
+        Effect.scoped(Effect.gen(function*() {
+          const store = yield* RunnerStore;
+          yield* store.initialize;
+          return yield* store.enqueue({
+            approvedPlan: incompatible,
+            repositoryRoot: directory,
+            adapter: { kind: "pi", providerId: "pi", modelId: "model", variantId: null, sdkVersion: "sdk", workerProtocolVersion: "worker@1" },
+            maxConcurrency: 1
+          });
+        }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath))))
+      ));
+      assert.equal(incompatibleError._tag, "AdapterCompatibilityError");
+
+      const malformedErrors: Array<{ readonly _tag: string }> = [];
+      for (const adapter of [
+        JSON.parse('{"kind":"unknown","providerId":"x"}'),
+        JSON.parse('{"kind":"pi","providerId":"x","modelId":"y","variantId":null,"sdkVersion":"z"}')
+      ]) {
+        malformedErrors.push(await Effect.runPromise(Effect.flip(
+        Effect.scoped(Effect.gen(function*() {
+          const store = yield* RunnerStore;
+          yield* store.initialize;
+          return yield* store.enqueue({
+            approvedPlan: singleCreateApprovedPlan(), repositoryRoot: directory,
+            adapter, maxConcurrency: 1
+          });
+        }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath))))
+        )));
+      }
+      malformedErrors.forEach((error) => assert.equal(error._tag, "AdapterCompatibilityError"));
+
+      const pi = await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+        const store = yield* RunnerStore;
+        yield* store.initialize;
+        return yield* store.enqueue({
+          approvedPlan: singleCreateApprovedPlan(), repositoryRoot: directory,
+          adapter: { kind: "pi", providerId: "pi", modelId: "model", variantId: null, sdkVersion: "sdk", workerProtocolVersion: "worker@1" },
+          maxConcurrency: 1
+        });
+      }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath)))));
+      let inputDeliveries = 0;
+      const runtime = Layer.succeed(RuntimeAdapter, testRuntimeAdapter({
+        invoke: (job, reporter) => {
+          assert.equal(job.adapter.kind, "pi");
+          void reporter;
+          inputDeliveries += 1;
+          return Effect.succeed({
+            content: "export interface Only { value: string; }\n",
+            runtimeSessionId: "pi-runtime-session"
+          });
+        }
+      }));
+      const completed = await Effect.runPromise(runPendingJobs(runnerDatabasePath, pi.runId).pipe(Effect.provide(runtime)));
+      assert.equal(inputDeliveries, 1);
+      assert.equal(completed.state, "completed");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

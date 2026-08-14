@@ -24,7 +24,7 @@ import {
   type RunObservationObserver
 } from "./runner.js";
 import type { RepositoryDriftFinding } from "./repository-application.js";
-import { OpenCodeAdapter } from "./open-code-adapter.js";
+import { RuntimeAdapter } from "./runtime-adapter.js";
 import { listReviewedSlices, type SliceRunStatus } from "./slice-listing.js";
 import {
   createRunProgressRenderer,
@@ -325,7 +325,7 @@ export function makeGuidedStartBackend(input: {
   readonly invokingDirectory: string;
   readonly repositoryOverride?: string;
   readonly adapterCatalog: RuntimeAdapterCatalog<AdapterConfiguration>;
-  readonly runtimeLayer: Layer.Layer<OpenCodeAdapter>;
+  readonly runtimeLayer: Layer.Layer<RuntimeAdapter>;
   readonly runEffect?: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
   readonly progress?: RunProgressDependencies;
 }): GuidedStartBackend {
@@ -415,7 +415,7 @@ export async function runGuidedOpenCodeStart(input: {
   readonly invokingDirectory: string;
   readonly repositoryOverride?: string;
   readonly adapterCatalog: RuntimeAdapterCatalog<AdapterConfiguration>;
-  readonly runtimeLayer: Layer.Layer<OpenCodeAdapter>;
+  readonly runtimeLayer: Layer.Layer<RuntimeAdapter>;
   readonly runEffect?: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
   readonly progress?: RunProgressDependencies;
   readonly concurrency: number;

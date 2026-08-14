@@ -14,7 +14,7 @@ import {
   ApplicationState,
   AdapterCompatibilityError,
   AttemptId,
-  type AdapterConfiguration,
+  AdapterConfiguration,
   CandidateFile,
   type CandidateFile as CandidateFileType,
   ConfirmedTarget,
@@ -31,6 +31,7 @@ import {
   RunSnapshot,
   type RunSnapshot as RunSnapshotType,
   RunObservation,
+  type RunRuntimeVersion as RunRuntimeVersionType,
   type RunObservationPhase as RunObservationPhaseType,
   RunRecoveryRequired,
   RunnerCounts,
@@ -123,9 +124,11 @@ const ClaimableJobRow = Schema.Struct({
   controlJson: Schema.String,
   agentInputJson: Schema.String,
   packageDigest: Schema.String,
+  adapterKind: Schema.String,
   providerId: Schema.String,
   modelId: Schema.String,
   variantId: Schema.NullOr(Schema.String),
+  sdkVersion: Schema.String,
   cliVersion: Schema.String
 });
 
@@ -548,7 +551,58 @@ function runObservationPhaseRank(phase: RunObservationPhaseType): number {
   }
 }
 
-function validateOpenCodePackage(
+function decodeStoredAdapter(input: {
+  readonly adapterKind: string;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly variantId: string | null;
+  readonly sdkVersion: string;
+  readonly cliVersion: string;
+}): AdapterConfiguration {
+  return Schema.decodeUnknownSync(AdapterConfiguration)(
+    input.adapterKind === "opencode"
+      ? {
+          kind: "opencode",
+          providerId: input.providerId,
+          modelId: input.modelId,
+          variantId: input.variantId,
+          sdkVersion: input.sdkVersion,
+          cliVersion: input.cliVersion
+        }
+      : input.adapterKind === "pi"
+        ? {
+            kind: "pi",
+            providerId: input.providerId,
+            modelId: input.modelId,
+            variantId: input.variantId,
+            sdkVersion: input.sdkVersion,
+            workerProtocolVersion: input.cliVersion
+          }
+        : { kind: input.adapterKind }
+  );
+}
+
+function storedAdapterVersion(adapter: AdapterConfiguration): string {
+  return adapter.kind === "opencode"
+    ? adapter.cliVersion
+    : adapter.workerProtocolVersion;
+}
+
+function observedRuntimeVersion(
+  adapter: AdapterConfiguration
+): RunRuntimeVersionType {
+  return adapter.kind === "opencode"
+    ? {
+        sdkVersion: adapter.sdkVersion,
+        cliVersion: adapter.cliVersion
+      }
+    : {
+        sdkVersion: adapter.sdkVersion,
+        workerProtocolVersion: adapter.workerProtocolVersion
+      };
+}
+
+function validateAgentPackage(
   payload: ApprovedPassExport["payloads"][number],
   sourceSnapshot: RepositorySourceSnapshot
 ): void {
@@ -579,7 +633,7 @@ function validateOpenCodePackage(
       throw new Error("Run Rules, Agent Input, and exported target do not agree");
     }
     if (operation === "delete") {
-      throw new Error("OpenCode V2 Runtime Adapter supports create and replace, not delete");
+      throw new Error("Runtime adapter supports create and replace, not delete");
     }
 
     const expectedEffect = operation === "create" ? "create_file" : "replace_file";
@@ -588,12 +642,12 @@ function validateOpenCodePackage(
       control.allowed_effects[0]?.kind !== expectedEffect ||
       control.allowed_effects[0]?.path !== payload.target_path
     ) {
-      throw new Error("Run Rules declare effects the OpenCode adapter cannot enforce");
+      throw new Error("Run Rules declare effects the Runtime adapter cannot enforce");
     }
 
     const required = agentInput.required_capabilities.filter((capability) => capability.required);
     if (required.length !== 1) {
-      throw new Error("OpenCode adapter requires one supported filesystem capability");
+      throw new Error("Runtime adapter requires one supported filesystem capability");
     }
     const capability = required[0];
     const expectedOperations =
@@ -610,7 +664,7 @@ function validateOpenCodePackage(
       canonicalJson([...capability.configuration.allowed_operations].toSorted()) !==
         canonicalJson([...expectedOperations].toSorted())
     ) {
-      throw new Error("OpenCode adapter cannot satisfy the required capability exactly");
+      throw new Error("Runtime adapter cannot satisfy the required capability exactly");
     }
 
     const expectedBaseState = operation === "create" ? "absent" : "present";
@@ -926,6 +980,14 @@ const makeRunnerStore = (
       });
     }
 
+    const adapter = yield* Effect.try({
+      try: () => Schema.decodeUnknownSync(AdapterConfiguration)(input.adapter),
+      catch: (cause) =>
+        new AdapterCompatibilityError({
+          payloadId: "adapter",
+          message: `Frozen Runtime adapter configuration is invalid: ${cause instanceof Error ? cause.message : String(cause)}`
+        })
+    });
     const frozen = yield* Effect.try({
       try: () => {
         if (input.approvedPlan.version !== "0.1.0-alpha.5") {
@@ -956,7 +1018,7 @@ const makeRunnerStore = (
               message: `Approved Agent Package ${payload.payload_id} does not match its bound digests`
             });
           }
-          validateOpenCodePackage(payload, sourceSnapshot);
+          validateAgentPackage(payload, sourceSnapshot);
           return {
             payload,
             controlJson: canonicalJson(payload.control),
@@ -1052,12 +1114,12 @@ const makeRunnerStore = (
           input.approvedPlan.publication.decision_id,
           input.approvedPlan.publication.authority,
           input.approvedPlan.publication.decided_at,
-          input.adapter.kind,
-          input.adapter.providerId,
-          input.adapter.modelId,
-          input.adapter.variantId,
-          input.adapter.sdkVersion,
-          input.adapter.cliVersion,
+          adapter.kind,
+          adapter.providerId,
+          adapter.modelId,
+          adapter.variantId,
+          adapter.sdkVersion,
+          storedAdapterVersion(adapter),
           input.maxConcurrency,
           input.repositoryRoot,
           frozen.sourceSnapshot.revision_id,
@@ -1185,6 +1247,14 @@ const makeRunnerStore = (
         message: `Run ${runId} does not exist`
       });
     }
+    const adapter = yield* Effect.try({
+      try: () => decodeStoredAdapter(run),
+      catch: (cause) =>
+        new RunnerStoreError({
+          operation: "inspectRun",
+          message: `Run ${runId} has an invalid frozen Runtime adapter configuration: ${cause instanceof Error ? cause.message : String(cause)}`
+        })
+    });
     const jobs = yield* sql.unsafe(
       `SELECT job_id AS jobId, ordinal, target_path AS targetPath,
               operation, state, package_digest AS packageDigest
@@ -1276,10 +1346,7 @@ const makeRunnerStore = (
       providerId: run.providerId,
       modelId: run.modelId,
       variantId: run.variantId,
-      runtimeVersion: {
-        sdkVersion: run.sdkVersion,
-        cliVersion: run.cliVersion
-      },
+      runtimeVersion: observedRuntimeVersion(adapter),
       createdAt: run.createdAt,
       lastObservedAt,
       terminalAt: run.terminalAt,
@@ -1382,14 +1449,7 @@ const makeRunnerStore = (
         ({ targetPath }) => targetPath
       ),
       confirmedTargets,
-      adapter: {
-        kind: run.adapterKind,
-        providerId: run.providerId,
-        modelId: run.modelId,
-        variantId: run.variantId,
-        sdkVersion: run.sdkVersion,
-        cliVersion: run.cliVersion
-      },
+      adapter,
       maxConcurrency: run.maxConcurrency,
       jobs,
       observation
@@ -1430,8 +1490,10 @@ const makeRunnerStore = (
                   j.target_path AS targetPath, j.operation,
                   j.control_json AS controlJson, j.agent_input_json AS agentInputJson,
                   j.package_digest AS packageDigest,
+                  r.adapter_kind AS adapterKind,
                   r.provider_id AS providerId, r.model_id AS modelId,
                   r.variant_id AS variantId,
+                  r.sdk_version AS sdkVersion,
                   r.cli_version AS cliVersion
            FROM runner_jobs j
            JOIN runner_runs r ON r.run_id = j.run_id
@@ -1447,6 +1509,14 @@ const makeRunnerStore = (
         const row = rows[0];
         if (!row) return null;
         yield* requireSupportedStoredJobProtocol("claimNext", row);
+        const adapter = yield* Effect.try({
+          try: () => decodeStoredAdapter(row),
+          catch: (cause) =>
+            new RunnerStoreError({
+              operation: "claimNext",
+              message: `Job ${row.targetPath} has an invalid frozen Runtime adapter configuration: ${cause instanceof Error ? cause.message : String(cause)}`
+            })
+        });
         const attemptId = AttemptId.make(randomUUID());
         const claimedAt = new Date().toISOString();
         yield* sql.unsafe(
@@ -1471,8 +1541,15 @@ const makeRunnerStore = (
           [claimedAt, runId]
         );
         return yield* Schema.decodeUnknownEffect(ClaimedJob)({
-          ...row,
-          attemptId
+          jobId: row.jobId,
+          runId: row.runId,
+          targetPath: row.targetPath,
+          operation: row.operation,
+          controlJson: row.controlJson,
+          agentInputJson: row.agentInputJson,
+          packageDigest: row.packageDigest,
+          attemptId,
+          adapter
         });
       })
     );
