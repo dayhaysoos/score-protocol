@@ -1,0 +1,274 @@
+{
+  "slice_id": "pi-runtime-primitives",
+  "after": [
+    "single-target-runtime-workspace"
+  ],
+  "title": "Pi dependency, worker protocol, and workspace tools",
+  "objective": "Pin Pi and define the narrow, versioned, secret-free protocol and custom tools that let a child runtime work throughout its disposable SCORE workspace without reaching the host project.",
+  "requirements": [
+    "The project pins @earendil-works/pi-coding-agent exactly at 0.84.1, raises the Node engine floor to 22.19.0, and records a deterministic lockfile update.",
+    "A versioned JSON-lines worker protocol carries one frozen Job request and bounded lifecycle facts without serializing credentials, raw prompts, transcripts, model output, or arbitrary environment variables.",
+    "The Pi worker receives only SCORE-owned list, read, write, and delete tools that accept canonical workspace-relative paths, resolve them beneath the supplied disposable workspace, and reject absolute paths, traversal, and symlink escape.",
+    "Workspace tools permit reading and disposable mutation of the target, context, and scratch paths inside the workspace, enforce UTF-8, size, and safe-file-type rules, and never access host paths outside the workspace root.",
+    "Deterministic tests validate protocol decoding, unknown-version rejection, secret-free serialization, tool schemas, internal context and scratch mutations, workspace confinement, and unsafe filesystem cases."
+  ],
+  "files": [
+    {
+      "path": "package.json",
+      "operation": "modify",
+      "task": "Declare the exact supported Pi SDK and Node runtime floor.",
+      "requirements": [
+        "The project pins @earendil-works/pi-coding-agent exactly at 0.84.1, raises the Node engine floor to 22.19.0, and records a deterministic lockfile update."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Records the verified stable Pi package version and its Node engine requirement."
+        },
+        {
+          "path": "package-lock.json",
+          "purpose": "Shows the repository's npm lockfile version and current exact dependency style."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Exact runtime dependency",
+          "content": "Add `@earendil-works/pi-coding-agent` as an exact production dependency with value `0.84.1`, not a range. Change only the minimum Node engine from `>=22.16.0` to `>=22.19.0`. Preserve package scripts, exports, files, and unrelated dependency versions."
+        }
+      ],
+      "constraints": [
+        "Do not add Pi's CLI as a separate dependency; the coding-agent package supplies the SDK used by the worker.",
+        "Do not add postinstall or networked lifecycle scripts.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "package-lock.json",
+      "operation": "modify",
+      "task": "Lock the exact Pi dependency graph and updated Node engine metadata reproducibly.",
+      "requirements": [
+        "The project pins @earendil-works/pi-coding-agent exactly at 0.84.1, raises the Node engine floor to 22.19.0, and records a deterministic lockfile update."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "package.json",
+          "purpose": "Defines the exact root dependency and engine values the lockfile must mirror."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Provides the verified package name and stable version."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic npm lockfile",
+          "content": "Update lockfileVersion 3 content exactly as npm 11 would for `@earendil-works/pi-coding-agent@0.84.1` and the root Node engine `>=22.19.0`, including resolved integrity and transitive dependency records. Preserve unrelated records byte-for-byte where their dependency graph is unchanged. Never invent integrity hashes."
+        }
+      ],
+      "constraints": [
+        "The root package dependency must be the exact string `0.84.1`.",
+        "Do not run package lifecycle scripts.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/pi-worker-protocol.ts",
+      "operation": "create",
+      "task": "Own the closed parent-to-worker request and worker-to-parent event protocol.",
+      "requirements": [
+        "A versioned JSON-lines worker protocol carries one frozen Job request and bounded lifecycle facts without serializing credentials, raw prompts, transcripts, model output, or arbitrary environment variables."
+      ],
+      "owns": [
+        {
+          "name": "PI_WORKER_PROTOCOL_VERSION",
+          "declaration": "export const PI_WORKER_PROTOCOL_VERSION = \"score.pi-worker@0.1.0\" as const;",
+          "description": "Pins the parent and child message contract independently from the Pi SDK version."
+        },
+        {
+          "name": "PiWorkerRequest",
+          "declaration": "export const PiWorkerRequest = Schema.Struct({ protocolVersion: Schema.Literal(PI_WORKER_PROTOCOL_VERSION), jobId: JobId, workspacePath: Schema.String, targetPath: Schema.String, agentInputJson: Schema.String, providerId: Schema.String, modelId: Schema.String, variantId: Schema.optional(Schema.String), sdkVersion: Schema.String, authPath: Schema.String, modelsPath: Schema.optional(Schema.String) });",
+          "description": "Defines one admitted child process request using paths to isolated runtime state rather than raw credentials."
+        },
+        {
+          "name": "PiWorkerEvent",
+          "declaration": "export const PiWorkerEvent = Schema.Union([Schema.Struct({ type: Schema.Literal(\"session_created\"), runtimeSessionId: Schema.String }), Schema.Struct({ type: Schema.Literal(\"agent_input_admitted\") }), Schema.Struct({ type: Schema.Literal(\"tool_completed\"), toolName: Schema.String, isError: Schema.Boolean }), Schema.Struct({ type: Schema.Literal(\"settled\"), stopReason: Schema.String }), Schema.Struct({ type: Schema.Literal(\"completed\"), runtimeSessionId: Schema.String }), Schema.Struct({ type: Schema.Literal(\"failed\"), failureCategory: Schema.String, message: Schema.String, runtimeSessionId: Schema.optional(Schema.String), terminalName: Schema.optional(Schema.String), terminalStatus: Schema.optional(Schema.String) })]);",
+          "description": "Defines bounded lifecycle facts the adapter may map into SCORE observations and terminal outcomes."
+        },
+        {
+          "name": "decodePiWorkerRequest",
+          "declaration": "export function decodePiWorkerRequest(line: string): Effect.Effect<PiWorkerRequest, PiWorkerProtocolError>;",
+          "description": "Decodes exactly one versioned request and rejects malformed or unknown messages."
+        },
+        {
+          "name": "decodePiWorkerEvent",
+          "declaration": "export function decodePiWorkerEvent(line: string): Effect.Effect<PiWorkerEvent, PiWorkerProtocolError>;",
+          "description": "Decodes exactly one bounded event and rejects malformed child output."
+        },
+        {
+          "name": "encodePiWorkerMessage",
+          "declaration": "export function encodePiWorkerMessage(message: PiWorkerRequest | PiWorkerEvent): string;",
+          "description": "Emits one canonical newline-terminated JSON message."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/open-code-process.ts",
+          "purpose": "Shows the existing child-process error sanitization and timeout conventions."
+        },
+        {
+          "path": "src/runner/diagnostic-sanitization.ts",
+          "purpose": "Defines the sanitization boundary for persisted diagnostics."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines Pi admission, settlement, final-message, and secret-handling implications."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the applied predecessor declarations JobId used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Closed JSON-lines IPC",
+          "content": "Use Effect Schema to define a closed versioned request and tagged event union. Encode canonical JSON plus one newline. Decode one line only and fail closed on unknown keys, tags, versions, invalid JSON, or oversized lines. Requests may carry only isolated file paths, identifiers, the closed Agent Input JSON, and pinned versions; events may carry only stable lifecycle facts and sanitized bounded messages."
+        }
+      ],
+      "constraints": [
+        "Do not include API keys, OAuth tokens, environment maps, prompts beyond Agent Input JSON, transcripts, assistant content, tool arguments, or tool output in any schema.",
+        "Cap every accepted line and diagnostic message before parsing or persistence.",
+        "Do not import the Pi SDK in this module.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/pi-workspace-tools.ts",
+      "operation": "create",
+      "task": "Define Pi tools that can inspect and modify only canonical relative paths inside the disposable Agent workspace.",
+      "requirements": [
+        "The Pi worker receives only SCORE-owned list, read, write, and delete tools that accept canonical workspace-relative paths, resolve them beneath the supplied disposable workspace, and reject absolute paths, traversal, and symlink escape.",
+        "Workspace tools permit reading and disposable mutation of the target, context, and scratch paths inside the workspace, enforce UTF-8, size, and safe-file-type rules, and never access host paths outside the workspace root."
+      ],
+      "owns": [
+        {
+          "name": "PiWorkspaceToolOptions",
+          "declaration": "export interface PiWorkspaceToolOptions { readonly workspacePath: string; readonly maximumBytes?: number; }",
+          "description": "Binds every custom tool operation to one canonical disposable workspace root."
+        },
+        {
+          "name": "makePiWorkspaceTools",
+          "declaration": "export function makePiWorkspaceTools(options: PiWorkspaceToolOptions): ReadonlyArray<ReturnType<typeof defineTool>>;",
+          "description": "Returns only SCORE-owned list, read, write, and delete tools closed over the disposable workspace root."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/agent-workspace.ts",
+          "purpose": "Defines the outer disposable workspace confinement and target-only candidate extraction these tools must complement."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Documents why Pi built-in filesystem and bash tools are not cwd-confined and must not be exposed."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Capability-shaped Pi tools",
+          "content": "Use Pi's custom tool definition API to create only list, read, write, and delete operations over canonical workspace-relative paths. Resolve and validate every request beneath the one canonical workspace root; reject absolute paths, `..`, empty or ambiguous segments, symlinks, sockets, devices, and any canonical escape. Permit context edits, context deletion, nested creates, and scratch files inside the workspace because only the assigned target is later collected. Enforce bounded UTF-8 content and return bounded metadata, never content echoes."
+        }
+      ],
+      "constraints": [
+        "Do not expose Pi's built-in read, write, edit, bash, grep, find, or ls tools because their paths are not workspace-confined.",
+        "Tool schemas may accept only canonical workspace-relative paths and UTF-8 content; they may not accept cwd, command, glob, URL, or environment fields.",
+        "Use Effect-wrapped filesystem calls with explicit root, parent, and lstat checks; never follow symlinks.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/pi-worker-protocol.test.ts",
+      "operation": "create",
+      "task": "Prove protocol closure, versioning, bounds, and secret-free serialization.",
+      "requirements": [
+        "A versioned JSON-lines worker protocol carries one frozen Job request and bounded lifecycle facts without serializing credentials, raw prompts, transcripts, model output, or arbitrary environment variables.",
+        "Deterministic tests validate protocol decoding, unknown-version rejection, secret-free serialization, tool schemas, internal context and scratch mutations, workspace confinement, and unsafe filesystem cases."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "PI_WORKER_PROTOCOL_VERSION",
+          "from": "src/runner/pi-worker-protocol.ts"
+        },
+        {
+          "name": "decodePiWorkerRequest",
+          "from": "src/runner/pi-worker-protocol.ts"
+        },
+        {
+          "name": "decodePiWorkerEvent",
+          "from": "src/runner/pi-worker-protocol.ts"
+        },
+        {
+          "name": "encodePiWorkerMessage",
+          "from": "src/runner/pi-worker-protocol.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Provides existing adapter-boundary failure and sanitization expectations for protocol fixtures."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Protocol adversary matrix",
+          "content": "Round-trip every request/event tag. Reject invalid JSON, extra keys, missing fields, unknown versions/tags, multiple records, oversized records, and wrong primitive types. Scan encoded fixtures to prove representative credentials, raw assistant content, environment variables, and tool arguments are absent."
+        }
+      ],
+      "constraints": [
+        "Import only the protocol subject and deterministic test helpers.",
+        "Do not use network, credentials, or child processes.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/pi-workspace-tools.test.ts",
+      "operation": "create",
+      "task": "Prove custom Pi tools can work throughout the disposable workspace but cannot address anything outside it.",
+      "requirements": [
+        "The Pi worker receives only SCORE-owned list, read, write, and delete tools that accept canonical workspace-relative paths, resolve them beneath the supplied disposable workspace, and reject absolute paths, traversal, and symlink escape.",
+        "Workspace tools permit reading and disposable mutation of the target, context, and scratch paths inside the workspace, enforce UTF-8, size, and safe-file-type rules, and never access host paths outside the workspace root.",
+        "Deterministic tests validate protocol decoding, unknown-version rejection, secret-free serialization, tool schemas, internal context and scratch mutations, workspace confinement, and unsafe filesystem cases."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "makePiWorkspaceTools",
+          "from": "src/runner/pi-workspace-tools.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/agent-workspace.test.ts",
+          "purpose": "Provides adversarial filesystem and disposable-mutation fixture patterns for the shared outer boundary."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Workspace-confined tool tests",
+          "content": "Inspect every tool schema and execute handlers against private temporary workspaces. Cover listing and reading frozen target and context, editing or deleting context, creating nested scratch files, updating the target, invalid UTF-8, oversized input, absolute paths, traversal, unsafe parents, leaf and parent symlinks, sockets, devices, and root replacement between calls. Assert every attempted external path remains unchanged."
+        }
+      ],
+      "constraints": [
+        "Do not expose or invoke built-in Pi filesystem or shell tools.",
+        "Do not use network or real model sessions.",
+        "Remove every test workspace in finally blocks.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

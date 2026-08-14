@@ -1,0 +1,330 @@
+{
+  "slice_id": "pi-doctor-documentation",
+  "after": [
+    "runtime-adapter-selection"
+  ],
+  "title": "Pi diagnostics, decisions, and acceptance contract",
+  "objective": "Make Pi support operable and auditable with adapter-specific doctor checks, durable architecture decisions, user guidance, and explicit self-hosting gates.",
+  "requirements": [
+    "score doctor accepts --adapter opencode or --adapter pi, defaults to OpenCode for compatibility, and checks only the selected runtime's package, authentication, and model catalog without sending a model prompt.",
+    "Pi doctor verifies Node >=22.19.0, the exact 0.84.1 SDK, valid Pi authentication, at least one authenticated discoverable model, and required packaged worker resources with stable repair guidance.",
+    "Human and JSON doctor output names the selected runtime, reports only bounded counts and versions, preserves the zero-model-request safety claim, and never exposes credentials, state paths, raw SDK errors, or model responses.",
+    "The runtime adapter documentation explains OpenCode and Pi parity, one-Pi-process-per-Agent isolation, workspace-confined custom tools, disposable context mutation, target-only candidate extraction, fail-closed completion, cancellation ownership, model and thinking selection, and the frozen-kind CLI behavior.",
+    "A durable decision records the explicit configuration union, small RuntimeAdapter interface, shared disposable Agent workspace, source-registered dispatcher, and rejection of dynamic plugin loading for this release.",
+    "The acceptance contract requires full deterministic tests plus bounded live sequential create, sequential replace, concurrent multi-file, failure, cancellation, cleanup, and first Pi-builds-SCORE runs, while keeping approval and application human-owned.",
+    "Tests prove both doctor adapters, OpenCode default compatibility, Pi failures and repairs, safe JSON/text rendering, zero prompts, and exact CLI usage."
+  ],
+  "files": [
+    {
+      "path": "src/doctor.ts",
+      "operation": "modify",
+      "task": "Generalize the non-mutating readiness report over an explicitly selected built-in runtime while preserving OpenCode defaults.",
+      "requirements": [
+        "score doctor accepts --adapter opencode or --adapter pi, defaults to OpenCode for compatibility, and checks only the selected runtime's package, authentication, and model catalog without sending a model prompt.",
+        "Human and JSON doctor output names the selected runtime, reports only bounded counts and versions, preserves the zero-model-request safety claim, and never exposes credentials, state paths, raw SDK errors, or model responses."
+      ],
+      "owns": [
+        {
+          "name": "DoctorCheckId",
+          "declaration": "export type DoctorCheckId = \"node\" | \"package\" | \"sqlite\" | \"opencode\" | \"pi\" | \"auth\" | \"models\" | \"project\";",
+          "description": "Preserves the OpenCode check identity and adds an explicit Pi runtime check."
+        },
+        {
+          "name": "DoctorDependencies",
+          "declaration": "export interface DoctorDependencies { readonly runtimeId: \"opencode\" | \"pi\"; readonly runtimeLabel: string; readonly inspectNode: () => { readonly version: string; readonly supported: boolean }; readonly inspectPackage: () => { readonly version: string; readonly resourcesAvailable: boolean }; readonly inspectSqlite: () => Promise<void>; readonly inspectRuntime: () => { readonly version: string }; readonly inspectAuthentication: () => { readonly status: \"configured\" | \"missing\" | \"invalid\"; readonly providerCount: number }; readonly discoverModels: () => Promise<{ readonly enabledModelCount: number; readonly providerCount: number }>; readonly inspectProject: () => { readonly projectRoot: string; readonly stateLocationReady: boolean; readonly issue?: \"project_not_writable\" | \"state_path_conflict\" | \"state_directory_not_writable\" | \"database_path_conflict\" | \"database_not_accessible\" }; }",
+          "description": "Defines the selected runtime's non-mutating checks without exposing adapter implementation state."
+        },
+        {
+          "name": "runDoctor",
+          "declaration": "export async function runDoctor(input: RunDoctorInput, dependencies: DoctorDependencies): Promise<DoctorReport>;",
+          "description": "Runs one selected runtime's bounded non-mutating readiness checks and returns the stable safe report."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/doctor-runtime.ts",
+          "purpose": "Provides current OpenCode dependencies and safety facts that must remain compatible."
+        },
+        {
+          "path": "test/doctor.test.ts",
+          "purpose": "Defines stable readiness, repair, and output behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Non-authoritative runtime diagnostics",
+          "content": "Parameterize the runtime check id and label while retaining the existing ordered checks and safety object. Run only the selected runtime's inspection, authentication, and catalog. Convert exceptions into stable selected-runtime failure codes and repair text. Facts may include selected runtime id, version, provider count, and model count only. `modelRequests` remains exactly 0. Keep the default OpenCode human and JSON shape compatible except for additive selected-runtime facts."
+        }
+      ],
+      "constraints": [
+        "Doctor must not write project files, persistent SCORE state, user runtime state, or send a prompt.",
+        "Do not include file paths, provider messages, model content, credentials, or exception strings in output.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/doctor-runtime.ts",
+      "operation": "modify",
+      "task": "Build safe OpenCode or Pi doctor dependencies from the selected runtime registration.",
+      "requirements": [
+        "score doctor accepts --adapter opencode or --adapter pi, defaults to OpenCode for compatibility, and checks only the selected runtime's package, authentication, and model catalog without sending a model prompt.",
+        "Pi doctor verifies Node >=22.19.0, the exact 0.84.1 SDK, valid Pi authentication, at least one authenticated discoverable model, and required packaged worker resources with stable repair guidance.",
+        "Human and JSON doctor output names the selected runtime, reports only bounded counts and versions, preserves the zero-model-request safety claim, and never exposes credentials, state paths, raw SDK errors, or model responses."
+      ],
+      "owns": [
+        {
+          "name": "DoctorRuntimeOptions",
+          "declaration": "export interface DoctorRuntimeOptions { readonly projectRoot?: string; readonly adapter?: RuntimeAdapterId; readonly openCodeCommand?: string; readonly openCodeAuthPath?: string; readonly openCodeProviderConfigPath?: string; readonly piAuthPath?: string; readonly piModelsPath?: string; readonly startTimeoutMs?: number; }",
+          "description": "Selects one runtime and allows only deterministic path/command injection for tests."
+        },
+        {
+          "name": "runDefaultDoctor",
+          "declaration": "export async function runDefaultDoctor(options?: DoctorRuntimeOptions): Promise<DoctorReport>;",
+          "description": "Runs the safe readiness checks for one selected runtime, defaulting to OpenCode."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "DoctorDependencies",
+          "from": "src/doctor.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-catalog.ts",
+          "purpose": "Provides the existing OpenCode discovery path to preserve."
+        },
+        {
+          "path": "src/runner/pi-isolation.ts",
+          "purpose": "Defines Pi auth/model state validation conventions without authorizing execution."
+        },
+        {
+          "path": "package.json",
+          "purpose": "Defines the bundled dependency and Node floor being checked."
+        },
+        {
+          "path": "src/runner/runtime-adapters.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapterId used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-catalog.ts",
+          "purpose": "Provides the applied predecessor declarations makePiModelCatalog, PI_SDK_VERSION used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Adapter-specific safe inspection",
+          "content": "Default options.adapter to opencode. Preserve current OpenCode inspection. For Pi, resolve the installed package manifest and require exact PI_SDK_VERSION, inspect Pi auth structurally without rendering it, and use makePiModelCatalog only for bounded discovery. Extend package resource inspection to require the compiled Pi worker/protocol/tool modules. Never create Pi isolation, child process, AgentSession, or prompt. Convert all runtime-specific exceptions to generic readiness results."
+        }
+      ],
+      "constraints": [
+        "Do not import Pi worker execution or adapter layers.",
+        "Do not refresh OAuth credentials or mutate auth/models files.",
+        "Do not discover both runtime catalogs in one invocation.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/doctor-cli.ts",
+      "operation": "modify",
+      "task": "Parse the selected doctor runtime and preserve safe text and JSON behavior.",
+      "requirements": [
+        "score doctor accepts --adapter opencode or --adapter pi, defaults to OpenCode for compatibility, and checks only the selected runtime's package, authentication, and model catalog without sending a model prompt.",
+        "Tests prove both doctor adapters, OpenCode default compatibility, Pi failures and repairs, safe JSON/text rendering, zero prompts, and exact CLI usage."
+      ],
+      "owns": [
+        {
+          "name": "DOCTOR_USAGE",
+          "declaration": "export const DOCTOR_USAGE = \"Usage: score doctor [--adapter <opencode|pi>] [--json]\\n\";",
+          "description": "Documents the only new doctor selection flag."
+        },
+        {
+          "name": "runDoctorCli",
+          "declaration": "export async function runDoctorCli(args: ReadonlyArray<string>, dependencies?: DoctorCliDependencies): Promise<number>;",
+          "description": "Parses doctor arguments, runs the selected safe inspection, renders output, and returns the stable command exit code."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "runDefaultDoctor",
+          "from": "src/doctor-runtime.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/terminal-safe-json.ts",
+          "purpose": "Defines the terminal-safe JSON boundary that must remain in use."
+        },
+        {
+          "path": "src/runner/runtime-adapters.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapterId used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Strict doctor CLI parsing",
+          "content": "Accept `--adapter opencode|pi` and `--json` in either order, each at most once. Default omission to opencode. Pass the parsed adapter to runDefaultDoctor. Preserve help, usage-on-invalid, terminalSafeJson, text formatting, and exit codes."
+        }
+      ],
+      "constraints": [
+        "Reject missing values, unknown adapters, duplicate flags, and unrelated arguments with exit 64.",
+        "Do not expose path or credential options publicly.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/doctor.test.ts",
+      "operation": "modify",
+      "task": "Prove safe selected-runtime diagnostics and OpenCode default compatibility.",
+      "requirements": [
+        "Pi doctor verifies Node >=22.19.0, the exact 0.84.1 SDK, valid Pi authentication, at least one authenticated discoverable model, and required packaged worker resources with stable repair guidance.",
+        "Human and JSON doctor output names the selected runtime, reports only bounded counts and versions, preserves the zero-model-request safety claim, and never exposes credentials, state paths, raw SDK errors, or model responses.",
+        "Tests prove both doctor adapters, OpenCode default compatibility, Pi failures and repairs, safe JSON/text rendering, zero prompts, and exact CLI usage."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "runDoctor",
+          "from": "src/doctor.ts"
+        },
+        {
+          "name": "runDefaultDoctor",
+          "from": "src/doctor-runtime.ts"
+        },
+        {
+          "name": "runDoctorCli",
+          "from": "src/doctor-cli.ts"
+        },
+        {
+          "name": "DOCTOR_USAGE",
+          "from": "src/doctor-cli.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/pi-catalog.ts",
+          "purpose": "Defines the Pi version and discovery facts doctor must check without executing."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Doctor safety matrix",
+          "content": "Preserve every existing OpenCode/default check. Add Pi pass cases and failures for unsupported Node, wrong/missing SDK, missing/invalid auth, empty/unavailable catalog, missing worker resources, and project/SQLite issues. Test CLI flag order, default, help, invalid values, text and JSON safety, selected-runtime-only calls, stable repairs, modelRequests zero, and absence of injected secrets, paths, errors, and model content."
+        }
+      ],
+      "constraints": [
+        "Do not use user runtime state, network, child processes, AgentSessions, or real credentials.",
+        "Do not loosen existing assertions about no writes and zero model requests.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "docs/runtime-adapters.md",
+      "operation": "modify",
+      "task": "Document the two concrete runtimes, their shared contract, and Pi's distinct safety/lifecycle behavior.",
+      "requirements": [
+        "The runtime adapter documentation explains OpenCode and Pi parity, one-Pi-process-per-Agent isolation, workspace-confined custom tools, disposable context mutation, target-only candidate extraction, fail-closed completion, cancellation ownership, model and thinking selection, and the frozen-kind CLI behavior.",
+        "The acceptance contract requires full deterministic tests plus bounded live sequential create, sequential replace, concurrent multi-file, failure, cancellation, cleanup, and first Pi-builds-SCORE runs, while keeping approval and application human-owned."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Provides primary-source-backed Pi facts and the recommended topology."
+        },
+        {
+          "path": "src/runner/runtime-adapters.ts",
+          "purpose": "Defines the actual built-in selection and dispatch surface to document."
+        },
+        {
+          "path": "src/runner/pi-adapter.ts",
+          "purpose": "Defines the implemented Pi boundary and configuration pins."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Operator-focused runtime documentation",
+          "content": "Update the status from OpenCode-only to built-in OpenCode and Pi. Replace future adapter examples that imply current support. Explain shared frozen input, disposable workspace, target-only candidate, and atomic application behavior, then a concise comparison: OpenCode one server per Run with sessions; Pi one killable child/session per Agent. Both receive a workspace with the assigned target and explicit frozen context, may make disposable internal changes, collect only the target, and deny host-project escape. Document `--adapter`, guided selection, work dispatch from stored kind, Pi auth/model readiness, thinking variants, doctor commands, cancellation, and no-sandbox caveat. State that deterministic tests are not live acceptance and list the bounded live matrix plus the first Pi-executed SCORE Slice gate."
+        }
+      ],
+      "constraints": [
+        "Do not claim live Pi acceptance, self-hosting success, release readiness, approval, or application before those events occur.",
+        "Do not include credentials, private paths, or provider-specific setup guesses not supported by research.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "docs/decisions.md",
+      "operation": "modify",
+      "task": "Record the accepted two-runtime architecture and explicit non-goals as the next decision entry.",
+      "requirements": [
+        "A durable decision records the explicit configuration union, small RuntimeAdapter interface, shared disposable Agent workspace, source-registered dispatcher, and rejection of dynamic plugin loading for this release."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Provides the evidence and rejected alternatives behind the decision."
+        },
+        {
+          "path": "docs/runtime-adapters.md",
+          "purpose": "Provides the user-facing architecture vocabulary the decision should align with."
+        },
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Defines SCORE's current architecture vocabulary and decision boundaries for the new durable entry."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Durable architecture decision",
+          "content": "Append the next sequential decision. State context: one adapter hypothetical, two adapters real. Decide on an explicit OpenCode-or-Pi persisted configuration union; complete config on ClaimedJob; one RuntimeAdapter invoke/withRun seam; one shared disposable Agent workspace module; separate adapter-owned catalogs; source-registered frozen-kind dispatch. Record Pi's child-per-Agent topology, workspace-confined custom tools, permitted disposable context changes, and target-only extraction. Reject an opaque plugin envelope, dynamic loading, a core union of lifecycle events, shared Pi sessions, unconfined built-in tools, and read-only context enforcement. List migration and testing consequences without claiming completion beyond the code."
+        }
+      ],
+      "constraints": [
+        "Do not edit or renumber previous decisions.",
+        "Do not describe rejected alternatives as future commitments.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "README.md",
+      "operation": "modify",
+      "task": "Update installation, doctor, and local Runner examples for explicit OpenCode/Pi selection.",
+      "requirements": [
+        "The runtime adapter documentation explains OpenCode and Pi parity, one-Pi-process-per-Agent isolation, workspace-confined custom tools, disposable context mutation, target-only candidate extraction, fail-closed completion, cancellation ownership, model and thinking selection, and the frozen-kind CLI behavior.",
+        "The acceptance contract requires full deterministic tests plus bounded live sequential create, sequential replace, concurrent multi-file, failure, cancellation, cleanup, and first Pi-builds-SCORE runs, while keeping approval and application human-owned."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/runtime-adapters.md",
+          "purpose": "Provides the detailed destination for concise README links."
+        },
+        {
+          "path": "src/runner/cli-commands.ts",
+          "purpose": "Defines exact supported start/enqueue syntax."
+        },
+        {
+          "path": "src/doctor-cli.ts",
+          "purpose": "Defines exact doctor syntax."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Truthful top-level guidance",
+          "content": "Change OpenCode-only statements to built-in OpenCode and Pi support. Show `score doctor --adapter pi`, guided runtime selection, and one low-level `--adapter pi` example while preserving OpenCode-default examples. Link to runtime-adapters.md for setup and safety details. Keep Plan Approval, candidate verification, and application human-owned in all wording, and label the live self-hosting matrix as an acceptance gate rather than a completed result."
+        }
+      ],
+      "constraints": [
+        "Do not add a quickstart that bypasses review, approval, frozen configuration, or application verification.",
+        "Do not claim Pi support is released until the implementation and live acceptance have occurred.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

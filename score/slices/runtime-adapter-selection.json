@@ -1,0 +1,425 @@
+{
+  "slice_id": "runtime-adapter-selection",
+  "after": [
+    "pi-adapter"
+  ],
+  "title": "Runtime selection and CLI dispatch",
+  "objective": "Let guided and non-interactive SCORE Runs select OpenCode or Pi, then derive execution solely from the frozen adapter kind.",
+  "requirements": [
+    "One source-registered RuntimeAdapters module owns the closed OpenCode and Pi registrations and returns the matching catalog and RuntimeAdapter layer without a dynamic plugin loader.",
+    "Guided start selects a runtime before model discovery, displays runtime-specific model and variant labels, and freezes the selected catalog configuration only after the existing human confirmation gate.",
+    "Non-interactive enqueue and start accept --adapter opencode or --adapter pi; omitting --adapter preserves the existing OpenCode default and existing scripts remain compatible.",
+    "Work and recovery read the frozen Run adapter kind and construct only its matching runtime layer; unknown, unavailable, or mismatched registrations fail before a Job is claimed or input is delivered.",
+    "Generic non-interactive selection validates explicit variants against the selected runtime catalog before Run or Job creation while retaining the current exact-match and single-variant rules.",
+    "CLI help, guided confirmation, progress labels, and error text identify the selected runtime without exposing credentials or runtime-specific internal state.",
+    "Deterministic tests cover both guided and non-interactive paths, OpenCode default compatibility, Pi selection, frozen dispatch, unknown kinds, variant errors, and pre-claim failure."
+  ],
+  "files": [
+    {
+      "path": "src/runner/runtime-adapters.ts",
+      "operation": "create",
+      "task": "Own the closed source registration and safe catalog/layer dispatch for bundled runtimes.",
+      "requirements": [
+        "One source-registered RuntimeAdapters module owns the closed OpenCode and Pi registrations and returns the matching catalog and RuntimeAdapter layer without a dynamic plugin loader.",
+        "Work and recovery read the frozen Run adapter kind and construct only its matching runtime layer; unknown, unavailable, or mismatched registrations fail before a Job is claimed or input is delivered."
+      ],
+      "owns": [
+        {
+          "name": "RuntimeAdapterId",
+          "declaration": "export type RuntimeAdapterId = AdapterConfiguration[\"kind\"];",
+          "description": "Names the closed built-in runtime set from the persisted configuration union."
+        },
+        {
+          "name": "RuntimeAdapterRegistration",
+          "declaration": "export interface RuntimeAdapterRegistration { readonly id: RuntimeAdapterId; readonly label: string; readonly catalog: RuntimeAdapterCatalog<AdapterConfiguration>; readonly layerFor: (configuration: AdapterConfiguration) => Layer.Layer<RuntimeAdapter>; }",
+          "description": "Pairs one runtime's discovery surface with the layer that validates and executes its frozen configuration."
+        },
+        {
+          "name": "RuntimeAdapters",
+          "declaration": "export interface RuntimeAdapters { readonly registrations: ReadonlyArray<RuntimeAdapterRegistration>; readonly registrationFor: (id: RuntimeAdapterId) => RuntimeAdapterRegistration; readonly catalogFor: (id: RuntimeAdapterId) => RuntimeAdapterCatalog<AdapterConfiguration>; readonly layerFor: (configuration: AdapterConfiguration) => Layer.Layer<RuntimeAdapter>; }",
+          "description": "Provides the only caller-facing runtime lookup and dispatch API."
+        },
+        {
+          "name": "makeRuntimeAdapters",
+          "declaration": "export function makeRuntimeAdapters(options?: RuntimeAdaptersOptions): RuntimeAdapters;",
+          "description": "Builds the closed OpenCode and Pi registration set with injectable test dependencies."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/cli.ts",
+          "purpose": "Defines all call sites that currently wire OpenCode directly."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Explains why stored kind must control execution and why dynamic plugins are out of scope."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the applied predecessor declarations AdapterConfiguration used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapter used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/runtime-adapter-catalog.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapterCatalog used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Provides the applied predecessor declarations OpenCodeAdapterLive used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/open-code-catalog.ts",
+          "purpose": "Provides the applied predecessor declarations makeOpenCodeModelCatalog used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-adapter.ts",
+          "purpose": "Provides the applied predecessor declarations PiRuntimeLive used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-catalog.ts",
+          "purpose": "Provides the applied predecessor declarations makePiModelCatalog used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Small source-registered dispatcher",
+          "content": "Register exactly OpenCode and Pi in source. Enforce unique IDs at construction. `registrationFor`, `catalogFor`, and `layerFor` fail closed for unsupported IDs and require a registration's id to equal configuration.kind. Keep catalogs separate from execution layers so discovery never creates a session. Do not introduce loading, manifests, capability negotiation, or a mutable global registry."
+        }
+      ],
+      "constraints": [
+        "This is the only production module allowed to import both concrete adapters.",
+        "Do not accept string casts or fallback from an unknown stored kind to OpenCode.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/runtime-selection.ts",
+      "operation": "create",
+      "task": "Resolve exact non-interactive runtime, model, and variant selection through any registered catalog.",
+      "requirements": [
+        "Generic non-interactive selection validates explicit variants against the selected runtime catalog before Run or Job creation while retaining the current exact-match and single-variant rules."
+      ],
+      "owns": [
+        {
+          "name": "NonInteractiveRuntimeSelection",
+          "declaration": "export interface NonInteractiveRuntimeSelection { readonly configuration: AdapterConfiguration; readonly model: RuntimeModel; readonly variant: RuntimeModelVariant | null; }",
+          "description": "Returns the exact catalog objects and frozen adapter configuration selected before enqueue."
+        },
+        {
+          "name": "resolveNonInteractiveRuntimeConfiguration",
+          "declaration": "export async function resolveNonInteractiveRuntimeConfiguration(input: { readonly adapterCatalog: RuntimeAdapterCatalog<AdapterConfiguration>; readonly providerId: string; readonly modelId: string; readonly variantId?: string }): Promise<NonInteractiveRuntimeSelection>;",
+          "description": "Discovers and validates one exact model and optional variant for any runtime."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/open-code-selection.ts",
+          "purpose": "Provides the current exact model and explicit variant validation behavior to generalize."
+        },
+        {
+          "path": "src/runner/guided-start.ts",
+          "purpose": "Defines equivalent guided catalog selection rules."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the applied predecessor declarations AdapterConfiguration used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/runtime-adapter-catalog.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapterCatalog, RuntimeModel, RuntimeModelVariant used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Catalog-first frozen selection",
+          "content": "Always discover the selected runtime's bounded catalog before returning, including when no variant flag is supplied. Match providerId and modelId exactly. Use the catalog's `configurationFor` as the sole configuration constructor. Resolve variant by exact id, with only the catalog's existing unambiguous single-variant fallback. Throw labeled errors before enqueue for missing model, missing variant, or ambiguity."
+        }
+      ],
+      "constraints": [
+        "Do not infer provider, model, variant, or runtime from aliases.",
+        "Do not create a Run, Job, session, or runtime layer.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/open-code-selection.ts",
+      "operation": "modify",
+      "task": "Retain the public OpenCode selection helper as a compatibility wrapper around generic selection.",
+      "requirements": [
+        "Generic non-interactive selection validates explicit variants against the selected runtime catalog before Run or Job creation while retaining the current exact-match and single-variant rules."
+      ],
+      "owns": [
+        {
+          "name": "resolveNonInteractiveOpenCodeConfiguration",
+          "declaration": "export async function resolveNonInteractiveOpenCodeConfiguration(input: { readonly adapterCatalog: RuntimeAdapterCatalog<AdapterConfiguration>; readonly providerId: string; readonly modelId: string; readonly variantId?: string }): Promise<NonInteractiveRuntimeSelection>;",
+          "description": "Preserves the existing import while delegating to the adapter-neutral resolver."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "resolveNonInteractiveRuntimeConfiguration",
+          "from": "src/runner/runtime-selection.ts"
+        },
+        {
+          "name": "NonInteractiveRuntimeSelection",
+          "from": "src/runner/runtime-selection.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/cli.ts",
+          "purpose": "Shows current consumers whose compatibility must be preserved during migration."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Thin compatibility wrapper",
+          "content": "Remove duplicated selection logic and delegate directly to resolveNonInteractiveRuntimeConfiguration. Keep the existing exported function name for downstream source compatibility, and alias its result type to NonInteractiveRuntimeSelection if needed. Add no OpenCode-specific fallback."
+        }
+      ],
+      "constraints": [
+        "Do not construct configuration directly in this file.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/guided-start.ts",
+      "operation": "modify",
+      "task": "Add runtime selection ahead of model discovery and pass frozen configuration through the confirmation/start boundary.",
+      "requirements": [
+        "Guided start selects a runtime before model discovery, displays runtime-specific model and variant labels, and freezes the selected catalog configuration only after the existing human confirmation gate.",
+        "CLI help, guided confirmation, progress labels, and error text identify the selected runtime without exposing credentials or runtime-specific internal state."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RuntimeAdapters",
+          "from": "src/runner/runtime-adapters.ts"
+        },
+        {
+          "name": "RuntimeAdapterRegistration",
+          "from": "src/runner/runtime-adapters.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter-catalog.ts",
+          "purpose": "Defines model and variant selection semantics."
+        },
+        {
+          "path": "test/guided-start.test.ts",
+          "purpose": "Defines approval, rebind, cancellation, and selection gate behavior to preserve."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the applied predecessor declarations AdapterConfiguration used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Human-gated runtime selection",
+          "content": "Extend GuidedStartPrompts with selectAdapter(registrations). Select one registration before model discovery, then use only its catalog. Include registration and frozen configuration in confirmation and backend start input. Construct configuration from the selected catalog/model/variant after validation, but preserve the existing final repository rebind, approval timing, cancel behavior, and no-Run-before-confirmation invariant."
+        }
+      ],
+      "constraints": [
+        "Do not default inside the domain flow; the CLI prompt or explicit override owns defaults.",
+        "Do not discover models for unselected runtimes.",
+        "Do not start a runtime session during guided selection.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/guided-start-cli.ts",
+      "operation": "modify",
+      "task": "Wire the interactive runtime prompt, confirmation text, frozen configuration, and selected execution layer.",
+      "requirements": [
+        "Guided start selects a runtime before model discovery, displays runtime-specific model and variant labels, and freezes the selected catalog configuration only after the existing human confirmation gate.",
+        "Work and recovery read the frozen Run adapter kind and construct only its matching runtime layer; unknown, unavailable, or mismatched registrations fail before a Job is claimed or input is delivered.",
+        "CLI help, guided confirmation, progress labels, and error text identify the selected runtime without exposing credentials or runtime-specific internal state."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "makeRuntimeAdapters",
+          "from": "src/runner/runtime-adapters.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/guided-start.ts",
+          "purpose": "Defines the updated prompt and backend contract."
+        },
+        {
+          "path": "src/runner/cli.ts",
+          "purpose": "Provides common enqueue and execution functions used by guided start."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Adapter-aware guided CLI",
+          "content": "Instantiate makeRuntimeAdapters once. Prompt with stable OpenCode and Pi labels, then render model/variant prompts from the selected catalog. Confirmation must name runtime/provider/model/variant and existing repository/approval facts. Backend start enqueues the supplied frozen configuration and provides runtimeAdapters.layerFor(configuration) to execution. Keep secrets and state paths out of all display strings."
+        }
+      ],
+      "constraints": [
+        "Do not construct OpenCode or Pi catalogs/layers directly.",
+        "Do not move or weaken either human gate.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/cli.ts",
+      "operation": "modify",
+      "task": "Parse runtime selection for enqueue/start and dispatch work/recovery from stored Run configuration.",
+      "requirements": [
+        "Non-interactive enqueue and start accept --adapter opencode or --adapter pi; omitting --adapter preserves the existing OpenCode default and existing scripts remain compatible.",
+        "Work and recovery read the frozen Run adapter kind and construct only its matching runtime layer; unknown, unavailable, or mismatched registrations fail before a Job is claimed or input is delivered.",
+        "Generic non-interactive selection validates explicit variants against the selected runtime catalog before Run or Job creation while retaining the current exact-match and single-variant rules.",
+        "CLI help, guided confirmation, progress labels, and error text identify the selected runtime without exposing credentials or runtime-specific internal state."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "makeRuntimeAdapters",
+          "from": "src/runner/runtime-adapters.ts"
+        },
+        {
+          "name": "resolveNonInteractiveRuntimeConfiguration",
+          "from": "src/runner/runtime-selection.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Provides the Run inspection needed to read frozen adapter kind before work claims Jobs."
+        },
+        {
+          "path": "src/runner/cli-options.ts",
+          "purpose": "Defines existing option parsing and validation conventions."
+        },
+        {
+          "path": "test/runner-cli.test.ts",
+          "purpose": "Defines output, backward compatibility, and pre-Run failure assertions."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Frozen-kind CLI dispatch",
+          "content": "Parse `--adapter` as exactly opencode or pi, defaulting only omitted non-interactive flags to opencode. For enqueue/start, choose that registration, resolve the exact catalog selection, then persist its configuration. For work/recover, inspect the Run first, read configuration.kind, resolve the matching layer, and only then call Runner; never honor a runtime override. Keep existing guided mode when required flags are absent."
+        }
+      ],
+      "constraints": [
+        "Unknown adapter values fail before discovery, approval, Run creation, or Job claim.",
+        "Do not import concrete catalogs or adapters; import only runtime-adapters and runtime-selection.",
+        "Do not add `--adapter` to work or recover.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/cli-commands.ts",
+      "operation": "modify",
+      "task": "Document runtime selection in non-interactive start/enqueue usage without changing other commands.",
+      "requirements": [
+        "Non-interactive enqueue and start accept --adapter opencode or --adapter pi; omitting --adapter preserves the existing OpenCode default and existing scripts remain compatible.",
+        "CLI help, guided confirmation, progress labels, and error text identify the selected runtime without exposing credentials or runtime-specific internal state."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/cli.ts",
+          "purpose": "Defines the accepted flags the help text must match exactly."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Exact CLI help",
+          "content": "Add `[--adapter <opencode|pi>]` to enqueue and explicit start usage only. Preserve guided start usage and every other command string. Do not mention internal SDK, credential, or worker flags."
+        }
+      ],
+      "constraints": [
+        "Do not add a runtime override to work, recover, status, export, or counts.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/guided-start.test.ts",
+      "operation": "modify",
+      "task": "Prove runtime selection occurs at the right human-gated point for both adapters.",
+      "requirements": [
+        "Guided start selects a runtime before model discovery, displays runtime-specific model and variant labels, and freezes the selected catalog configuration only after the existing human confirmation gate.",
+        "Deterministic tests cover both guided and non-interactive paths, OpenCode default compatibility, Pi selection, frozen dispatch, unknown kinds, variant errors, and pre-claim failure."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RuntimeAdapters",
+          "from": "src/runner/runtime-adapters.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/guided-start-cli.ts",
+          "purpose": "Provides the runtime-aware prompt and confirmation wiring."
+        },
+        {
+          "path": "src/runner/guided-start.ts",
+          "purpose": "Provides the applied predecessor declarations runGuidedStart used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Guided gate ordering tests",
+          "content": "Use fake registrations/catalogs and an ordered call log. Cover OpenCode and Pi selection, discovery only for the selected runtime, variant override, cancellation, no models, configuration passed after confirmation, repository rebind, approval timing, and no Run/session/layer before the final yes. Keep every existing approval and cancellation assertion."
+        }
+      ],
+      "constraints": [
+        "Do not use real catalogs, network, credentials, or child processes.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/runner-cli.test.ts",
+      "operation": "modify",
+      "task": "Prove CLI defaults, Pi selection, stored-kind dispatch, and pre-claim failures.",
+      "requirements": [
+        "Non-interactive enqueue and start accept --adapter opencode or --adapter pi; omitting --adapter preserves the existing OpenCode default and existing scripts remain compatible.",
+        "Work and recovery read the frozen Run adapter kind and construct only its matching runtime layer; unknown, unavailable, or mismatched registrations fail before a Job is claimed or input is delivered.",
+        "Generic non-interactive selection validates explicit variants against the selected runtime catalog before Run or Job creation while retaining the current exact-match and single-variant rules.",
+        "Deterministic tests cover both guided and non-interactive paths, OpenCode default compatibility, Pi selection, frozen dispatch, unknown kinds, variant errors, and pre-claim failure."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "makeRuntimeAdapters",
+          "from": "src/runner/runtime-adapters.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/cli.ts",
+          "purpose": "Provides the commands under test."
+        },
+        {
+          "path": "src/runner/cli-commands.ts",
+          "purpose": "Provides exact help output assertions."
+        }
+      ],
+      "skills": [
+        {
+          "name": "CLI compatibility and authority tests",
+          "content": "Inject fake runtime registrations. Prove omitted adapter remains OpenCode, explicit Pi persists Pi configuration, invalid adapter and variant fail before enqueue, help text is exact, work dispatches from stored kind, callers cannot override it, unknown/missing registration fails before claim/invoke, and output labels the selected runtime without secrets."
+        }
+      ],
+      "constraints": [
+        "Do not use real runtime discovery, network, credentials, or child processes.",
+        "Preserve all existing CLI tests and exit-code behavior.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

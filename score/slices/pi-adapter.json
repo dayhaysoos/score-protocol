@@ -1,0 +1,234 @@
+{
+  "slice_id": "pi-adapter",
+  "after": [
+    "pi-worker-lifecycle"
+  ],
+  "title": "Pi catalog and RuntimeAdapter",
+  "objective": "Expose Pi through the same model-catalog and Run-scoped execution behavior as OpenCode while keeping Pi-specific lifecycle details behind its adapter.",
+  "requirements": [
+    "Pi catalog discovery returns only authenticated, exact provider/model identities from the pinned SDK and fails closed when discovery is unavailable or the selected model is absent.",
+    "Pi variants expose only SDK-supported thinking levels as stable identifiers, preserve the existing exact-match and single-variant fallback rules, and reject unsupported or clamped selections before Run creation.",
+    "PiRuntimeLive implements RuntimeAdapter by combining selected-only isolation, one child worker per Job, and the shared disposable Agent workspace boundary.",
+    "Pi execution rejects non-Pi Jobs, SDK-version mismatch, worker-protocol mismatch, unavailable model, and unsupported variant before agent-input admission or child spawn.",
+    "Pi lifecycle facts map to the same sanitized attempt observations, adapter failure categories, target evidence, and candidate shape used by OpenCode.",
+    "Deterministic catalog and adapter tests prove create/replace parity, frozen context availability, disposable auxiliary mutations, target-only extraction, typed failures, pre-admission validation, cleanup, sibling independence, and concurrent one-process-per-Job behavior without paid calls."
+  ],
+  "files": [
+    {
+      "path": "src/runner/pi-catalog.ts",
+      "operation": "create",
+      "task": "Discover ready Pi models and map exact model and thinking selections into frozen configuration.",
+      "requirements": [
+        "Pi catalog discovery returns only authenticated, exact provider/model identities from the pinned SDK and fails closed when discovery is unavailable or the selected model is absent.",
+        "Pi variants expose only SDK-supported thinking levels as stable identifiers, preserve the existing exact-match and single-variant fallback rules, and reject unsupported or clamped selections before Run creation."
+      ],
+      "owns": [
+        {
+          "name": "PI_SDK_VERSION",
+          "declaration": "export const PI_SDK_VERSION = \"0.84.1\" as const;",
+          "description": "Pins the catalog and execution implementation to the researched Pi SDK release."
+        },
+        {
+          "name": "makePiModelCatalog",
+          "declaration": "export function makePiModelCatalog(options?: PiModelCatalogOptions): RuntimeAdapterCatalog<PiAdapterConfiguration>;",
+          "description": "Creates a bounded authenticated model catalog using Pi ModelRuntime and isolated settings."
+        },
+        {
+          "name": "piConfiguration",
+          "declaration": "export function piConfiguration(selection: { readonly providerId: string; readonly modelId: string; readonly variantId?: string }): PiAdapterConfiguration;",
+          "description": "Builds the exact frozen Pi configuration with SDK and worker protocol pins."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/open-code-catalog.ts",
+          "purpose": "Defines the shared catalog behavior, sorting, timeout, variant, and error conventions Pi must match."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines Pi ModelRuntime availability and thinking-level implications."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the applied predecessor declarations PiAdapterConfiguration used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/runtime-adapter-catalog.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapterCatalog used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-worker-protocol.ts",
+          "purpose": "Provides the applied predecessor declarations PI_WORKER_PROTOCOL_VERSION used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Truthful Pi catalog",
+          "content": "Use the pinned SDK's ModelRuntime with Pi auth/models paths and a bounded timeout. Include only models for which an effective credential is available. Sort by stable providerId/modelId. Derive variant IDs only from thinking levels the exact model advertises; if Pi would clamp a level, do not advertise it and reject it explicitly. Reuse RuntimeAdapterCatalog semantics and AdapterCatalogDiscoveryError. Never choose a model or variant implicitly when more than one is available."
+        }
+      ],
+      "constraints": [
+        "Do not create a Run, Job, session, or child process during discovery.",
+        "Do not expose credentials, auth paths, or raw SDK errors.",
+        "Do not query package latest-version services.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/pi-adapter.ts",
+      "operation": "create",
+      "task": "Provide the common RuntimeAdapter using Pi's isolated process gateway inside the shared disposable Agent workspace boundary.",
+      "requirements": [
+        "PiRuntimeLive implements RuntimeAdapter by combining selected-only isolation, one child worker per Job, and the shared disposable Agent workspace boundary.",
+        "Pi execution rejects non-Pi Jobs, SDK-version mismatch, worker-protocol mismatch, unavailable model, and unsupported variant before agent-input admission or child spawn.",
+        "Pi lifecycle facts map to the same sanitized attempt observations, adapter failure categories, target evidence, and candidate shape used by OpenCode."
+      ],
+      "owns": [
+        {
+          "name": "PiAdapterLiveOptions",
+          "declaration": "export interface PiAdapterLiveOptions { readonly processOptions?: PiProcessOptions; readonly catalog?: RuntimeAdapterCatalog<PiAdapterConfiguration>; readonly workspaceParent?: string; }",
+          "description": "Allows deterministic runtime, catalog, and workspace injection without widening the service."
+        },
+        {
+          "name": "PiRuntimeLive",
+          "declaration": "export const PiRuntimeLive: (options?: PiAdapterLiveOptions) => Layer.Layer<RuntimeAdapter>;",
+          "description": "Provides one Run-scoped Pi implementation of the adapter-neutral service."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "makePiModelCatalog",
+          "from": "src/runner/pi-catalog.ts"
+        },
+        {
+          "name": "PI_SDK_VERSION",
+          "from": "src/runner/pi-catalog.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Defines the required common observation, withRun, per-Job, and failure mapping behavior."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines the chosen one-child-per-file topology and completion differences."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapter, RuntimeJobInvoke used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/agent-workspace.ts",
+          "purpose": "Provides the applied predecessor declarations invokeInAgentWorkspace used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-isolation.ts",
+          "purpose": "Provides the applied predecessor declarations withPiIsolation used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-process.ts",
+          "purpose": "Provides the applied predecessor declarations makePiWorkerInvoke used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-worker-protocol.ts",
+          "purpose": "Provides the applied predecessor declarations PI_WORKER_PROTOCOL_VERSION used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Thin concrete adapter",
+          "content": "At withRun entry, validate every frozen Pi configuration against the implementation pins and catalog. For each Job, create selected-only isolation, create one PiWorkerRequest, and supply an AgentWorkspaceInvoke that starts one makePiWorkerInvoke child. Let invokeInAgentWorkspace own target and context seeding, target-only candidate production, evidence, discard, and cleanup. Send only the lean Agent Input to the child. Map worker lifecycle facts through RuntimeAttemptReporter using the same stable phases as OpenCode. Keep provider/SDK details private."
+        }
+      ],
+      "constraints": [
+        "Reject `job.adapter.kind !== \"pi\"` and any version mismatch before isolation, child spawn, or admission.",
+        "Do not reuse child processes or Pi sessions across Jobs.",
+        "Do not duplicate workspace inspection or candidate logic.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/pi-catalog.test.ts",
+      "operation": "create",
+      "task": "Prove authenticated Pi catalog, exact selection, variant, and configuration behavior.",
+      "requirements": [
+        "Pi catalog discovery returns only authenticated, exact provider/model identities from the pinned SDK and fails closed when discovery is unavailable or the selected model is absent.",
+        "Pi variants expose only SDK-supported thinking levels as stable identifiers, preserve the existing exact-match and single-variant fallback rules, and reject unsupported or clamped selections before Run creation.",
+        "Deterministic catalog and adapter tests prove create/replace parity, frozen context availability, disposable auxiliary mutations, target-only extraction, typed failures, pre-admission validation, cleanup, sibling independence, and concurrent one-process-per-Job behavior without paid calls."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "makePiModelCatalog",
+          "from": "src/runner/pi-catalog.ts"
+        },
+        {
+          "name": "piConfiguration",
+          "from": "src/runner/pi-catalog.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/runtime-adapter-catalog.test.ts",
+          "purpose": "Defines the shared exact-match and single-variant fallback contract."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Catalog contract tests",
+          "content": "Inject fake Pi ModelRuntime/auth state. Cover empty credentials, mixed authenticated providers, exact model absence, deterministic ordering, bounded timeout, no session creation, supported thinking variants, rejection of clamped/unsupported levels, exact-match selection, single-variant fallback, ambiguity failure, and exact pinned configuration output."
+        }
+      ],
+      "constraints": [
+        "Do not access user Pi state, network, or real credentials.",
+        "Do not create an AgentSession or child process.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/pi-adapter.test.ts",
+      "operation": "create",
+      "task": "Prove Pi behavior is equivalent at SCORE's adapter boundary despite its distinct inner lifecycle.",
+      "requirements": [
+        "PiRuntimeLive implements RuntimeAdapter by combining selected-only isolation, one child worker per Job, and the shared disposable Agent workspace boundary.",
+        "Pi execution rejects non-Pi Jobs, SDK-version mismatch, worker-protocol mismatch, unavailable model, and unsupported variant before agent-input admission or child spawn.",
+        "Pi lifecycle facts map to the same sanitized attempt observations, adapter failure categories, target evidence, and candidate shape used by OpenCode.",
+        "Deterministic catalog and adapter tests prove create/replace parity, frozen context availability, disposable auxiliary mutations, target-only extraction, typed failures, pre-admission validation, cleanup, sibling independence, and concurrent one-process-per-Job behavior without paid calls."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "PiRuntimeLive",
+          "from": "src/runner/pi-adapter.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Defines the behavior-parity matrix and typed evidence assertions."
+        },
+        {
+          "path": "test/pi-process.test.ts",
+          "purpose": "Provides deterministic worker gateway fakes."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAdapter used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Cross-adapter parity tests",
+          "content": "Drive RuntimeAdapter with a fake Pi catalog and worker gateway. Cover nested create and replace, frozen context availability, context and scratch mutations being discarded, only the assigned target returned, missing and unchanged output, provider/tool/timeout/interruption/protocol/cleanup failures, admitted target evidence, observations, selected-only isolation cleanup, OpenCode Job rejection, both version mismatches, absent model, unsupported variant, sibling independence, and concurrent invocations proving distinct process/session identifiers. Compare stable outcomes with OpenCode, never runtime-specific prose."
+        }
+      ],
+      "constraints": [
+        "Do not call a provider, access user credentials, or spawn the real Pi worker.",
+        "Assert no child or isolation directory survives any Exit.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

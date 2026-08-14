@@ -1,0 +1,354 @@
+{
+  "slice_id": "runtime-adapter-foundation-repair",
+  "after": [
+    "runtime-adapter-foundation"
+  ],
+  "title": "Runtime adapter foundation repair",
+  "objective": "Restore SCORE's self-hosting Runner after the applied adapter-neutral foundation by closing every moved-declaration consumer, correcting adapter-specific public version semantics, and preserving the successful foundation behavior.",
+  "requirements": [
+    "Every repository consumer of the removed OpenCodeAdapter service and the moved adapter declarations imports and uses the declarations from their actual current owners, with no compatibility alias or re-export that recreates the removed service.",
+    "OpenCode imports TargetOutputState from domain.ts and AdapterInvocationError, AdapterBoundaryError, RuntimeAdapter, and related adapter contracts from runtime-adapter.ts; its existing pre-admission identity, workspace, lifecycle, evidence, and cleanup behavior remains unchanged.",
+    "OpenCode and Pi fixtures construct the AdapterConfiguration discriminated union honestly: OpenCode carries cliVersion, Pi carries workerProtocolVersion, and neither variant receives the other's version field.",
+    "Regression tests assert concrete tagged failures such as AdapterInvocationError rather than the RuntimeAdapterError TypeScript union name, and prove incompatible OpenCode Jobs fail before gateway admission.",
+    "RunObservation runtimeVersion is a closed OpenCode-or-Pi union so historical and current OpenCode observations retain exactly sdkVersion and cliVersion, Pi observations expose exactly sdkVersion and workerProtocolVersion, and the existing cli_version storage slot is decoded by authoritative adapter_kind without being mislabeled publicly.",
+    "The repair preserves adapter-union persistence, complete ClaimedJob.adapter, Runner dependence on RuntimeAdapter, rolling concurrency, recovery, durable sanitized evidence, sibling independence, and atomic complete-set application.",
+    "After the complete repair candidate set is applied, npm run typecheck, npm test, npm run build, and a guided npm run runner -- start startup through the selection prompt all succeed before any downstream Pi Slice resumes."
+  ],
+  "files": [
+    {
+      "path": "src/runner/domain.ts",
+      "operation": "modify",
+      "task": "Give public Run observations an adapter-specific version union while preserving the exact existing OpenCode observation JSON and every established Runner domain field.",
+      "requirements": [
+        "RunObservation runtimeVersion is a closed OpenCode-or-Pi union so historical and current OpenCode observations retain exactly sdkVersion and cliVersion, Pi observations expose exactly sdkVersion and workerProtocolVersion, and the existing cli_version storage slot is decoded by authoritative adapter_kind without being mislabeled publicly.",
+        "The repair preserves adapter-union persistence, complete ClaimedJob.adapter, Runner dependence on RuntimeAdapter, rolling concurrency, recovery, durable sanitized evidence, sibling independence, and atomic complete-set application."
+      ],
+      "owns": [
+        {
+          "name": "OpenCodeRunRuntimeVersion",
+          "declaration": "export const OpenCodeRunRuntimeVersion = Schema.Struct({ sdkVersion: Schema.String, cliVersion: Schema.String }); export type OpenCodeRunRuntimeVersion = typeof OpenCodeRunRuntimeVersion.Type;",
+          "description": "Preserves the exact existing public OpenCode runtime-version object."
+        },
+        {
+          "name": "PiRunRuntimeVersion",
+          "declaration": "export const PiRunRuntimeVersion = Schema.Struct({ sdkVersion: Schema.String, workerProtocolVersion: Schema.String }); export type PiRunRuntimeVersion = typeof PiRunRuntimeVersion.Type;",
+          "description": "Names Pi's SDK and SCORE worker protocol without presenting the latter as a CLI version."
+        },
+        {
+          "name": "RunRuntimeVersion",
+          "declaration": "export const RunRuntimeVersion = Schema.Union([OpenCodeRunRuntimeVersion, PiRunRuntimeVersion]); export type RunRuntimeVersion = typeof RunRuntimeVersion.Type;",
+          "description": "Accepts exactly one adapter-specific public version vocabulary, distinguished by its version key."
+        },
+        {
+          "name": "RunObservation",
+          "declaration": "export const RunObservation = Schema.Struct({ runId: RunId, providerId: Schema.String, modelId: Schema.String, variantId: Schema.NullOr(Schema.String), runtimeVersion: RunRuntimeVersion, createdAt: Schema.String, lastObservedAt: Schema.String, terminalAt: Schema.NullOr(Schema.String), sequence: Schema.Number, phase: RunObservationPhase, failureCategory: Schema.NullOr(FailureCategory), failureMessage: Schema.NullOr(Schema.String), application: Schema.Struct({ state: ApplicationState, appliedAt: Schema.NullOr(Schema.String), filesApplied: Schema.NullOr(Schema.Boolean) }), files: Schema.Array(RunFileObservation) }); export type RunObservation = typeof RunObservation.Type;",
+          "description": "Keeps every observation field stable while replacing only the undifferentiated runtimeVersion member schema."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Shows how adapter_kind and the shared cli_version storage slot are decoded into RunSnapshot and RunObservation."
+        },
+        {
+          "path": "test/runner-observation-store.test.ts",
+          "purpose": "Locks the exact historical OpenCode public observation JSON that this repair must preserve."
+        },
+        {
+          "path": "docs/decisions.md",
+          "purpose": "Defines D-089's stable sanitized Run observation contract and its non-authoritative role."
+        },
+        {
+          "path": "score/slices/runtime-adapter-foundation.json",
+          "purpose": "Records the applied foundation's AdapterConfiguration, ClaimedJob, and storage intent that this repair must retain."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Backward-compatible public version vocabulary",
+          "content": "Add strict OpenCodeRunRuntimeVersion and PiRunRuntimeVersion structs and their RunRuntimeVersion union beside the existing Runner schemas. OpenCode must remain exactly { sdkVersion, cliVersion }; Pi must be exactly { sdkVersion, workerProtocolVersion }. Reuse the union from RunObservation. Preserve AdapterConfiguration, ClaimedJob, all other observation fields, encoded null variants, and historical OpenCode bytes exactly. Do not add a discriminator or optional cross-kind version keys."
+        }
+      ],
+      "constraints": [
+        "Keep AdapterConfiguration and ClaimedJob encoded shapes unchanged.",
+        "Do not rename, remove, or reorder existing RunObservation fields beyond changing the runtimeVersion member schema reference.",
+        "Use the repository-pinned Effect v4 Schema APIs and keep schema values beside inferred exported types.",
+        "Do not implement Pi execution or change another file."
+      ]
+    },
+    {
+      "path": "src/runner/runner-store.ts",
+      "operation": "modify",
+      "task": "Project the already-decoded adapter into the matching public runtimeVersion branch while leaving physical storage, historical decoding, and Runner behavior unchanged.",
+      "requirements": [
+        "RunObservation runtimeVersion is a closed OpenCode-or-Pi union so historical and current OpenCode observations retain exactly sdkVersion and cliVersion, Pi observations expose exactly sdkVersion and workerProtocolVersion, and the existing cli_version storage slot is decoded by authoritative adapter_kind without being mislabeled publicly.",
+        "The repair preserves adapter-union persistence, complete ClaimedJob.adapter, Runner dependence on RuntimeAdapter, rolling concurrency, recovery, durable sanitized evidence, sibling independence, and atomic complete-set application."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RunRuntimeVersion",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "RunObservation",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Defines AdapterConfiguration and the exact public RunRuntimeVersion branches."
+        },
+        {
+          "path": "test/runner-workers.test.ts",
+          "purpose": "Contains the raw-row and public identity matrix for historical OpenCode, current OpenCode, and Pi."
+        },
+        {
+          "path": "test/runner-observation-store.test.ts",
+          "purpose": "Protects historical observation migration, sanitization, sequencing, recovery, and application semantics."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Kind-authoritative storage projection",
+          "content": "Keep adapter_kind authoritative and retain the existing sdk_version and cli_version SQLite columns. From the already decoded AdapterConfiguration, project OpenCode as { sdkVersion, cliVersion } and Pi as { sdkVersion, workerProtocolVersion }. Use this only when constructing RunObservation. Preserve decodeStoredAdapter, storedAdapterVersion, RunSnapshot.adapter, claim, enqueue, migrations, transactions, evidence, recovery, and application behavior."
+        }
+      ],
+      "constraints": [
+        "Import RunRuntimeVersion and RunObservation from ./domain.js using appropriate type and value forms.",
+        "Do not add, rename, or migrate a SQLite column.",
+        "Do not rewrite historical rows, add placeholder values, or infer kind from providerId.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/open-code-adapter.ts",
+      "operation": "modify",
+      "task": "Correct the remaining ownership import left by the declaration move while keeping OpenCode's RuntimeAdapter behavior unchanged.",
+      "requirements": [
+        "Every repository consumer of the removed OpenCodeAdapter service and the moved adapter declarations imports and uses the declarations from their actual current owners, with no compatibility alias or re-export that recreates the removed service.",
+        "OpenCode imports TargetOutputState from domain.ts and AdapterInvocationError, AdapterBoundaryError, RuntimeAdapter, and related adapter contracts from runtime-adapter.ts; its existing pre-admission identity, workspace, lifecycle, evidence, and cleanup behavior remains unchanged."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Is the canonical owner of TargetOutputState and ClaimedJob."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Is the owner of RuntimeAdapter, adapter errors, candidates, failure categories, terminal outcomes, and RuntimeJobInvoke."
+        },
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Provides the lifecycle and pre-admission parity shield that the import repair must not weaken."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Ownership-only adapter repair",
+          "content": "Move only the TargetOutputState type import to ./domain.js. Keep AdapterBoundaryError, AdapterInvocationError, RuntimeAdapter, AdapterCandidate, AdapterFailureCategory, AdapterTerminalOutcome, and RuntimeJobInvoke imported from ./runtime-adapter.js. Do not re-export compatibility names. Do not alter isolation, admission, pinned identity checks, prompt delivery, workspace inspection, candidate extraction, observations, timeouts, cleanup, or error evidence."
+        }
+      ],
+      "constraints": [
+        "Import TargetOutputState as a type from ./domain.js.",
+        "Do not export OpenCodeAdapter, OpenCodeAdapterError, or OpenCodeJobInvoke aliases.",
+        "Do not change runtime behavior or another file."
+      ]
+    },
+    {
+      "path": "src/runner/guided-start-cli.ts",
+      "operation": "modify",
+      "task": "Restore guided Runner module loading by typing its injected runtime layer against RuntimeAdapter rather than the removed OpenCodeAdapter service.",
+      "requirements": [
+        "Every repository consumer of the removed OpenCodeAdapter service and the moved adapter declarations imports and uses the declarations from their actual current owners, with no compatibility alias or re-export that recreates the removed service.",
+        "The repair preserves adapter-union persistence, complete ClaimedJob.adapter, Runner dependence on RuntimeAdapter, rolling concurrency, recovery, durable sanitized evidence, sibling independence, and atomic complete-set application."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines the RuntimeAdapter service required by Runner and by injected live or test layers."
+        },
+        {
+          "path": "src/runner/runner.ts",
+          "purpose": "Shows that runPendingJobsAndApply now requires RuntimeAdapter."
+        },
+        {
+          "path": "test/guided-start.test.ts",
+          "purpose": "Covers the guided backend, injected runtime layer, variant forwarding, repository confirmation, and startup behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Guided runtime service closure",
+          "content": "Import RuntimeAdapter from ./runtime-adapter.js and use Layer.Layer<RuntimeAdapter> for makeGuidedStartBackend and runGuidedOpenCodeStart runtimeLayer inputs. Preserve RuntimeAdapterCatalog<AdapterConfiguration>, the OpenCode-specific entrypoint name, prompt flow, approval gate, repository confirmation, progress rendering, enqueue, and atomic application. Do not add a compatibility alias."
+        }
+      ],
+      "constraints": [
+        "Use the exact import `import { RuntimeAdapter } from \"./runtime-adapter.js\";`.",
+        "Do not import RuntimeAdapter from open-code-adapter.ts.",
+        "Do not change prompts, approval behavior, execution behavior, or another file."
+      ]
+    },
+    {
+      "path": "test/open-code-adapter.test.ts",
+      "operation": "modify",
+      "task": "Construct honest OpenCode and Pi ClaimedJob fixtures, use RuntimeAdapter by its real name, and assert the concrete mismatch error without weakening OpenCode parity.",
+      "requirements": [
+        "Every repository consumer of the removed OpenCodeAdapter service and the moved adapter declarations imports and uses the declarations from their actual current owners, with no compatibility alias or re-export that recreates the removed service.",
+        "OpenCode imports TargetOutputState from domain.ts and AdapterInvocationError, AdapterBoundaryError, RuntimeAdapter, and related adapter contracts from runtime-adapter.ts; its existing pre-admission identity, workspace, lifecycle, evidence, and cleanup behavior remains unchanged.",
+        "OpenCode and Pi fixtures construct the AdapterConfiguration discriminated union honestly: OpenCode carries cliVersion, Pi carries workerProtocolVersion, and neither variant receives the other's version field.",
+        "Regression tests assert concrete tagged failures such as AdapterInvocationError rather than the RuntimeAdapterError TypeScript union name, and prove incompatible OpenCode Jobs fail before gateway admission."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Defines the OpenCode RuntimeAdapter implementation and pinned pre-admission checks under test."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines RuntimeAdapter and the concrete AdapterInvocationError tag asserted here."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Defines ClaimedJob and the exact OpenCode and Pi AdapterConfiguration variants."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Discriminated adapter fixture matrix",
+          "content": "Use RuntimeAdapter by its real name. Make the job helper branch before ClaimedJob.make: OpenCode has kind, providerId, modelId, variantId, sdkVersion, and cliVersion; Pi has kind, providerId, modelId, variantId, sdkVersion, and workerProtocolVersion. Do not construct an unresolved union kind. Assert Pi and version mismatches yield AdapterInvocationError before gateway admission, leave no workspace, and retain runtime_startup plus not-observed evidence. Keep every existing lifecycle case."
+        }
+      ],
+      "constraints": [
+        "Import RuntimeAdapter and AdapterInvocationError from ../src/runner/runtime-adapter.js without aliases.",
+        "Do not claim RuntimeAdapterError is a runtime tag; it is a TypeScript union only.",
+        "Do not use a real OpenCode process, model, credential, network, or another file."
+      ]
+    },
+    {
+      "path": "test/runner-workers.test.ts",
+      "operation": "modify",
+      "task": "Remove the stale OpenCode compatibility facade and preserve exact OpenCode and Pi identity through enqueue, claim, public observation, scheduling, and application.",
+      "requirements": [
+        "Every repository consumer of the removed OpenCodeAdapter service and the moved adapter declarations imports and uses the declarations from their actual current owners, with no compatibility alias or re-export that recreates the removed service.",
+        "OpenCode and Pi fixtures construct the AdapterConfiguration discriminated union honestly: OpenCode carries cliVersion, Pi carries workerProtocolVersion, and neither variant receives the other's version field.",
+        "RunObservation runtimeVersion is a closed OpenCode-or-Pi union so historical and current OpenCode observations retain exactly sdkVersion and cliVersion, Pi observations expose exactly sdkVersion and workerProtocolVersion, and the existing cli_version storage slot is decoded by authoritative adapter_kind without being mislabeled publicly.",
+        "The repair preserves adapter-union persistence, complete ClaimedJob.adapter, Runner dependence on RuntimeAdapter, rolling concurrency, recovery, durable sanitized evidence, sibling independence, and atomic complete-set application.",
+        "After the complete repair candidate set is applied, npm run typecheck, npm test, npm run build, and a guided npm run runner -- start startup through the selection prompt all succeed before any downstream Pi Slice resumes."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RunRuntimeVersion",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "RunObservation",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Is the actual owner of RuntimeAdapter and AdapterInvocationError used by Runner fakes."
+        },
+        {
+          "path": "src/runner/runner.ts",
+          "purpose": "Defines the adapter-neutral rolling scheduler, recovery, evidence, and atomic application behavior protected here."
+        },
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Defines enqueue, claim, raw storage, and public observation projection for exact adapter identity."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Defines AdapterConfiguration, ClaimedJob, RunRuntimeVersion, and RunObservation."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Adapter-neutral Runner regression shield",
+          "content": "Import RuntimeAdapter and AdapterInvocationError from ../src/runner/runtime-adapter.js. Delete OpenCodeAdapter and testOpenCodeAdapter aliases and use RuntimeAdapter/testRuntimeAdapter directly. Preserve all scheduling, recovery, evidence, source drift, candidate, and atomic-application cases. Extend the identity matrix to assert raw cli_version compatibility and exact public OpenCode { sdkVersion, cliVersion } versus Pi { sdkVersion, workerProtocolVersion }, including absence of cliVersion on Pi. Prove malformed configurations reject before RuntimeAdapter invocation; prove one valid Pi configuration reaches the fake RuntimeAdapter exactly once without an impossible comparison after narrowing to pi."
+        }
+      ],
+      "constraints": [
+        "Do not remove a scheduling, recovery, evidence, or application test.",
+        "Do not use compatibility aliases, casts to bypass AdapterConfiguration, paid runtimes, network, polling, or sleeps.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/guided-start.test.ts",
+      "operation": "modify",
+      "task": "Retarget every guided Runner fake to RuntimeAdapter and prove the guided path loads and forwards the frozen adapter variant through ClaimedJob.adapter.",
+      "requirements": [
+        "Every repository consumer of the removed OpenCodeAdapter service and the moved adapter declarations imports and uses the declarations from their actual current owners, with no compatibility alias or re-export that recreates the removed service.",
+        "The repair preserves adapter-union persistence, complete ClaimedJob.adapter, Runner dependence on RuntimeAdapter, rolling concurrency, recovery, durable sanitized evidence, sibling independence, and atomic complete-set application.",
+        "After the complete repair candidate set is applied, npm run typecheck, npm test, npm run build, and a guided npm run runner -- start startup through the selection prompt all succeed before any downstream Pi Slice resumes."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/guided-start-cli.ts",
+          "purpose": "Defines the repaired RuntimeAdapter layer injection point exercised by these tests."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines RuntimeAdapter.Service, RuntimeAdapter.of, and the ClaimedJob invocation signature used by deterministic fakes."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Defines the complete adapter object now carried by ClaimedJob."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Guided Runner regression closure",
+          "content": "Import RuntimeAdapter from ../src/runner/runtime-adapter.js. Rename the fake constructor and every Layer.succeed service argument to RuntimeAdapter; do not alias it back to OpenCodeAdapter. In the variant-forwarding assertion read job.adapter.variantId. Preserve all guided prompt, approval, repository drift, progress, application, cancellation, and terminal-safety assertions. The suite must load before any test runs."
+        }
+      ],
+      "constraints": [
+        "Use deterministic local fakes only; do not invoke OpenCode, network, credentials, or a real Runner.",
+        "Do not weaken any existing assertion to make the suite load.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

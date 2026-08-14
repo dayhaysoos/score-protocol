@@ -1,0 +1,255 @@
+{
+  "slice_id": "pi-worker-lifecycle",
+  "after": [
+    "pi-runtime-primitives"
+  ],
+  "title": "Isolated Pi worker lifecycle",
+  "objective": "Run one Pi SDK session in one killable child process per Job with selected-only state, fail-closed completion, and bounded cancellation.",
+  "requirements": [
+    "Each Pi Job runs in a fresh SCORE-owned child process and one no-session Pi AgentSession; no process, session, mutation queue, or conversation is shared across Jobs.",
+    "The child constructs Pi with the exact frozen model and thinking variant, an in-memory session and settings boundary, an empty custom ResourceLoader, and only SCORE-owned workspace-confined tools.",
+    "Input is successful only after Pi accepts the prompt, emits no failed tool result, settles, and its authoritative final assistant message has stopReason stop; error, aborted, length, unknown, or missing terminal state fails closed.",
+    "Timeout and interruption send Pi abort, wait a bounded grace period for settlement, terminate the child, and escalate to SIGKILL after one second if it remains alive.",
+    "Execution uses a fresh selected-only Pi auth and model state directory, disables ambient extensions, skills, prompts, themes, telemetry, and version checks, and never modifies the user's Pi state.",
+    "Parent and child errors are bounded and sanitized before becoming protocol events, observations, or typed adapter failures.",
+    "Deterministic fake-provider and fake-process tests cover success, every terminal failure, tool failure, malformed IPC, crash, timeout, abort, TERM/KILL escalation, cleanup, and concurrent process isolation without paid model calls."
+  ],
+  "files": [
+    {
+      "path": "src/runner/pi-isolation.ts",
+      "operation": "create",
+      "task": "Create selected-only temporary Pi state and an explicit scrubbed child environment for one Job.",
+      "requirements": [
+        "Execution uses a fresh selected-only Pi auth and model state directory, disables ambient extensions, skills, prompts, themes, telemetry, and version checks, and never modifies the user's Pi state."
+      ],
+      "owns": [
+        {
+          "name": "PiIsolation",
+          "declaration": "export interface PiIsolation { readonly rootPath: string; readonly authPath: string; readonly modelsPath?: string; readonly environment: NodeJS.ProcessEnv; }",
+          "description": "Exposes only the temporary selected state and explicit environment required by a child."
+        },
+        {
+          "name": "withPiIsolation",
+          "declaration": "export function withPiIsolation<A, E, R>(configuration: PiAdapterConfiguration, use: (isolation: PiIsolation) => Effect.Effect<A, E, R>): Effect.Effect<A, E | PiIsolationError, R>;",
+          "description": "Acquires, populates, hardens, and removes one selected-only Pi state directory."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/open-code-isolation.ts",
+          "purpose": "Provides the repository's proven selected-credential isolation and environment-scrubbing pattern."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines Pi ResourceLoader, settings, auth, models, telemetry, and ambient resource risks."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the applied predecessor declarations PiAdapterConfiguration used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Selected-only runtime isolation",
+          "content": "Read Pi's normal auth and optional models files only to select the frozen provider/model. Write a fresh owner-only temporary state containing only that provider's credential and the minimum selected model metadata. Construct the child environment from an allowlist plus required provider variables, set Pi telemetry and version-check opt-outs, and point all Pi state paths at the temporary root. Use Effect acquire/release and verify safe file types and modes before reading."
+        }
+      ],
+      "constraints": [
+        "Never copy unrelated providers, extensions, skills, prompts, sessions, settings, themes, or logs.",
+        "Never write to the user's Pi state or persist secret values in errors or observations.",
+        "Do not pass the parent environment wholesale.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/pi-worker.ts",
+      "operation": "create",
+      "task": "Own the child-side Pi SDK session, lifecycle validation, and protocol emission.",
+      "requirements": [
+        "Each Pi Job runs in a fresh SCORE-owned child process and one no-session Pi AgentSession; no process, session, mutation queue, or conversation is shared across Jobs.",
+        "The child constructs Pi with the exact frozen model and thinking variant, an in-memory session and settings boundary, an empty custom ResourceLoader, and only SCORE-owned workspace-confined tools.",
+        "Input is successful only after Pi accepts the prompt, emits no failed tool result, settles, and its authoritative final assistant message has stopReason stop; error, aborted, length, unknown, or missing terminal state fails closed.",
+        "Parent and child errors are bounded and sanitized before becoming protocol events, observations, or typed adapter failures."
+      ],
+      "owns": [
+        {
+          "name": "runPiWorker",
+          "declaration": "export async function runPiWorker(request: PiWorkerRequest, emit: (event: PiWorkerEvent) => void): Promise<void>;",
+          "description": "Runs one exact Pi session and emits only validated bounded lifecycle facts."
+        },
+        {
+          "name": "runPiWorkerMain",
+          "declaration": "export async function runPiWorkerMain(): Promise<void>;",
+          "description": "Reads one JSON-lines request from stdin, runs it, and writes protocol events to stdout."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines the verified SDK prompt, event, authoritative message, stopReason, and ResourceLoader behavior."
+        },
+        {
+          "path": "src/runner/diagnostic-sanitization.ts",
+          "purpose": "Defines bounded diagnostic sanitization."
+        },
+        {
+          "path": "src/runner/pi-worker-protocol.ts",
+          "purpose": "Provides the applied predecessor declarations PiWorkerRequest, PiWorkerEvent, decodePiWorkerRequest, encodePiWorkerMessage used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/pi-workspace-tools.ts",
+          "purpose": "Provides the applied predecessor declarations makePiWorkspaceTools used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Fail-closed Pi session",
+          "content": "Use `createAgentSession` and `ModelRuntime` from the pinned SDK. Select the exact provider/model or fail; validate the exact supported thinking level; use in-memory session and settings managers; instantiate a custom ResourceLoader with no extension, skill, prompt, or theme roots; pass only makePiWorkspaceTools for the supplied disposable workspace. Emit session_created, then prompt admission, tool completion facts, settlement, and a single terminal event. Await `session.prompt()` for the full accepted run, then inspect the authoritative final assistant message and require `stopReason === \"stop\"`. Any tool error or other/missing stop reason emits failed. Never emit message content."
+        }
+      ],
+      "constraints": [
+        "Do not use Pi built-in coding tools, default ResourceLoader, disk session persistence, or user settings persistence.",
+        "Do not treat prompt preflight admission or `agent_settled` alone as success.",
+        "Write protocol JSON only to stdout; send bounded operational diagnostics to stderr without secrets.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/pi-process.ts",
+      "operation": "create",
+      "task": "Own parent-side child process spawning, protocol mapping, cancellation, and hard teardown.",
+      "requirements": [
+        "Each Pi Job runs in a fresh SCORE-owned child process and one no-session Pi AgentSession; no process, session, mutation queue, or conversation is shared across Jobs.",
+        "Timeout and interruption send Pi abort, wait a bounded grace period for settlement, terminate the child, and escalate to SIGKILL after one second if it remains alive.",
+        "Parent and child errors are bounded and sanitized before becoming protocol events, observations, or typed adapter failures."
+      ],
+      "owns": [
+        {
+          "name": "PiWorkerInvoke",
+          "declaration": "export type PiWorkerInvoke = (request: PiWorkerRequest, reporter?: RuntimeAttemptReporter) => Effect.Effect<{ readonly runtimeSessionId: string }, AdapterInvocationError>;",
+          "description": "Defines one fresh child process invocation mapped into the common runtime failure contract."
+        },
+        {
+          "name": "PiProcessOptions",
+          "declaration": "export interface PiProcessOptions { readonly workerUrl?: URL; readonly timeoutMs?: number; readonly abortGraceMs?: number; readonly killGraceMs?: number; readonly spawn?: typeof nodeSpawn; }",
+          "description": "Allows deterministic injection of child processes and bounded lifecycle deadlines."
+        },
+        {
+          "name": "makePiWorkerInvoke",
+          "declaration": "export function makePiWorkerInvoke(options?: PiProcessOptions): PiWorkerInvoke;",
+          "description": "Creates a per-call child process gateway with strict JSON-lines lifecycle validation and teardown."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/open-code-process.ts",
+          "purpose": "Provides the existing startup, stderr, termination, and sanitization patterns."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines why Pi cancellation must be adapter-owned and the abort, TERM, KILL sequence."
+        },
+        {
+          "path": "src/runner/pi-worker-protocol.ts",
+          "purpose": "Provides the applied predecessor declarations PiWorkerRequest, decodePiWorkerEvent, encodePiWorkerMessage used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Provides the applied predecessor declarations AdapterInvocationError used by this Agent Brief."
+        },
+        {
+          "path": "src/runner/runtime-attempt-observation.ts",
+          "purpose": "Provides the applied predecessor declarations RuntimeAttemptReporter used by this Agent Brief."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Killable child gateway",
+          "content": "Spawn the compiled pi-worker module with `process.execPath`, one child per call, stdin/stdout pipes, and the explicit isolated environment. Send one request and close stdin. Parse bounded stdout line-by-line in legal event order; report only stable facts. On timeout or Effect interruption, request abort through a dedicated control message or signal understood by the worker, wait the configured grace, send SIGTERM, then SIGKILL after exactly one bounded final second. Reap every child and remove listeners on every Exit."
+        }
+      ],
+      "constraints": [
+        "A timeout rejection alone is not cancellation; always stop the child.",
+        "Success requires one completed event after legal admission and settlement, exit code zero, and no failed tool fact.",
+        "Never persist stdout/stderr wholesale or expose raw child output in errors.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/pi-worker.test.ts",
+      "operation": "create",
+      "task": "Prove Pi SDK lifecycle mapping with a fully local fake model/provider boundary.",
+      "requirements": [
+        "The child constructs Pi with the exact frozen model and thinking variant, an in-memory session and settings boundary, an empty custom ResourceLoader, and only SCORE-owned workspace-confined tools.",
+        "Input is successful only after Pi accepts the prompt, emits no failed tool result, settles, and its authoritative final assistant message has stopReason stop; error, aborted, length, unknown, or missing terminal state fails closed.",
+        "Deterministic fake-provider and fake-process tests cover success, every terminal failure, tool failure, malformed IPC, crash, timeout, abort, TERM/KILL escalation, cleanup, and concurrent process isolation without paid model calls."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "runPiWorker",
+          "from": "src/runner/pi-worker.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/pi-worker-protocol.ts",
+          "purpose": "Defines the exact emitted event vocabulary."
+        },
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Provides repository style for fake runtime events and terminal outcome assertions."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Pi lifecycle state-machine tests",
+          "content": "Inject a deterministic fake Pi model/session boundary or local SDK transport. Assert exact model and thinking selection, empty resources, in-memory state, only the workspace-confined custom tools, readable frozen context, disposable context and scratch mutation, event order, success only for stop, and failures for error, aborted, length, unknown, absent final assistant message, rejected prompt, and any tool error. Assert emitted events never contain message, source, path, or credential content."
+        }
+      ],
+      "constraints": [
+        "Do not call an external provider or use a real credential.",
+        "Do not weaken production code to expose raw SDK internals solely for tests; inject the narrow model/session constructor boundary.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/pi-process.test.ts",
+      "operation": "create",
+      "task": "Prove parent process ordering, cancellation, reaping, sanitization, and per-Job isolation.",
+      "requirements": [
+        "Each Pi Job runs in a fresh SCORE-owned child process and one no-session Pi AgentSession; no process, session, mutation queue, or conversation is shared across Jobs.",
+        "Timeout and interruption send Pi abort, wait a bounded grace period for settlement, terminate the child, and escalate to SIGKILL after one second if it remains alive.",
+        "Parent and child errors are bounded and sanitized before becoming protocol events, observations, or typed adapter failures.",
+        "Deterministic fake-provider and fake-process tests cover success, every terminal failure, tool failure, malformed IPC, crash, timeout, abort, TERM/KILL escalation, cleanup, and concurrent process isolation without paid model calls."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "makePiWorkerInvoke",
+          "from": "src/runner/pi-process.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Provides deterministic runtime teardown and failure assertion patterns."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic child teardown tests",
+          "content": "Inject fake child processes and virtual/test clocks. Cover legal success, illegal event order, malformed/oversized lines, stderr redaction, nonzero exit, signal exit, timeout with cooperative abort, timeout requiring TERM, timeout requiring KILL, Effect interruption, listener cleanup, and two concurrent invokes proving distinct process and session identities."
+        }
+      ],
+      "constraints": [
+        "Do not spawn a real Pi worker or sleep on wall-clock time.",
+        "Assert no child remains live after every Exit.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

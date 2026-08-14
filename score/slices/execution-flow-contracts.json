@@ -1,0 +1,371 @@
+{
+  "slice_id": "execution-flow-contracts",
+  "title": "Authored Execution Flow contracts",
+  "objective": "Let a planning agent and human author explicit Execution Flow trees, freeze them as deterministic SCORE data, show them in the Slice or Change Review, and deliver the unchanged expectations only to the File Agents that must preserve them.",
+  "requirements": [
+    "A Change or Slice may contain zero or more named Execution Flows without changing the meaning of existing drafts that omit them.",
+    "Each Execution Flow stores a nonempty list of recipient target paths and a recursive tree whose root and every nested sibling group explicitly declare in_order or any_order semantics while preserving authored display order.",
+    "Each Execution Flow step contains nonempty plain-language text and may link to one Documented Declaration by its exact owner path and declaration name; unlinked steps remain valid.",
+    "Deterministic validation rejects duplicate flow names, duplicate or unknown recipients, empty sibling groups, invalid recipient paths, and declaration links that do not resolve to exactly one declaration owned by a file in the same Change or Slice.",
+    "Compilation stores each Execution Flow once as an immutable execution_flow Context Item, includes the exact authored flows in the shared Contract, and binds each item only to its named recipient Agent Briefs in authored flow order.",
+    "Each recipient Agent Input presents the complete unchanged Execution Flow as a required implementation expectation, while unrelated Agent Inputs omit it and retries receive identical digest-bound bytes.",
+    "Agent Input Markdown and canonical review HTML render the stored flow name, recipients, sibling-order semantics, nested steps, and resolvable declaration links deterministically, with a minimal semantic presentation that does not preempt the later review visual redesign.",
+    "Execution Flow content participates in draft, Accepted Specification, preparation, Contract, Context Item, Agent Input, and review identities so changing any flow creates the ordinary immutable Change or Slice revision while existing historical revisions remain unchanged.",
+    "Execution Flow is an authored implementation expectation, not an inferred call graph, runtime trace, verification result, status claim, or LLM-generated review summary; SCORE never derives it from repository or candidate code."
+  ],
+  "files": [
+    {
+      "path": "src/execution-flow.ts",
+      "operation": "create",
+      "task": "Own the complete Execution Flow authoring shape and one deep deterministic analysis interface for validating declaration references and routing exact flows to recipient files.",
+      "requirements": [
+        "A Change or Slice may contain zero or more named Execution Flows without changing the meaning of existing drafts that omit them.",
+        "Each Execution Flow stores a nonempty list of recipient target paths and a recursive tree whose root and every nested sibling group explicitly declare in_order or any_order semantics while preserving authored display order.",
+        "Each Execution Flow step contains nonempty plain-language text and may link to one Documented Declaration by its exact owner path and declaration name; unlinked steps remain valid.",
+        "Deterministic validation rejects duplicate flow names, duplicate or unknown recipients, empty sibling groups, invalid recipient paths, and declaration links that do not resolve to exactly one declaration owned by a file in the same Change or Slice."
+      ],
+      "owns": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "declaration": "export interface ExecutionFlowStepDraft { readonly text: string; readonly declaration?: { readonly name: string; readonly from: string }; readonly children?: ExecutionFlowGroupDraft; }",
+          "description": "Describes one authored expectation, its optional link to an existing Documented Declaration, and its optional nested calls or resource interactions."
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "declaration": "export interface ExecutionFlowGroupDraft { readonly ordering: \"in_order\" | \"any_order\"; readonly steps: ReadonlyArray<ExecutionFlowStepDraft>; }",
+          "description": "Groups sibling expectations and states whether their authored order is semantically required or display-only."
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "declaration": "export interface ExecutionFlowDraft { readonly name: string; readonly recipients: ReadonlyArray<string>; readonly root: ExecutionFlowGroupDraft; }",
+          "description": "Defines one named authored flow, the File Agents that must receive it, and its complete ordered tree."
+        },
+        {
+          "name": "ExecutionFlowFileInventory",
+          "declaration": "export interface ExecutionFlowFileInventory { readonly path: string; readonly declarations: ReadonlyArray<string>; }",
+          "description": "Supplies the exact target paths and declaration names against which recipient and declaration references are checked."
+        },
+        {
+          "name": "ExecutionFlowFinding",
+          "declaration": "export interface ExecutionFlowFinding { readonly code: string; readonly location: string; readonly message: string; readonly detail: Readonly<Record<string, unknown>>; }",
+          "description": "Reports one deterministic authoring or compiled-flow validation failure without interpreting implementation quality."
+        },
+        {
+          "name": "ExecutionFlowAnalysis",
+          "declaration": "export interface ExecutionFlowAnalysis { readonly findings: ReadonlyArray<ExecutionFlowFinding>; readonly flowsByRecipient: ReadonlyMap<string, ReadonlyArray<ExecutionFlowDraft>>; }",
+          "description": "Returns all deterministic findings and the unchanged flows selected for each exact recipient path."
+        },
+        {
+          "name": "EXECUTION_FLOW_DRAFT_SCHEMA",
+          "declaration": "export const EXECUTION_FLOW_DRAFT_SCHEMA: Readonly<Record<string, unknown>>;",
+          "description": "Provides the recursive JSON Schema fragment embedded by Change and Slice authoring schemas."
+        },
+        {
+          "name": "analyzeExecutionFlows",
+          "declaration": "export function analyzeExecutionFlows(flows: ReadonlyArray<ExecutionFlowDraft>, files: ReadonlyArray<ExecutionFlowFileInventory>): ExecutionFlowAnalysis;",
+          "description": "Validates the complete authored flow set and deterministically selects the exact flows each named recipient must receive without reading repository state."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Shows the current strict authoring schema, finding vocabulary, and array-order behavior the new module must serve."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Shows how authored semantic data is validated, compiled, and routed into immutable Context Items."
+        },
+        {
+          "path": "src/validation.ts",
+          "purpose": "Shows the deterministic validation finding conventions used for directly submitted Compiled Plans."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deep Execution Flow module",
+          "content": "Keep recursive shape knowledge, semantic validation, and recipient selection behind `analyzeExecutionFlows`. Preserve every authored string and array position exactly. Validation may compare only the supplied file/declaration inventory; it must not read files, infer calls, render HTML, or consult runtime state. Return all findings in deterministic traversal order."
+        }
+      ],
+      "constraints": [
+        "Use `ordering` values exactly `in_order` and `any_order`.",
+        "Treat `from` as the exact project-relative owner path and pair it with `name` when resolving a declaration link.",
+        "Keep the module pure and free of filesystem, SQLite, Runner, Adapter, renderer, clock, random, locale, and LLM dependencies.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/slice-draft.ts",
+      "operation": "modify",
+      "task": "Extend the strict Change and Slice authoring shape with optional Execution Flows while keeping every current flow-free draft valid.",
+      "requirements": [
+        "A Change or Slice may contain zero or more named Execution Flows without changing the meaning of existing drafts that omit them.",
+        "Each Execution Flow stores a nonempty list of recipient target paths and a recursive tree whose root and every nested sibling group explicitly declare in_order or any_order semantics while preserving authored display order.",
+        "Each Execution Flow step contains nonempty plain-language text and may link to one Documented Declaration by its exact owner path and declaration name; unlinked steps remain valid.",
+        "Execution Flow content participates in draft, Accepted Specification, preparation, Contract, Context Item, Agent Input, and review identities so changing any flow creates the ordinary immutable Change or Slice revision while existing historical revisions remain unchanged."
+      ],
+      "owns": [
+        {
+          "name": "SliceDraft",
+          "declaration": "export interface SliceDraft { readonly slice_id: string; readonly after?: ReadonlyArray<string>; readonly title: string; readonly objective: string; readonly requirements: ReadonlyArray<string>; readonly execution_flows?: ReadonlyArray<ExecutionFlowDraft>; readonly files: ReadonlyArray<SliceFileDraft>; }",
+          "description": "Adds optional authored Execution Flows to the existing durable Slice document; ChangeDraft inherits the same semantic field."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_DRAFT_SCHEMA",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/change-draft.ts",
+          "purpose": "Shows how ChangeDraft and its JSON Schema inherit the shared semantic Slice authoring properties."
+        },
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Defines the canonical JSON identity behavior that authored array order must preserve."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Backward-compatible strict schema extension",
+          "content": "Import `EXECUTION_FLOW_DRAFT_SCHEMA` and `type ExecutionFlowDraft` from `./execution-flow.js`. Add only the optional `execution_flows` semantic field. Keep `additionalProperties: false`, preserve all existing required fields and allowed values, require nonempty recipients and nonempty groups in schema, and leave duplicate/reference checks to deterministic semantic validation. Version the schema and authored digest honestly without rewriting stored history."
+        }
+      ],
+      "constraints": [
+        "Use the exact import `import { EXECUTION_FLOW_DRAFT_SCHEMA, type ExecutionFlowDraft } from \"./execution-flow.js\";`.",
+        "Do not sort flow, recipient, group, or step arrays.",
+        "Do not require `execution_flows` on an existing Change or Slice draft.",
+        "Do not add status, proof, warning, blocker, inferred relationship, or test-specific fields.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/plan-intake.ts",
+      "operation": "modify",
+      "task": "Compile validated authored Execution Flows into the existing Contract, Context Item, binding, Agent Input, and immutable revision pipeline without creating new protocol storage primitives.",
+      "requirements": [
+        "Deterministic validation rejects duplicate flow names, duplicate or unknown recipients, empty sibling groups, invalid recipient paths, and declaration links that do not resolve to exactly one declaration owned by a file in the same Change or Slice.",
+        "Compilation stores each Execution Flow once as an immutable execution_flow Context Item, includes the exact authored flows in the shared Contract, and binds each item only to its named recipient Agent Briefs in authored flow order.",
+        "Each recipient Agent Input presents the complete unchanged Execution Flow as a required implementation expectation, while unrelated Agent Inputs omit it and retries receive identical digest-bound bytes.",
+        "Execution Flow content participates in draft, Accepted Specification, preparation, Contract, Context Item, Agent Input, and review identities so changing any flow creates the ordinary immutable Change or Slice revision while existing historical revisions remain unchanged."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "analyzeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Shows that generic bound Context Items are already stored in SQLite, included in the Review Snapshot, and projected unchanged into Agent Input input_bindings."
+        },
+        {
+          "path": "src/types.ts",
+          "purpose": "Defines the existing generic Contract, Context Item, Context Set, and Contract Input binding shapes to reuse without a Core schema migration."
+        },
+        {
+          "path": "src/change-authoring.ts",
+          "purpose": "Shows the Change-to-Slice mapping that must continue reaching this shared compiler."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Profile data over existing Core primitives",
+          "content": "Call `analyzeExecutionFlows(draft.execution_flows ?? [], inventory)` after the file and declaration inventory is known and map its findings into Slice findings without changing their locations. Put the exact flow array in Accepted Specification and Contract content. Create one `execution_flow` Context Item per authored flow from that accepted source, add one optional `execution-flows` Contract Input, reuse the same Context Item across recipient Context Sets, and bind items to each recipient in original flow order. Do not create per-recipient copies."
+        }
+      ],
+      "constraints": [
+        "Import `analyzeExecutionFlows` from `./execution-flow.js` and call it with `draft.execution_flows ?? []` plus exact target paths and owned declaration names.",
+        "Set the Context Item kind to `execution_flow`, version to `1.0.0`, resolution to `inline`, and source to the exact Accepted Specification identity and digest.",
+        "Use Contract Input logical name `execution-flows`, expected kind `execution_flow`, optional minimum cardinality zero, and maximum cardinality equal to the number of authored flows with a minimum representable bound of one.",
+        "Do not add a SQLite migration, Compiled Plan schema field, Runner field, Adapter field, repository read, candidate inspection, runtime check, or LLM step.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/change-authoring.ts",
+      "operation": "modify",
+      "task": "Preserve optional Execution Flows when a Change is compared for identity and mapped through the shared Slice preparation path.",
+      "requirements": [
+        "A Change or Slice may contain zero or more named Execution Flows without changing the meaning of existing drafts that omit them.",
+        "Execution Flow content participates in draft, Accepted Specification, preparation, Contract, Context Item, Agent Input, and review identities so changing any flow creates the ordinary immutable Change or Slice revision while existing historical revisions remain unchanged."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/change-draft.ts",
+          "purpose": "Shows that ChangeDraft inherits semantic fields from SliceDraft and its generated strict schema."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines the shared preparation function and SliceDraft field consumed by mappedSliceDraft."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Lossless Change mapping",
+          "content": "Include `execution_flows` in `mappedSliceDraft`, `comparableSemanticBody`, and unpublished Change identity comparison. Preserve absence as absence and preserve every authored array position. Do not normalize, summarize, or duplicate flow data."
+        }
+      ],
+      "constraints": [
+        "Do not change Change identity syntax, revision semantics, preparation side effects, or human approval behavior.",
+        "Do not make Execution Flow mandatory.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/validation.ts",
+      "operation": "modify",
+      "task": "Validate execution_flow Context Item structure, declaration links, sharing, recipient bindings, and authored order for any directly submitted Compiled Plan so plan intake cannot be bypassed.",
+      "requirements": [
+        "Each Execution Flow stores a nonempty list of recipient target paths and a recursive tree whose root and every nested sibling group explicitly declare in_order or any_order semantics while preserving authored display order.",
+        "Each Execution Flow step contains nonempty plain-language text and may link to one Documented Declaration by its exact owner path and declaration name; unlinked steps remain valid.",
+        "Deterministic validation rejects duplicate flow names, duplicate or unknown recipients, empty sibling groups, invalid recipient paths, and declaration links that do not resolve to exactly one declaration owned by a file in the same Change or Slice.",
+        "Compilation stores each Execution Flow once as an immutable execution_flow Context Item, includes the exact authored flows in the shared Contract, and binds each item only to its named recipient Agent Briefs in authored flow order."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "analyzeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/types.ts",
+          "purpose": "Defines the generic compiled objects and binding positions the deterministic validator receives."
+        },
+        {
+          "path": "src/bundle-schema.ts",
+          "purpose": "Defines structural Compiled Plan validation that runs before semantic profile validation."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines the intended execution_flow Context Item, Contract Input, Context Set membership, and recipient binding construction."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Compiled flow integrity validation",
+          "content": "Reuse `analyzeExecutionFlows` for tree, recipient, and declaration-reference semantics. Then prove that each flow exists once, its Contract copy and Context Item content agree exactly, only named recipient Capsules bind it, every named recipient binds it once, and each recipient's binding positions preserve authored flow order. Emit deterministic errors only; do not invent warnings or assess candidate code."
+        }
+      ],
+      "constraints": [
+        "Construct declaration inventory only from validated documented_declarations Context Items and exact Capsule target paths.",
+        "Compare flow structures with canonical JSON rather than locale-sensitive or prose comparison.",
+        "Do not require any execution_flow Context Item when the authored Contract has no flows.",
+        "Do not add runtime, repository, candidate, test, warning, blocker, or LLM validation.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/render.ts",
+      "operation": "modify",
+      "task": "Render stored Execution Flows as readable deterministic nested trees in Agent Input Markdown and canonical review HTML, using stable declaration links and minimal styling that the later review experience can refine.",
+      "requirements": [
+        "Each recipient Agent Input presents the complete unchanged Execution Flow as a required implementation expectation, while unrelated Agent Inputs omit it and retries receive identical digest-bound bytes.",
+        "Agent Input Markdown and canonical review HTML render the stored flow name, recipients, sibling-order semantics, nested steps, and resolvable declaration links deterministically, with a minimal semantic presentation that does not preempt the later review visual redesign.",
+        "Execution Flow is an authored implementation expectation, not an inferred call graph, runtime trace, verification result, status claim, or LLM-generated review summary; SCORE never derives it from repository or candidate code."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Shows the exact stored Review Snapshot and Agent Input binding structures supplied to both deterministic renderers."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines execution_flow Context Item content, recipient bindings, and binding order."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Projection-only flow rendering",
+          "content": "Import `type ExecutionFlowDraft` from `./execution-flow.js`. Render only validated `execution_flow` input bindings and the corresponding frozen snapshot facts. Use semantic nested lists, stable anchors derived from existing deterministic identities, and explicit human text for `in_order` and `any_order`. Preserve authored order even when order is display-only. Link a step only when its exact owner path and declaration name resolve in the same frozen review. Keep this first presentation compact and structurally honest; do not add a graph library or final visual redesign."
+        }
+      ],
+      "constraints": [
+        "Do not inspect the repository, candidates, Runner database, mutable approval state, network, clock, locale, or LLM output while rendering.",
+        "Do not infer missing calls, collapse repeated authored steps, sort siblings, or turn any_order into an unordered display sequence.",
+        "Do not introduce GitHub, VS Code, C4, Structurizr, Mermaid, DOORS, Azure, or any other visualization tool or library.",
+        "Do not display status, readiness, blockers, warnings, missing information, adherence, or implementation proof.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "skills/score-authoring/SKILL.md",
+      "operation": "modify",
+      "task": "Teach the planning agent to author Execution Flows collaboratively as explicit SCORE data and to name only the File Agents that truly need each complete expectation.",
+      "requirements": [
+        "A Change or Slice may contain zero or more named Execution Flows without changing the meaning of existing drafts that omit them.",
+        "Each Execution Flow stores a nonempty list of recipient target paths and a recursive tree whose root and every nested sibling group explicitly declare in_order or any_order semantics while preserving authored display order.",
+        "Each Execution Flow step contains nonempty plain-language text and may link to one Documented Declaration by its exact owner path and declaration name; unlinked steps remain valid.",
+        "Each recipient Agent Input presents the complete unchanged Execution Flow as a required implementation expectation, while unrelated Agent Inputs omit it and retries receive identical digest-bound bytes.",
+        "Execution Flow is an authored implementation expectation, not an inferred call graph, runtime trace, verification result, status claim, or LLM-generated review summary; SCORE never derives it from repository or candidate code."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Defines the authoritative optional execution_flows authoring field and strict machine schema the skill must direct agents to inspect."
+        },
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Defines the canonical meaning and non-claims of Execution Flow."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "State plainly that the human and planning agent author the tree before preparation and that this authoring judgment is not deterministic.",
+        "Require explicit recipients, explicit sibling ordering, and exact declaration owner path plus name when a declaration link is used.",
+        "Tell the author not to infer a flow from source, require one for every Change or Slice, route it to unrelated files, or claim SCORE verifies implementation adherence.",
+        "Preserve the existing instruction to stop before approval, Runner execution, candidate generation, or application.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "CONTEXT.md",
+      "operation": "modify",
+      "task": "Add Execution Flow to SCORE's canonical product language and distinguish its authored expectation from runtime or verification evidence.",
+      "requirements": [
+        "Execution Flow is an authored implementation expectation, not an inferred call graph, runtime trace, verification result, status claim, or LLM-generated review summary; SCORE never derives it from repository or candidate code."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Shows that Execution Flow is compiled through Coding Profile Contracts and Context Items rather than becoming a new domain-neutral Core object."
+        },
+        {
+          "path": "src/render.ts",
+          "purpose": "Shows the deterministic presentation boundary that must not add semantic meaning."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Define Execution Flow as an immutable authored hierarchy describing how implemented behavior is expected to proceed through calls, resources, events, and boundaries.",
+        "State that divergence can become human or agent review feedback but is not automatically proven by SCORE.",
+        "Place the term with Coding Profile work and context, not in domain-neutral deferred Core protocol concepts.",
+        "Do not introduce the term Planned Flow, call stack, implementation status, verification result, or runtime trace as a synonym.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,498 @@
+{
+  "slice_id": "runtime-adapter-foundation",
+  "title": "Adapter-neutral Runner foundation",
+  "objective": "Introduce the smallest execution seam needed for multiple agent runtimes while preserving the frozen Run contract and all existing OpenCode behavior.",
+  "requirements": [
+    "AdapterConfiguration is a discriminated OpenCode-or-Pi union that preserves every existing OpenCode field and its encoded null variant, records Pi SDK and worker-protocol versions with the same encoded null variant, and lets historical OpenCode Runs decode unchanged.",
+    "ClaimedJob preserves jobId, attemptId, runId, targetPath, operation, controlJson, agentInputJson, and packageDigest exactly while replacing only the separately reconstructed provider, model, variant, and CLI fields with one complete frozen AdapterConfiguration.",
+    "RuntimeAdapter exposes one Run-scoped per-Job invocation interface with adapter-neutral candidates, typed failures, sanitized terminal outcomes, and optional attempt observations.",
+    "Runner execution depends only on RuntimeAdapter and preserves rolling concurrency, sibling independence, explicit recovery, durable evidence, and complete-set application behavior.",
+    "Enqueue validates the existing score.coding.filesystem.single-target capability through adapter-neutral compatibility logic for both OpenCode and Pi without weakening create/replace, no-network, no-shell, or no-discovery rules.",
+    "Runner storage keeps adapter_kind authoritative and encodes OpenCode cliVersion or Pi workerProtocolVersion in the existing cli_version slot according to that kind, so no migration or placeholder value is required and historical OpenCode rows decode unchanged.",
+    "The OpenCode Adapter satisfies RuntimeAdapter and rejects non-OpenCode or pinned-version mismatches before creating a runtime session.",
+    "Regression tests prove existing OpenCode and Runner behavior is unchanged and mismatched adapter identity fails before delivery."
+  ],
+  "files": [
+    {
+      "path": "src/runner/runtime-adapter.ts",
+      "operation": "create",
+      "task": "Own the deep execution interface and adapter-neutral result and failure vocabulary used by Runner and every concrete runtime.",
+      "requirements": [
+        "RuntimeAdapter exposes one Run-scoped per-Job invocation interface with adapter-neutral candidates, typed failures, sanitized terminal outcomes, and optional attempt observations."
+      ],
+      "owns": [
+        {
+          "name": "AdapterFailureCategory",
+          "declaration": "export const AdapterFailureCategory = Schema.Literals([\"runtime_startup\", \"provider\", \"tool\", \"timeout\", \"interruption\", \"missing_output\", \"workspace_integrity\", \"runtime_protocol\", \"runtime_cleanup\"]); export type AdapterFailureCategory = typeof AdapterFailureCategory.Type;",
+          "description": "Defines the stable adapter-facing failure categories that Runner maps into its durable presentation vocabulary."
+        },
+        {
+          "name": "AdapterTerminalOutcome",
+          "declaration": "export const AdapterTerminalOutcome = Schema.Struct({ kind: Schema.Literals([\"provider\", \"tool\", \"assistant\", \"runtime\", \"transport\"]), name: Schema.optional(Schema.String), status: Schema.optional(Schema.Literals([\"completed\", \"error\", \"running\", \"streaming\", \"unknown\", \"aborted\"])), statusCode: Schema.optional(Schema.Number) }); export type AdapterTerminalOutcome = typeof AdapterTerminalOutcome.Type;",
+          "description": "Carries only the bounded terminal facts that a concrete runtime may expose to Runner."
+        },
+        {
+          "name": "AdapterInvocationError",
+          "declaration": "export class AdapterInvocationError extends Schema.TaggedError<AdapterInvocationError>()(\"AdapterInvocationError\", { jobId: JobId, message: Schema.String, failureCategory: AdapterFailureCategory, runtimeSessionId: Schema.optional(Schema.String), terminalOutcome: Schema.optional(AdapterTerminalOutcome), targetOutputState: TargetOutputState, targetOutputDigest: Schema.optional(Schema.String), diagnosticContent: Schema.optional(Schema.String) }) {}",
+          "description": "Represents a typed failure returned by an admitted runtime invocation."
+        },
+        {
+          "name": "AdapterBoundaryError",
+          "declaration": "export class AdapterBoundaryError extends Schema.TaggedError<AdapterBoundaryError>()(\"AdapterBoundaryError\", { jobId: JobId, message: Schema.String, failureCategory: AdapterFailureCategory, runtimeSessionId: Schema.optional(Schema.String), terminalOutcome: Schema.optional(AdapterTerminalOutcome), targetOutputState: TargetOutputState, targetOutputDigest: Schema.optional(Schema.String), diagnosticContent: Schema.optional(Schema.String) }) {}",
+          "description": "Represents a typed failure in workspace, startup, or cleanup boundaries."
+        },
+        {
+          "name": "RuntimeAdapterError",
+          "declaration": "export type RuntimeAdapterError = AdapterInvocationError | AdapterBoundaryError;",
+          "description": "Unifies the only failures a runtime adapter may expose to Runner."
+        },
+        {
+          "name": "AdapterCandidate",
+          "declaration": "export interface AdapterCandidate { readonly content: string; readonly runtimeSessionId: string; readonly targetOutputState?: TargetOutputState; readonly targetOutputDigest?: string; }",
+          "description": "Carries the exact candidate bytes and sanitized runtime evidence produced for one Job."
+        },
+        {
+          "name": "RuntimeJobInvoke",
+          "declaration": "export type RuntimeJobInvoke = (job: ClaimedJob, reporter?: RuntimeAttemptReporter) => Effect.Effect<AdapterCandidate, RuntimeAdapterError>;",
+          "description": "Defines one adapter-neutral per-Job invocation."
+        },
+        {
+          "name": "RuntimeAdapter",
+          "declaration": "export class RuntimeAdapter extends Context.Service<RuntimeAdapter, { readonly invoke: RuntimeJobInvoke; readonly withRun: <A, E, R>(use: (invoke: RuntimeJobInvoke) => Effect.Effect<A, E, R>) => Effect.Effect<A, E | RuntimeAdapterError, R>; }>()(\"score/RuntimeAdapter\") {}",
+          "description": "Owns the Run-scoped execution lifecycle while presenting one per-Job function to Runner."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "AdapterConfiguration",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Provides the current adapter result, error, and Run-scoped lifecycle contract to extract without behavioral changes."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides the existing Job identifiers and terminal evidence vocabulary."
+        },
+        {
+          "path": "src/runner/runtime-attempt-observation.ts",
+          "purpose": "Defines the existing optional sanitized attempt reporter used in the invocation signature."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Explains why Pi needs the same outer contract despite a different inner lifecycle."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Deep runtime boundary",
+          "content": "Keep the public surface limited to AdapterFailureCategory, AdapterTerminalOutcome, the two typed errors, the candidate, one Job invocation, and one Run-scoped service. Move those existing adapter-neutral declarations from open-code-adapter.ts rather than duplicating them. Import the existing JobId and TargetOutputState schema and types from domain.ts; do not invent schema-suffixed aliases. Preserve every encoded evidence field exactly. Use the repository-pinned Effect v4 Context.Service, Schema.TaggedError, and Effect.Effect APIs, `.js` relative imports, and no ambient mutable registry."
+        }
+      ],
+      "constraints": [
+        "Import `ClaimedJob`, `JobId`, and `TargetOutputState` from `./domain.js` and `RuntimeAttemptReporter` from `./runtime-attempt-observation.js`.",
+        "Do not import OpenCode- or Pi-specific modules.",
+        "Do not add runtime capabilities beyond `invoke` and `withRun`.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/domain.ts",
+      "operation": "modify",
+      "task": "Freeze complete adapter identity into each Run and ClaimedJob with backward-compatible OpenCode decoding.",
+      "requirements": [
+        "AdapterConfiguration is a discriminated OpenCode-or-Pi union that preserves every existing OpenCode field and its encoded null variant, records Pi SDK and worker-protocol versions with the same encoded null variant, and lets historical OpenCode Runs decode unchanged.",
+        "ClaimedJob preserves jobId, attemptId, runId, targetPath, operation, controlJson, agentInputJson, and packageDigest exactly while replacing only the separately reconstructed provider, model, variant, and CLI fields with one complete frozen AdapterConfiguration."
+      ],
+      "owns": [
+        {
+          "name": "OpenCodeAdapterConfiguration",
+          "declaration": "export const OpenCodeAdapterConfiguration = Schema.Struct({ kind: Schema.Literal(\"opencode\"), providerId: Schema.String, modelId: Schema.String, variantId: Schema.NullOr(Schema.String), sdkVersion: Schema.String, cliVersion: Schema.String }); export type OpenCodeAdapterConfiguration = typeof OpenCodeAdapterConfiguration.Type;",
+          "description": "Preserves the existing frozen OpenCode selection shape."
+        },
+        {
+          "name": "PiAdapterConfiguration",
+          "declaration": "export const PiAdapterConfiguration = Schema.Struct({ kind: Schema.Literal(\"pi\"), providerId: Schema.String, modelId: Schema.String, variantId: Schema.NullOr(Schema.String), sdkVersion: Schema.String, workerProtocolVersion: Schema.String }); export type PiAdapterConfiguration = typeof PiAdapterConfiguration.Type;",
+          "description": "Freezes the exact Pi model, SDK, thinking variant, and SCORE worker protocol."
+        },
+        {
+          "name": "AdapterConfiguration",
+          "declaration": "export const AdapterConfiguration = Schema.Union([OpenCodeAdapterConfiguration, PiAdapterConfiguration]); export type AdapterConfiguration = typeof AdapterConfiguration.Type;",
+          "description": "Defines the closed set of built-in runtime selections stored with a Run."
+        },
+        {
+          "name": "ClaimedJob",
+          "declaration": "export const ClaimedJob = Schema.Struct({ jobId: JobId, attemptId: AttemptId, runId: RunId, targetPath: Schema.String, operation: FileOperation, controlJson: Schema.String, agentInputJson: Schema.String, packageDigest: Schema.String, adapter: AdapterConfiguration }); export type ClaimedJob = typeof ClaimedJob.Type;",
+          "description": "Preserves the complete durable attempt and package identity while carrying the frozen adapter selection into execution."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Shows the existing Run columns and ClaimedJob construction that must continue decoding historical OpenCode data."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Defines the Pi version facts that must be frozen before any Run exists."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Frozen adapter configuration",
+          "content": "Model adapter configuration as an explicit discriminated union. Preserve every existing OpenCode field and the encoded `variantId: null` representation; use the same null representation for Pi. Add Pi's exact SDK and worker protocol fields. In ClaimedJob, preserve jobId, attemptId, runId, targetPath, operation, controlJson, agentInputJson, and packageDigest exactly; replace only providerId, modelId, variantId, and cliVersion with the complete adapter object. Do not add planFileId, startingContent, or another source-body field. Keep every schema and inferred exported type adjacent."
+        }
+      ],
+      "constraints": [
+        "Do not change persisted OpenCode field names or values.",
+        "Do not replace an encoded null variant with an absent or undefined key.",
+        "Keep `kind` authoritative; do not infer it from provider or model identifiers.",
+        "Do not introduce dynamic plugin configuration or untyped JSON.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/open-code-adapter.ts",
+      "operation": "modify",
+      "task": "Adapt the existing OpenCode runtime to the common service without changing its process, workspace, or completion semantics.",
+      "requirements": [
+        "The OpenCode Adapter satisfies RuntimeAdapter and rejects non-OpenCode or pinned-version mismatches before creating a runtime session."
+      ],
+      "owns": [
+        {
+          "name": "OpenCodeAdapterLive",
+          "declaration": "export const OpenCodeAdapterLive: (options?: OpenCodeAdapterLiveOptions) => Layer.Layer<RuntimeAdapter, never, OpenCodeGateway>;",
+          "description": "Provides the adapter-neutral RuntimeAdapter while retaining OpenCodeGateway as an explicit injectable implementation dependency."
+        },
+        {
+          "name": "OpenCodeRuntimeLive",
+          "declaration": "export const OpenCodeRuntimeLive: (options?: OpenCodeRuntimeLiveOptions) => Layer.Layer<RuntimeAdapter>;",
+          "description": "Provides the fully composed live OpenCode runtime with its gateway dependency hidden from application callers."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "RuntimeAdapter",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "RuntimeJobInvoke",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterCandidate",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterInvocationError",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterBoundaryError",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterFailureCategory",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterTerminalOutcome",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "AdapterConfiguration",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-catalog.ts",
+          "purpose": "Defines the currently pinned SDK and CLI versions that execution must verify."
+        },
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Defines the established lifecycle, isolation, completion, and candidate behavior that must remain green."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Behavior-preserving adapter migration",
+          "content": "Move shared result and failure declarations to runtime-adapter.ts and provide RuntimeAdapter from the existing implementation. Preserve OpenCodeGateway as the internal injectable test seam: OpenCodeAdapterLive requires that gateway, while OpenCodeRuntimeLive composes it into a dependency-free live RuntimeAdapter layer. Before gateway admission or session creation, require `job.adapter.kind === \"opencode\"` and require its frozen SDK and CLI versions to equal the implementation pins. Read provider, model, variant, SDK, and CLI only from job.adapter. Leave OpenCode isolation, session completion checks, target inspection, observations, and cleanup behavior unchanged."
+        }
+      ],
+      "constraints": [
+        "Import common declarations from `./runtime-adapter.js`.",
+        "Do not leave a second Context service named OpenCodeAdapter.",
+        "Keep OpenCodeGateway and fake-gateway injection available as an internal implementation seam; do not hide it behind the live process in adapter tests.",
+        "Do not accept Pi Jobs or coerce Pi configuration into OpenCode fields.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/runner.ts",
+      "operation": "modify",
+      "task": "Run the existing worker scheduler against RuntimeAdapter while retaining every durable state and application invariant.",
+      "requirements": [
+        "Runner execution depends only on RuntimeAdapter and preserves rolling concurrency, sibling independence, explicit recovery, durable evidence, and complete-set application behavior."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RuntimeAdapter",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "RuntimeAdapterError",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterFailureCategory",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "RuntimeJobInvoke",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterInvocationError",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterBoundaryError",
+          "from": "src/runner/runtime-adapter.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Defines durable Job claiming, evidence recording, recovery, and candidate persistence."
+        },
+        {
+          "path": "src/runner/run-progress-renderer.ts",
+          "purpose": "Shows which sanitized observations Runner must continue delivering."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Invariant-preserving scheduler refactor",
+          "content": "Replace the OpenCode-specific service requirement and error type with RuntimeAdapter only. Keep the same `adapter.withRun(executeWorkers)` scope, rolling worker pool, per-Job error isolation, stable terminal outcome mapping, recovery boundary, and atomic candidate application. Do not change state transitions or concurrency math."
+        }
+      ],
+      "constraints": [
+        "Import `RuntimeAdapter`, `RuntimeAdapterError`, and `AdapterFailureCategory` from `./runtime-adapter.js`.",
+        "Do not import any concrete adapter.",
+        "Do not change Run or Job state transitions, candidate verification, or application code.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/runner-store.ts",
+      "operation": "modify",
+      "task": "Persist and claim complete adapter configuration and generalize capability validation without changing the SQLite safety boundary.",
+      "requirements": [
+        "AdapterConfiguration is a discriminated OpenCode-or-Pi union that preserves every existing OpenCode field and its encoded null variant, records Pi SDK and worker-protocol versions with the same encoded null variant, and lets historical OpenCode Runs decode unchanged.",
+        "ClaimedJob preserves jobId, attemptId, runId, targetPath, operation, controlJson, agentInputJson, and packageDigest exactly while replacing only the separately reconstructed provider, model, variant, and CLI fields with one complete frozen AdapterConfiguration.",
+        "Enqueue validates the existing score.coding.filesystem.single-target capability through adapter-neutral compatibility logic for both OpenCode and Pi without weakening create/replace, no-network, no-shell, or no-discovery rules.",
+        "Runner storage keeps adapter_kind authoritative and encodes OpenCode cliVersion or Pi workerProtocolVersion in the existing cli_version slot according to that kind, so no migration or placeholder value is required and historical OpenCode rows decode unchanged."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "AdapterConfiguration",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/private-state-filesystem.ts",
+          "purpose": "Defines the SQLite identity and filesystem-hardening boundary that persistence changes must preserve."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines the single-target capability declaration that every prepared Agent Brief receives."
+        },
+        {
+          "path": "test/runner-workers.test.ts",
+          "purpose": "Defines persistence, claim, recovery, and compatibility behavior that must stay stable."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Backward-compatible frozen persistence",
+          "content": "Keep `adapter_kind` authoritative. The existing version columns are a kind-discriminated physical representation: for opencode, sdk_version and cli_version decode to sdkVersion and cliVersion; for pi, they decode to sdkVersion and workerProtocolVersion. Keep variant_id nullable for both branches. Do not add a migration, placeholder, empty CLI value, or opaque adapter JSON. Decode historical opencode rows unchanged and construct ClaimedJob with its existing attempt and package fields plus the complete adapter object. Rename capability validation around the protocol capability, not around OpenCode, while retaining all current rejection rules. Preserve transaction and filesystem hardening behavior."
+        }
+      ],
+      "constraints": [
+        "Unknown adapter kinds or incomplete frozen configuration fail closed before Run or Job creation.",
+        "Inspect and claim decode the same complete adapter branch; neither may reinterpret Pi's worker protocol as an OpenCode CLI version.",
+        "Do not weaken digest, source snapshot, package, database identity, WAL, or transaction checks.",
+        "Do not add runtime discovery to enqueue.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/open-code-adapter.test.ts",
+      "operation": "modify",
+      "task": "Prove OpenCode parity through the common runtime service and cover pre-admission adapter mismatch rejection.",
+      "requirements": [
+        "The OpenCode Adapter satisfies RuntimeAdapter and rejects non-OpenCode or pinned-version mismatches before creating a runtime session.",
+        "Regression tests prove existing OpenCode and Runner behavior is unchanged and mismatched adapter identity fails before delivery."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RuntimeAdapter",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "OpenCodeAdapterLive",
+          "from": "src/runner/open-code-adapter.ts"
+        },
+        {
+          "name": "OpenCodeRuntimeLive",
+          "from": "src/runner/open-code-adapter.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "AdapterConfiguration",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "AdapterInvocationError",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterBoundaryError",
+          "from": "src/runner/runtime-adapter.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Provides the implementation under test."
+        },
+        {
+          "path": "src/runner/domain.ts",
+          "purpose": "Provides exact OpenCode and Pi ClaimedJob configuration fixtures."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Boundary-first adapter tests",
+          "content": "Retarget existing service lookups to RuntimeAdapter without deleting parity coverage. Keep direct OpenCodeAdapterLive tests supplied by a fake OpenCodeGateway and retain representative OpenCodeRuntimeLive composition coverage. Build ClaimedJob fixtures with attemptId, controlJson, agentInputJson, packageDigest, and one complete adapter object. Add tests showing a Pi Job and a mismatched OpenCode SDK or CLI version fail before gateway admission or session creation. Assert typed categories and sanitized evidence, not provider prose. Use only fakes; do not start a paid or networked runtime."
+        }
+      ],
+      "constraints": [
+        "Keep all existing successful, timeout, provider, tool, cleanup, workspace, create, and replace assertions.",
+        "Import the service from `../src/runner/runtime-adapter.js`.",
+        "Do not use network access or real credentials.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/runner-workers.test.ts",
+      "operation": "modify",
+      "task": "Prove Runner remains adapter-neutral while preserving its durable concurrency and recovery contract.",
+      "requirements": [
+        "Runner execution depends only on RuntimeAdapter and preserves rolling concurrency, sibling independence, explicit recovery, durable evidence, and complete-set application behavior.",
+        "Enqueue validates the existing score.coding.filesystem.single-target capability through adapter-neutral compatibility logic for both OpenCode and Pi without weakening create/replace, no-network, no-shell, or no-discovery rules.",
+        "Runner storage keeps adapter_kind authoritative and encodes OpenCode cliVersion or Pi workerProtocolVersion in the existing cli_version slot according to that kind, so no migration or placeholder value is required and historical OpenCode rows decode unchanged.",
+        "Regression tests prove existing OpenCode and Runner behavior is unchanged and mismatched adapter identity fails before delivery."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "RuntimeAdapter",
+          "from": "src/runner/runtime-adapter.ts"
+        },
+        {
+          "name": "AdapterConfiguration",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "RuntimeJobInvoke",
+          "from": "src/runner/runtime-adapter.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runner.ts",
+          "purpose": "Provides the scheduler behavior under test."
+        },
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Provides the enqueue, claim, evidence, and recovery behavior under test."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Deterministic Runner regression tests",
+          "content": "Replace fake OpenCodeAdapter layers with fake RuntimeAdapter layers while preserving existing scheduling assertions. Assert claimed Jobs retain attemptId, controlJson, agentInputJson, and packageDigest while carrying the complete adapter object. Add raw-row and public inspection coverage for historical OpenCode with variantId null, new OpenCode with variantId null, and Pi with variantId null; prove cli_version decodes to cliVersion only for opencode and workerProtocolVersion only for pi. Add Pi compatibility acceptance, unsupported capability rejection, incomplete and unknown adapter rejection, and mismatch failure before input delivery. Keep time and concurrency deterministic."
+        }
+      ],
+      "constraints": [
+        "Do not remove existing worker-pool, sibling independence, observation, recovery, integrity, or atomic application tests.",
+        "Do not use network access or real child processes.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

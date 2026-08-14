@@ -1,0 +1,617 @@
+{
+  "slice_id": "single-target-runtime-workspace",
+  "after": [
+    "runtime-adapter-foundation",
+    "runtime-adapter-foundation-repair",
+    "execution-flow-contracts"
+  ],
+  "title": "Disposable Agent workspace and lean context delivery",
+  "objective": "Give every Agent exact frozen source through a disposable editable workspace while keeping full source bodies out of the initial Agent Input and preserving SCORE's deterministic review and atomic candidate boundary.",
+  "requirements": [
+    "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation.",
+    "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+    "The deterministic review remains complete from persisted Context Items, renders the exact frozen target and context sources, and reports a versioned estimate of initial-input size and available workspace-source size without model selection, fit, or recommendation.",
+    "One adapter-neutral module creates a fresh disposable workspace, materializes the exact frozen replace target and explicit context copies, invokes one runtime inside that workspace, extracts only the assigned target, and removes the workspace on every exit.",
+    "Agents may read, modify, delete, or create files inside the disposable workspace; every non-target result is ignored and discarded, while absolute paths, traversal, symlink escape, and any access outside the workspace are forbidden.",
+    "Candidate extraction still rejects a missing target, non-regular target, symlink target, invalid UTF-8, unchanged replacement, and digest mismatch, and post-admission failures retain only bounded sanitized target evidence.",
+    "OpenCode delegates workspace ownership to the shared module and sends only the lean Agent Input to the model while preserving provider selection, session lifecycle, completion checks, observations, and cleanup.",
+    "Runner validates and freezes the workspace inputs from the approved Agent Package, never reconstructs them from the live repository, and leaves the real project unchanged until the complete candidate set is atomically applied.",
+    "Deterministic tests prove package closure, source-body omission from initial input, complete review rendering, size estimates, context materialization and disposable mutation, path confinement, target-only extraction, failure evidence, cleanup, and OpenCode parity."
+  ],
+  "files": [
+    {
+      "path": "src/plan-intake.ts",
+      "operation": "modify",
+      "task": "Compile each Agent Brief's existing target and selected context paths into one collision-free frozen workspace inventory without adding a new authoring choice.",
+      "requirements": [
+        "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Defines the existing path-and-purpose context selection that remains the complete authoring interface."
+        },
+        {
+          "path": "test/plan-intake.test.ts",
+          "purpose": "Shows the deterministic finding and compilation conventions for invalid authored paths and frozen context."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Workspace inventory compilation",
+          "content": "Keep `context: [{ path, purpose }]` as the only source-selection authoring shape. Continue capturing the complete exact UTF-8 target and context bytes plus digests in Context Items. Validate normalized workspace identity before materialization: one target, each context path once, no target/context collision, no absolute or escaping path. Do not add delivery, excerpt, criticality, read-only, model, or observability fields."
+        }
+      ],
+      "constraints": [
+        "Preserve optional Execution Flow compilation and routing introduced by the predecessor Slice.",
+        "Do not change the SliceDraft schema or add a SQLite migration.",
+        "Do not infer context paths from imports or repository discovery.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/score-alpha.ts",
+      "operation": "modify",
+      "task": "Project one digest-bound Agent Package with lean instructions and a separate frozen workspace payload while retaining complete review evidence.",
+      "requirements": [
+        "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation.",
+        "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+        "The deterministic review remains complete from persisted Context Items, renders the exact frozen target and context sources, and reports a versioned estimate of initial-input size and available workspace-source size without model selection, fit, or recommendation."
+      ],
+      "owns": [
+        {
+          "name": "ApprovedPassExport",
+          "declaration": "export interface ApprovedPassExport { readonly schema: \"score.approved-pass-export\"; readonly version: \"0.1.0-alpha.6\"; readonly pass_id: string; readonly publication: { readonly review_id: string; readonly decision_id: string; readonly authority: string; readonly decided_at: string }; readonly source_snapshot: RepositorySourceSnapshot; readonly payloads: ReadonlyArray<{ readonly payload_id: string; readonly target_path: string; readonly operation: string; readonly control: unknown; readonly agent_input: unknown; readonly payload: { readonly control: unknown; readonly agent_input: unknown; readonly workspace: { readonly files: ReadonlyArray<unknown> } }; readonly control_digest: string; readonly agent_input_digest: string; readonly payload_digest: string }>; }",
+          "description": "Exports the approved lean Agent Input and its separately digest-bound frozen workspace files without changing the human approval boundary."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines the target-state and project-context Context Items from which both package projections are derived."
+        },
+        {
+          "path": "src/render.ts",
+          "purpose": "Defines the human and machine projections that must remain deterministic after source bodies leave Agent Input."
+        },
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Consumes the approved package and defines the current integrity checks that must fail closed."
+        },
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Distinguishes Agent Input, Agent Package, frozen context, and the atomic application boundary."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "One frozen source, two projections",
+          "content": "Derive both projections from the same persisted Context Items. Keep requirements, documented declarations, skills, constraints, and execution_flow bindings exact in Agent Input. Represent target and project-context bindings there only with path, purpose, state, media type, and digest metadata. Put target first and project context in authored binding order under `payload.workspace.files`, including exact source bytes only for present files. Bind the workspace section into the package digest and preserve full Context Items in the review snapshot. Version the changed export and renderer contracts without rewriting historical rows."
+        }
+      ],
+      "constraints": [
+        "The canonical package envelope is exactly control, agent_input, and workspace for the new version.",
+        "Do not read the live repository while exporting an approved package.",
+        "Do not modify existing historical payloads, reviews, approvals, or digests.",
+        "Do not add a SQLite migration.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/render.ts",
+      "operation": "modify",
+      "task": "Keep the human review complete after source bodies leave Agent Input and show compact deterministic context-size estimates.",
+      "requirements": [
+        "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+        "The deterministic review remains complete from persisted Context Items, renders the exact frozen target and context sources, and reports a versioned estimate of initial-input size and available workspace-source size without model selection, fit, or recommendation."
+      ],
+      "owns": [
+        {
+          "name": "REVIEW_CONTEXT_SIZE_ESTIMATOR",
+          "declaration": "export const REVIEW_CONTEXT_SIZE_ESTIMATOR = \"utf8-bytes-divided-by-4-ceiling@1\" as const;",
+          "description": "Names the stable mechanical estimator used to label approximate context sizes without claiming provider token counts."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Defines the complete persisted Context Items, lean Agent Input, and package workspace data available to deterministic rendering."
+        },
+        {
+          "path": "test/render.test.ts",
+          "purpose": "Defines deterministic review and Agent Input rendering assertions and current renderer version expectations."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic review projection",
+          "content": "Render exact target and context source from each Capsule's persisted Context Items, never by probing the repository or recovering it from Agent Input. Keep raw Agent Input visibly body-free. Calculate exact UTF-8 bytes and a clearly labeled estimate using `ceil(bytes / 4)` with the fixed estimator identifier. Present initial instructions and available workspace source as separate compact facts. Do not interpret size, recommend a model, claim fit, or flag warnings. Preserve Skills and Execution Flow rendering unchanged."
+        }
+      ],
+      "constraints": [
+        "Do not inspect the live repository, Runner state, provider metadata, model limits, network, clock, locale, or LLM output while rendering.",
+        "Do not add budgets, fit claims, suggestions, warnings, blockers, or quality judgments.",
+        "Keep HTML and Markdown byte-identical for identical stored review data.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/domain.ts",
+      "operation": "modify",
+      "task": "Decode the adapter-neutral frozen workspace inventory and carry it on every claimed Job without losing existing identity or adapter facts.",
+      "requirements": [
+        "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation.",
+        "Runner validates and freezes the workspace inputs from the approved Agent Package, never reconstructs them from the live repository, and leaves the real project unchanged until the complete candidate set is atomically applied."
+      ],
+      "owns": [
+        {
+          "name": "FrozenWorkspaceFile",
+          "declaration": "export const FrozenWorkspaceFile = Schema.Union([Schema.Struct({ role: Schema.Literal(\"target\"), path: Schema.String, purpose: Schema.String, stateAtBaseRevision: Schema.Literal(\"absent\") }), Schema.Struct({ role: Schema.Literals([\"target\", \"context\"]), path: Schema.String, purpose: Schema.String, stateAtBaseRevision: Schema.Literal(\"present\"), mediaType: Schema.String, content: Schema.String, contentDigest: Schema.String })]);",
+          "description": "Represents one exact target or selected context entry materialized from the approved Agent Package, including bytes only when the source exists."
+        },
+        {
+          "name": "ClaimedJob",
+          "declaration": "export const ClaimedJob = Schema.Struct({ jobId: JobId, attemptId: AttemptId, runId: RunId, targetPath: Schema.String, operation: FileOperation, controlJson: Schema.String, agentInputJson: Schema.String, packageDigest: Schema.String, adapter: AdapterConfiguration, workspaceFiles: Schema.Array(FrozenWorkspaceFile) });",
+          "description": "Carries complete frozen adapter identity and workspace inputs from claim through runtime invocation."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Shows the stored Job projection and claim decoder that construct this value."
+        },
+        {
+          "path": "score/slices/runtime-adapter-foundation.json",
+          "purpose": "Defines the predecessor's complete frozen adapter configuration and ClaimedJob seam that this Slice extends."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Closed workspace input variants",
+          "content": "Model absent create targets separately from present target/context files. Preserve the predecessor's complete ClaimedJob fields and adapter union, then add the ordered decoded workspace files. Keep raw package bytes and review-only context out of the runtime value. Use a closed Schema union and reject unknown encoded shapes."
+        }
+      ],
+      "constraints": [
+        "Keep the schema adapter-neutral and independent of OpenCode and Pi SDK types.",
+        "Do not add model, token, read-observation, filesystem-handle, or live repository fields.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/runner-store.ts",
+      "operation": "modify",
+      "task": "Validate the new approved package projection and deliver its frozen workspace inputs with each claimed Job without rereading source files.",
+      "requirements": [
+        "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation.",
+        "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+        "Runner validates and freezes the workspace inputs from the approved Agent Package, never reconstructs them from the live repository, and leaves the real project unchanged until the complete candidate set is atomically applied."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "ApprovedPassExport",
+          "from": "src/score-alpha.ts"
+        },
+        {
+          "name": "FrozenWorkspaceFile",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/repository-source-state.ts",
+          "purpose": "Defines Source Snapshot digest reproduction and the immutable repository binding."
+        },
+        {
+          "path": "test/runner-workers.test.ts",
+          "purpose": "Defines package integrity, claim, worker, and atomic application regression fixtures."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Frozen package integrity",
+          "content": "Validate exactly one target workspace entry matching control, exported target, operation, and lean Agent Input metadata. Reproduce every present content digest; reject duplicate, colliding, non-canonical, escaping, or mismatched context metadata. Persist the canonical new package in the existing opaque Job JSON and decode its workspace files from that stored package at claim time. Never reconstruct bytes from repository_root or the live Source Snapshot. Fail historical shapes closed unless their explicitly versioned compatibility path remains supported."
+        }
+      ],
+      "constraints": [
+        "Use the exact imports for `ApprovedPassExport` from `../score-alpha.js` and `FrozenWorkspaceFile` plus `ClaimedJob` from `./domain.js`.",
+        "Do not add a runner database column or migration for workspace files.",
+        "Do not weaken approval, digest, recovery, drift, complete-set, or transaction checks.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/agent-workspace.ts",
+      "operation": "create",
+      "task": "Own the complete disposable workspace-to-candidate lifecycle around one runtime-specific invocation callback.",
+      "requirements": [
+        "One adapter-neutral module creates a fresh disposable workspace, materializes the exact frozen replace target and explicit context copies, invokes one runtime inside that workspace, extracts only the assigned target, and removes the workspace on every exit.",
+        "Agents may read, modify, delete, or create files inside the disposable workspace; every non-target result is ignored and discarded, while absolute paths, traversal, symlink escape, and any access outside the workspace are forbidden.",
+        "Candidate extraction still rejects a missing target, non-regular target, symlink target, invalid UTF-8, unchanged replacement, and digest mismatch, and post-admission failures retain only bounded sanitized target evidence.",
+        "Runner validates and freezes the workspace inputs from the approved Agent Package, never reconstructs them from the live repository, and leaves the real project unchanged until the complete candidate set is atomically applied."
+      ],
+      "owns": [
+        {
+          "name": "AgentWorkspaceInvocation",
+          "declaration": "export interface AgentWorkspaceInvocation { readonly workspacePath: string; readonly targetPath: string; readonly agentInputJson: string; readonly reporter: RuntimeAttemptReporter; }",
+          "description": "Supplies a concrete runtime only its disposable workspace, assigned target, lean Agent Input, and sanitized reporter."
+        },
+        {
+          "name": "AgentWorkspaceInvoke",
+          "declaration": "export type AgentWorkspaceInvoke = (input: AgentWorkspaceInvocation) => Effect.Effect<{ readonly runtimeSessionId: string }, AdapterInvocationError>;",
+          "description": "Defines the only runtime-specific callback inside the shared workspace boundary."
+        },
+        {
+          "name": "AgentWorkspaceOptions",
+          "declaration": "export interface AgentWorkspaceOptions { readonly workspaceParent?: string; readonly directoryPrefix?: string; }",
+          "description": "Allows deterministic tests to control temporary workspace placement without exposing lifecycle internals."
+        },
+        {
+          "name": "invokeInAgentWorkspace",
+          "declaration": "export function invokeInAgentWorkspace(job: ClaimedJob, invoke: AgentWorkspaceInvoke, reporter?: RuntimeAttemptReporter, options?: AgentWorkspaceOptions): Effect.Effect<AdapterCandidate, RuntimeAdapterError>;",
+          "description": "Creates, seeds, invokes, inspects the target, enriches admitted failures, and removes one disposable Agent workspace."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "FrozenWorkspaceFile",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Contains the proven target seed, inspection, evidence enrichment, and cleanup behavior being extracted and broadened."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines AdapterCandidate and the typed invocation and boundary errors returned by the new module."
+        },
+        {
+          "path": "src/runner/runtime-attempt-observation.ts",
+          "purpose": "Defines admission and sanitized observation reporting used for post-admission evidence."
+        },
+        {
+          "path": "src/runner/repository-application.ts",
+          "purpose": "Defines the later real-project drift, complete-set, and atomic application boundary this disposable workspace must not bypass."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Documents Pi's lack of cwd confinement; the current product decision supersedes its exact-target-only recommendation with workspace-confined tools and target-only extraction."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Disposable workspace boundary",
+          "content": "Resolve every canonical workspace-relative path beneath a fresh real temporary root and materialize only the frozen package inventory. The runtime may mutate any path that remains inside that root. After invocation, inspect only the assigned target and ignore every other internal change. Never use the real project root. Reject unsafe seeded paths, absolute/traversal addressing, symlink escape, missing or unsafe target output, invalid UTF-8, and unchanged replacement. Compute bounded evidence before cleanup, enrich admitted failures without replacing their category, and remove the exact temporary directory with Effect acquire/release."
+        }
+      ],
+      "constraints": [
+        "Import job types from `./domain.js`, adapter candidate and errors from `./runtime-adapter.js`, and the reporter from `./runtime-attempt-observation.js`.",
+        "Do not import OpenCode, Pi, provider, model, repository application, or SQLite implementations.",
+        "Do not reject a candidate because context was edited, deleted, or accompanied by scratch files inside the workspace.",
+        "Do not expose raw temporary paths, source bytes, prompts, transcripts, or provider messages as durable evidence.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/runner/open-code-adapter.ts",
+      "operation": "modify",
+      "task": "Delegate disposable workspace ownership to the shared module and let OpenCode use the provided context while collecting only the assigned target.",
+      "requirements": [
+        "Agents may read, modify, delete, or create files inside the disposable workspace; every non-target result is ignored and discarded, while absolute paths, traversal, symlink escape, and any access outside the workspace are forbidden.",
+        "OpenCode delegates workspace ownership to the shared module and sends only the lean Agent Input to the model while preserving provider selection, session lifecycle, completion checks, observations, and cleanup."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "invokeInAgentWorkspace",
+          "from": "src/runner/agent-workspace.ts"
+        },
+        {
+          "name": "AgentWorkspaceInvoke",
+          "from": "src/runner/agent-workspace.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines the common Run-scoped runtime service implemented by OpenCode after the predecessor Slice."
+        },
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Defines the lifecycle, completion, isolation, evidence, and cleanup parity cases that must remain intact."
+        },
+        {
+          "path": "docs/research/pi-adapter-implications.md",
+          "purpose": "Explains why Location confinement remains important even though internal context is no longer enforced read-only."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 services and layers for SCORE",
+          "path": "score/skills/effect-services/SKILL.md"
+        },
+        {
+          "name": "Behavior-preserving workspace migration",
+          "content": "Delete the private temporary workspace, target inspection, and candidate construction helpers. Adapt the existing gateway call to AgentWorkspaceInvoke and call invokeInAgentWorkspace from the common RuntimeAdapter. Send `job.agentInputJson` unchanged and body-free. Keep OpenCode process ownership, selected runtime isolation, prompt admission, session status validation, timeout, observations, and cleanup in this file. Update the worker instruction so the Agent may use files inside its Location and understands that only the assigned target is collected. Prove external-directory access remains denied."
+        }
+      ],
+      "constraints": [
+        "Import `invokeInAgentWorkspace` and `type AgentWorkspaceInvoke` from `./agent-workspace.js`.",
+        "Do not change provider, model, variant, V2 completion, timeout, or session-settlement behavior.",
+        "Do not retain a second workspace seed or candidate inspection implementation.",
+        "Do not claim that OpenCode enforces context files as read-only.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/plan-intake.test.ts",
+      "operation": "modify",
+      "task": "Prove preparation freezes one workspace inventory, keeps Agent Input lean, and retains complete deterministic review evidence.",
+      "requirements": [
+        "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation.",
+        "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+        "The deterministic review remains complete from persisted Context Items, renders the exact frozen target and context sources, and reports a versioned estimate of initial-input size and available workspace-source size without model selection, fit, or recommendation.",
+        "Deterministic tests prove package closure, source-body omission from initial input, complete review rendering, size estimates, context materialization and disposable mutation, path confinement, target-only extraction, failure evidence, cleanup, and OpenCode parity."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines authored context validation and the frozen Context Items under test."
+        },
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Defines the new package and Agent Input projections under test."
+        },
+        {
+          "path": "src/render.ts",
+          "purpose": "Defines the review and size presentation verified by the integration fixtures."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Source sentinel assertions",
+          "content": "Use unique target and context sentinel strings. Assert each exact source appears in the workspace package once, appears in persisted Context Items and the human review, and does not occur anywhere in canonical Agent Input JSON or Markdown. Cover duplicate context, target/context collision, non-canonical paths, and unchanged preparation reuse. Assert repeated rendering produces identical estimates and HTML."
+        }
+      ],
+      "constraints": [
+        "Do not infer correctness from JSON size alone; inspect the exact package, Agent Input, Context Items, and HTML projections.",
+        "Do not add model fixtures, tokenizers, network calls, or provider assumptions.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/render.test.ts",
+      "operation": "modify",
+      "task": "Lock deterministic complete-source rendering and compact context-size language for body-free Agent Inputs.",
+      "requirements": [
+        "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+        "The deterministic review remains complete from persisted Context Items, renders the exact frozen target and context sources, and reports a versioned estimate of initial-input size and available workspace-source size without model selection, fit, or recommendation.",
+        "Deterministic tests prove package closure, source-body omission from initial input, complete review rendering, size estimates, context materialization and disposable mutation, path confinement, target-only extraction, failure evidence, cleanup, and OpenCode parity."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "REVIEW_CONTEXT_SIZE_ESTIMATOR",
+          "from": "src/render.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Defines the review snapshot shape and lean Agent Input supplied to the renderer."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Projection-only renderer tests",
+          "content": "Build frozen review fixtures where Context Items contain unmistakable source and Agent Input contains only metadata. Assert exact source is visible in the human Context view, absent from raw Agent Input, and each size is calculated from the correct canonical bytes with the named estimator. Assert no selected-model, fit, recommendation, warning, or blocker language and preserve Skills plus Execution Flow coverage."
+        }
+      ],
+      "constraints": [
+        "Assert exact deterministic output and renderer-version changes intentionally.",
+        "Do not read project files from the renderer test or depend on locale.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/runner-workers.test.ts",
+      "operation": "modify",
+      "task": "Prove enqueue and claim preserve the approved workspace package and that real-project source cannot replace its frozen bytes.",
+      "requirements": [
+        "Each Agent Package binds exactly one target state and every explicitly selected context file as canonical, digest-reproducible workspace inputs; duplicate paths, target/context collisions, non-canonical paths, and path escape are rejected before invocation.",
+        "The initial Agent Input contains the objective, allocated requirements, documented declarations, Execution Flows, skills, constraints, target metadata, and context path, purpose, and digest metadata, but contains no complete target or project-context source body and no duplicate target state.",
+        "Runner validates and freezes the workspace inputs from the approved Agent Package, never reconstructs them from the live repository, and leaves the real project unchanged until the complete candidate set is atomically applied.",
+        "Deterministic tests prove package closure, source-body omission from initial input, complete review rendering, size estimates, context materialization and disposable mutation, path confinement, target-only extraction, failure evidence, cleanup, and OpenCode parity."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "FrozenWorkspaceFile",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "ClaimedJob",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Defines approved package validation, Job persistence, and claim projection under test."
+        },
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Defines the approved export and canonical package digest fixtures."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Effect v4 schemas for SCORE",
+          "path": "score/skills/effect-schema/SKILL.md"
+        },
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Package tamper matrix",
+          "content": "Cover target mismatch, duplicate and colliding paths, absolute/traversal paths, wrong role/state, bad content digest, Agent Input metadata mismatch, and unsupported historical envelope. On success, claim the exact ordered frozen workspace bytes. Mutate a live repository fixture after enqueue and prove claim still yields the approved package bytes. Preserve existing adapter identity, recovery, sibling, and atomic application assertions."
+        }
+      ],
+      "constraints": [
+        "Do not weaken current source-snapshot drift or complete-set application tests.",
+        "Do not add a paid runtime, network, or timing dependency.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/agent-workspace.test.ts",
+      "operation": "create",
+      "task": "Exercise the shared disposable workspace contract directly with deterministic invocation fakes.",
+      "requirements": [
+        "One adapter-neutral module creates a fresh disposable workspace, materializes the exact frozen replace target and explicit context copies, invokes one runtime inside that workspace, extracts only the assigned target, and removes the workspace on every exit.",
+        "Agents may read, modify, delete, or create files inside the disposable workspace; every non-target result is ignored and discarded, while absolute paths, traversal, symlink escape, and any access outside the workspace are forbidden.",
+        "Candidate extraction still rejects a missing target, non-regular target, symlink target, invalid UTF-8, unchanged replacement, and digest mismatch, and post-admission failures retain only bounded sanitized target evidence.",
+        "Runner validates and freezes the workspace inputs from the approved Agent Package, never reconstructs them from the live repository, and leaves the real project unchanged until the complete candidate set is atomically applied.",
+        "Deterministic tests prove package closure, source-body omission from initial input, complete review rendering, size estimates, context materialization and disposable mutation, path confinement, target-only extraction, failure evidence, cleanup, and OpenCode parity."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "AgentWorkspaceInvoke",
+          "from": "src/runner/agent-workspace.ts"
+        },
+        {
+          "name": "invokeInAgentWorkspace",
+          "from": "src/runner/agent-workspace.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines AdapterInvocationError and candidate errors asserted by the workspace tests."
+        },
+        {
+          "path": "src/runner/runtime-attempt-observation.ts",
+          "purpose": "Defines admission reporting and sanitized post-admission evidence."
+        },
+        {
+          "path": "test/open-code-adapter.test.ts",
+          "purpose": "Provides existing filesystem fixtures and target evidence assertion style."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "Disposable mutation and escape tests",
+          "content": "Use a private temporary parent and fake AgentWorkspaceInvoke callbacks. Cover create and replace with nested context; reading context; editing or deleting context and creating scratch files without rejection; returning only the target; absolute, traversal, and symlink escape attempts; missing, unchanged, symlink, directory, and invalid UTF-8 target output; invocation failure before and after admission; bounded digest evidence; and cleanup after every success or failure. Never invoke a real runtime."
+        }
+      ],
+      "constraints": [
+        "Import the subject from `../src/runner/agent-workspace.js`.",
+        "Assert the real-project fixture is untouched and every disposable directory is removed after each Effect Exit.",
+        "Do not use network access, child processes, polling, or sleeps.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/open-code-adapter.test.ts",
+      "operation": "modify",
+      "task": "Retain OpenCode lifecycle parity while proving lean input, workspace context access, disposable auxiliary changes, and external confinement.",
+      "requirements": [
+        "Agents may read, modify, delete, or create files inside the disposable workspace; every non-target result is ignored and discarded, while absolute paths, traversal, symlink escape, and any access outside the workspace are forbidden.",
+        "OpenCode delegates workspace ownership to the shared module and sends only the lean Agent Input to the model while preserving provider selection, session lifecycle, completion checks, observations, and cleanup.",
+        "Deterministic tests prove package closure, source-body omission from initial input, complete review rendering, size estimates, context materialization and disposable mutation, path confinement, target-only extraction, failure evidence, cleanup, and OpenCode parity."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "invokeInAgentWorkspace",
+          "from": "src/runner/agent-workspace.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/open-code-adapter.ts",
+          "purpose": "Defines the adapter integration under test."
+        },
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Defines RuntimeAdapter and stable candidate and error shapes asserted for parity."
+        },
+        {
+          "path": "src/runner/runtime-attempt-observation.ts",
+          "purpose": "Defines the runtime admission observations that OpenCode parity must preserve while workspace ownership moves behind the shared boundary."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Deterministic Effect tests for SCORE",
+          "path": "score/skills/effect-testing/SKILL.md"
+        },
+        {
+          "name": "OpenCode integration parity shield",
+          "content": "Keep representative create, replace, completion, timeout, provider, tool, observation, evidence, and cleanup cases through OpenCodeAdapterLive. Add fixtures proving context is present in the Location but absent from the submitted Agent Input, auxiliary workspace mutation does not invalidate a correct target, and external-directory access remains denied. Remove only low-level filesystem permutations now owned by agent-workspace.test.ts."
+        }
+      ],
+      "constraints": [
+        "Do not weaken assertions about admission, terminal status, session identity, sanitized evidence, or runtime cleanup.",
+        "Do not use a real OpenCode process, network, model, or credentials.",
+        "Do not assert that context files are read-only or that successful reads prove comprehension.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}
