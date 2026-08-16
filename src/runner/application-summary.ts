@@ -1,4 +1,5 @@
 import type { RunSnapshot } from "./domain.js";
+import { formatRunFailureSummary } from "./failure-presentation.js";
 import { terminalSafeLine } from "./terminal-safe-line.js";
 
 export function formatApplicationSummary(input: {
@@ -21,6 +22,9 @@ export function formatApplicationSummary(input: {
 }
 
 export function formatRunApplicationSummary(run: RunSnapshot): string {
+  if (run.state === "completed_with_failures" || run.applicationState === "apply_failed") {
+    return formatRunFailureSummary(run);
+  }
   return formatApplicationSummary({
     applicationState: run.applicationState,
     candidateCount: run.jobs.length,

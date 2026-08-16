@@ -1,39 +1,20 @@
 import { Context, Effect, Schema } from "effect";
 
-import { JobId, TargetOutputState, type ClaimedJob } from "./domain.js";
+import {
+  FailureEvidence,
+  JobId,
+  TargetOutputState,
+  type ClaimedJob
+} from "./domain.js";
 import type { RuntimeAttemptReporter } from "./runtime-attempt-observation.js";
-
-export const AdapterFailureCategory = Schema.Literals([
-  "runtime_startup",
-  "provider",
-  "tool",
-  "timeout",
-  "interruption",
-  "missing_output",
-  "workspace_integrity",
-  "runtime_protocol",
-  "runtime_cleanup"
-]);
-export type AdapterFailureCategory = typeof AdapterFailureCategory.Type;
-
-export const AdapterTerminalOutcome = Schema.Struct({
-  kind: Schema.Literals(["provider", "tool", "assistant", "runtime", "transport"]),
-  name: Schema.optional(Schema.String),
-  status: Schema.optional(
-    Schema.Literals(["completed", "error", "running", "streaming", "unknown", "aborted"])
-  ),
-  statusCode: Schema.optional(Schema.Number)
-});
-export type AdapterTerminalOutcome = typeof AdapterTerminalOutcome.Type;
 
 export class AdapterInvocationError extends Schema.TaggedError<AdapterInvocationError>()(
   "AdapterInvocationError",
   {
     jobId: JobId,
     message: Schema.String,
-    failureCategory: AdapterFailureCategory,
+    failureEvidence: FailureEvidence,
     runtimeSessionId: Schema.optional(Schema.String),
-    terminalOutcome: Schema.optional(AdapterTerminalOutcome),
     targetOutputState: TargetOutputState,
     targetOutputDigest: Schema.optional(Schema.String),
     diagnosticContent: Schema.optional(Schema.String)
@@ -45,9 +26,8 @@ export class AdapterBoundaryError extends Schema.TaggedError<AdapterBoundaryErro
   {
     jobId: JobId,
     message: Schema.String,
-    failureCategory: AdapterFailureCategory,
+    failureEvidence: FailureEvidence,
     runtimeSessionId: Schema.optional(Schema.String),
-    terminalOutcome: Schema.optional(AdapterTerminalOutcome),
     targetOutputState: TargetOutputState,
     targetOutputDigest: Schema.optional(Schema.String),
     diagnosticContent: Schema.optional(Schema.String)

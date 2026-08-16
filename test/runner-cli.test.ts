@@ -24,7 +24,11 @@ import { resolveNonInteractiveOpenCodeConfiguration } from "../src/runner/open-c
 import type { RuntimeAdapterCatalog, RuntimeModel } from "../src/runner/runtime-adapter-catalog.js";
 import type { AdapterConfiguration } from "../src/runner/domain.js";
 import { optionValue } from "../src/runner/cli-options.js";
-import { safeRunnerCliErrorMessage } from "../src/runner/diagnostic-sanitization.js";
+import {
+  FAILURE_REASON_MAX_LENGTH,
+  safeRunnerCliErrorMessage,
+  sanitizeFailureEvidence
+} from "../src/runner/diagnostic-sanitization.js";
 import { defaultRunnerDatabasePath } from "../src/runner/runner-paths.js";
 
 const completedRun: RunSnapshot = {
@@ -253,15 +257,16 @@ describe("noninteractive Runner application output", () => {
   });
 
   it("does not claim delivery for an unsuccessful Run", () => {
-    assert.equal(
-      formatRunApplicationSummary({
-        ...completedRun,
-        state: "completed_with_failures",
-        applicationState: "not_applied",
-        appliedAt: null
-      }),
-      "\nNo files were applied because the Run did not complete successfully.\n"
-    );
+    const rendered = formatRunApplicationSummary({
+      ...completedRun,
+      state: "completed_with_failures",
+      applicationState: "not_applied",
+      appliedAt: null
+    });
+    assert.match(rendered, /Failure details are unavailable for this Run/u);
+    assert.match(rendered, /No files were applied/u);
+    assert.match(rendered, /Next: Address the cause/u);
+    assert.doesNotMatch(rendered, /generated and applied/u);
   });
 });
 
@@ -341,7 +346,7 @@ describe("Runner CLI options", () => {
   it("prints actionable command help without opening SCORE state", () => {
     const directory = mkdtempSync(join(tmpdir(), "score-runner-cli-help-"));
     try {
-      for (const command of ["start", "approve", "status"]) {
+      for (const command of ["start", "approve", "retry", "status"]) {
         const result = spawnSync(
           join(process.cwd(), "node_modules", ".bin", "tsx"),
           [join(process.cwd(), "src", "cli.ts"), command, "--help"],
@@ -639,6 +644,57 @@ describe("Runner CLI options", () => {
     assert.equal(message.split("\n").length, 1);
     assert.doesNotMatch(message, /[\u0000-\u001f\u007f-\u009f]|\p{Cf}/u);
     assert.doesNotMatch(message, /FORGED OSC/u);
+  });
+
+  it("bounds failure evidence and removes credentials, raw payloads, local paths, and terminal controls", () => {
+    const evidence = sanitizeFailureEvidence({
+      category: "tool",
+      stage: "checking output",
+      name: "contract-inspector",
+      status: "error",
+      statusCode: 422,
+      reason:
+        "Validation failed\nFORGED\u001b]2;title\u0007; " +
+        "Authorization: Bearer fixture-secret; " +
+        "OPENAI_API_KEY=environment-secret; " +
+        'arguments={"path":"/Users/example/private/repo/src/file.ts"}; ' +
+        'output={"raw":"private output"}; ' +
+        "/tmp/private-workspace/result.json /workspace/customer/repository.ts " +
+        "x".repeat(1_000)
+    });
+
+    assert.equal(evidence.name, "contract-inspector");
+    assert.equal(evidence.stage, "checking output");
+    assert.ok((evidence.reason?.length ?? 0) <= FAILURE_REASON_MAX_LENGTH);
+    assert.match(evidence.reason ?? "", /\[REDACTED CREDENTIAL\]/u);
+    assert.match(evidence.reason ?? "", /\[REDACTED DATA\]/u);
+    assert.match(evidence.reason ?? "", /\[REDACTED PATH\]/u);
+    assert.doesNotMatch(
+      evidence.reason ?? "",
+      /fixture-secret|environment-secret|private output|\/Users\/example|\/tmp\/private-workspace|\/workspace\/customer|FORGED.*title|[\u0000-\u001f\u007f-\u009f]|\p{Cf}/u
+    );
+    assert.equal(
+      sanitizeFailureEvidence({
+        category: "tool",
+        stage: null,
+        name: "contract-inspector\u001b]2;forged\u0007",
+        status: null,
+        statusCode: null,
+        reason: null
+      }).name,
+      null
+    );
+    assert.equal(
+      sanitizeFailureEvidence({
+        category: "tool",
+        stage: null,
+        name: "api-token=fixture-secret",
+        status: null,
+        statusCode: null,
+        reason: null
+      }).name,
+      null
+    );
   });
 
   it("does not render internal stack paths for an unavailable SCORE database", () => {

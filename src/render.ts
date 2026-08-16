@@ -9,9 +9,9 @@ export const AGENT_INPUT_RENDERER = {
 
 export const PUBLICATION_REVIEW_RENDERER = {
   id: "score.coding.publication-review-html",
-  version: "0.1.0-alpha.21",
+  version: "0.1.0-alpha.25",
   specification:
-    "single-file semantic HTML using entity-aware Change Review or Slice Review language without changing the canonical snapshot; the review leads with its approval readiness, exact next command, and a dependency-first relationship map; human-facing file operations use Create and Modify while canonical operations remain unchanged; every collapsed File Brief names its purpose, and its expanded content shows full requirements, documented declaration owners, selected context with purpose, skills, limits, and current target state; implementation quality is explicitly outside SCORE; exact Agent Input and machine audit evidence remain disclosed on demand; printing temporarily opens every disclosure and restores its prior screen state afterward"
+    "single-file semantic HTML using entity-aware Change Review or Slice Review language without changing the canonical snapshot; a navigation-only sidebar links the overview, every dependency-first Agent Brief, each owned declaration, requirements when present, context, and the technical record, then becomes compact section navigation on narrow screens; the review leads with its approval readiness and exact next command, then presents dependency-first file instructions without a separate relationship map; human-facing file operations use Create and Modify while canonical operations remain unchanged; declaration labels render deterministically as Defines for owned declarations and Uses for consumed declarations; TypeScript declarations receive display-only line formatting and recognized code languages receive static syntax coloring while exact stored text remains unchanged in machine evidence; every collapsed Agent Brief names its purpose, and its expanded content shows full requirements, documented declaration owners, selected context with purpose, skills, limits, and current target state; implementation quality is explicitly outside SCORE; exact Agent Input and machine audit evidence remain disclosed on demand; printing temporarily opens every disclosure and restores its prior screen state afterward"
 } as const;
 
 export function rendererDigest(renderer: { id: string; version: string; specification: string }): string {
@@ -219,6 +219,324 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#39;");
 }
 
+type CodeLanguage =
+  | "css"
+  | "html"
+  | "javascript"
+  | "json"
+  | "plain"
+  | "shell"
+  | "sql"
+  | "typescript"
+  | "yaml";
+
+const TYPESCRIPT_KEYWORDS = new Set([
+  "abstract", "as", "asserts", "async", "await", "break", "case", "catch", "class",
+  "const", "constructor", "continue", "declare", "default", "delete", "do", "else", "enum",
+  "export", "extends", "false", "finally", "for", "from", "function", "get", "if", "implements",
+  "import", "in", "infer", "instanceof", "interface", "is", "keyof", "let", "module", "namespace",
+  "never", "new", "null", "of", "out", "override", "private", "protected", "public", "readonly",
+  "return", "satisfies", "set", "static", "super", "switch", "this", "throw", "true", "try",
+  "type", "typeof", "undefined", "unique", "using", "var", "void", "while", "with", "yield"
+]);
+
+const TYPESCRIPT_TYPES = new Set([
+  "Array", "bigint", "BigInt", "boolean", "Date", "Error", "Map", "Number", "number", "Object",
+  "Promise", "Readonly", "ReadonlyArray", "ReadonlyMap", "ReadonlyRecord", "Record", "Set", "String",
+  "string", "Symbol", "symbol", "unknown", "WeakMap", "WeakSet"
+]);
+
+const SHELL_KEYWORDS = new Set([
+  "case", "do", "done", "elif", "else", "esac", "export", "fi", "for", "function", "if", "in",
+  "local", "readonly", "select", "then", "time", "until", "while"
+]);
+
+const SQL_KEYWORDS = new Set([
+  "and", "as", "asc", "begin", "by", "case", "create", "delete", "desc", "distinct", "drop", "else",
+  "end", "from", "group", "having", "in", "index", "insert", "into", "join", "left", "limit", "not",
+  "null", "on", "or", "order", "outer", "right", "select", "set", "table", "then", "union", "update",
+  "values", "when", "where"
+]);
+
+function normalizeCodeLanguage(value: string | undefined): CodeLanguage {
+  switch ((value ?? "").toLowerCase()) {
+    case "ts":
+    case "tsx":
+    case "mts":
+    case "cts":
+    case "typescript":
+      return "typescript";
+    case "js":
+    case "jsx":
+    case "mjs":
+    case "cjs":
+    case "javascript":
+      return "javascript";
+    case "json":
+    case "jsonc":
+      return "json";
+    case "bash":
+    case "sh":
+    case "shell":
+    case "zsh":
+      return "shell";
+    case "css":
+    case "scss":
+      return "css";
+    case "htm":
+    case "html":
+    case "xml":
+      return "html";
+    case "sql":
+      return "sql";
+    case "yaml":
+    case "yml":
+      return "yaml";
+    default:
+      return "plain";
+  }
+}
+
+function codeLanguageForFile(file: ResolvedFileContent): CodeLanguage {
+  const extension = file.path.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  const fromExtension = normalizeCodeLanguage(extension);
+  if (fromExtension !== "plain") return fromExtension;
+  if (file.mediaType.includes("json")) return "json";
+  if (file.mediaType.includes("javascript")) return "javascript";
+  if (file.mediaType.includes("typescript")) return "typescript";
+  if (file.mediaType.includes("html")) return "html";
+  if (file.mediaType.includes("css")) return "css";
+  return "plain";
+}
+
+function syntaxToken(className: string, value: string): string {
+  return `<span class="syntax-${className}">${escapeHtml(value)}</span>`;
+}
+
+function isIdentifierStart(value: string): boolean {
+  return /[A-Za-z_$]/u.test(value);
+}
+
+function isIdentifierPart(value: string): boolean {
+  return /[A-Za-z0-9_$]/u.test(value);
+}
+
+function highlightCode(source: string, language: CodeLanguage): string {
+  if (language === "plain") return escapeHtml(source);
+
+  let html = "";
+  let index = 0;
+  let expectDeclaredName = false;
+  while (index < source.length) {
+    const current = source[index] ?? "";
+    const next = source[index + 1] ?? "";
+
+    if (/\s/u.test(current)) {
+      const start = index;
+      while (index < source.length && /\s/u.test(source[index] ?? "")) index += 1;
+      html += escapeHtml(source.slice(start, index));
+      continue;
+    }
+
+    const isSlashComment = current === "/" && next === "/";
+    const isBlockComment = current === "/" && next === "*";
+    const isShellComment = language === "shell" && current === "#";
+    const isYamlComment = language === "yaml" && current === "#";
+    const isSqlComment = language === "sql" && current === "-" && next === "-";
+    if (isSlashComment || isShellComment || isYamlComment || isSqlComment) {
+      const end = source.indexOf("\n", index);
+      const tokenEnd = end === -1 ? source.length : end;
+      html += syntaxToken("comment", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      continue;
+    }
+    if (isBlockComment) {
+      const end = source.indexOf("*/", index + 2);
+      const tokenEnd = end === -1 ? source.length : end + 2;
+      html += syntaxToken("comment", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      continue;
+    }
+    if (language === "html" && source.startsWith("<!--", index)) {
+      const end = source.indexOf("-->", index + 4);
+      const tokenEnd = end === -1 ? source.length : end + 3;
+      html += syntaxToken("comment", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      continue;
+    }
+
+    if (current === '"' || current === "'" || current === "`") {
+      const quote = current;
+      const start = index;
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === "\\") {
+          index += 2;
+          continue;
+        }
+        const character = source[index] ?? "";
+        index += 1;
+        if (character === quote) break;
+      }
+      const value = source.slice(start, index);
+      const nextNonWhitespace = source.slice(index).match(/^\s*(.)/u)?.[1];
+      html += syntaxToken(language === "json" && nextNonWhitespace === ":" ? "property" : "string", value);
+      continue;
+    }
+
+    if (/\d/u.test(current)) {
+      const start = index;
+      while (index < source.length && /[A-Fa-f0-9._xXn]/u.test(source[index] ?? "")) index += 1;
+      html += syntaxToken("number", source.slice(start, index));
+      continue;
+    }
+
+    if (isIdentifierStart(current)) {
+      const start = index;
+      index += 1;
+      while (index < source.length && isIdentifierPart(source[index] ?? "")) index += 1;
+      const value = source.slice(start, index);
+      const lower = value.toLowerCase();
+      const nextNonWhitespace = source.slice(index).match(/^\s*(.)/u)?.[1];
+      const isKeyword =
+        (language === "typescript" || language === "javascript") && TYPESCRIPT_KEYWORDS.has(value) ||
+        language === "json" && ["false", "null", "true"].includes(value) ||
+        language === "shell" && SHELL_KEYWORDS.has(value) ||
+        language === "sql" && SQL_KEYWORDS.has(lower);
+      const className = expectDeclaredName
+        ? "declaration"
+        : isKeyword
+          ? "keyword"
+          : (language === "css" || language === "yaml") && nextNonWhitespace === ":"
+            ? "property"
+          : (language === "typescript" || language === "javascript") && TYPESCRIPT_TYPES.has(value)
+            ? "type"
+            : "identifier";
+      html += syntaxToken(className, value);
+      expectDeclaredName = (language === "typescript" || language === "javascript") &&
+        ["class", "enum", "function", "interface", "namespace", "type"].includes(value);
+      continue;
+    }
+
+    html += syntaxToken("punctuation", current);
+    index += 1;
+  }
+  return html;
+}
+
+function formatTypeScriptDeclaration(source: string): string {
+  const normalized = source.replaceAll("\r\n", "\n").trim();
+  if (
+    normalized.includes("\n") ||
+    /\/\*|\/\//u.test(normalized) ||
+    !/^\s*(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?(?:class|const|enum|function|interface|let|namespace|type|var)\b/u.test(normalized)
+  ) {
+    return normalized;
+  }
+
+  const lines: string[] = [];
+  let line = "";
+  let indent = 0;
+  let index = 0;
+  let pendingSpace = false;
+  let balanced = true;
+  const pushLine = () => {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) lines.push(`${"  ".repeat(indent)}${trimmed}`);
+    line = "";
+    pendingSpace = false;
+  };
+  const appendPendingSpace = () => {
+    if (pendingSpace && line.length > 0 && !line.endsWith(" ")) line += " ";
+    pendingSpace = false;
+  };
+
+  while (index < normalized.length) {
+    const current = normalized[index] ?? "";
+    if (/\s/u.test(current)) {
+      pendingSpace = true;
+      index += 1;
+      continue;
+    }
+    if (current === '"' || current === "'") {
+      appendPendingSpace();
+      const quote = current;
+      let closed = false;
+      while (index < normalized.length) {
+        const character = normalized[index] ?? "";
+        line += character;
+        index += 1;
+        if (character === "\\" && index < normalized.length) {
+          line += normalized[index] ?? "";
+          index += 1;
+        } else if (character === quote) {
+          closed = true;
+          break;
+        }
+      }
+      if (!closed) balanced = false;
+      continue;
+    }
+    if (current === "`") return normalized;
+    if (current === "{") {
+      appendPendingSpace();
+      line += "{";
+      pushLine();
+      indent += 1;
+      index += 1;
+      continue;
+    }
+    if (current === "}") {
+      pushLine();
+      indent -= 1;
+      if (indent < 0) {
+        balanced = false;
+        indent = 0;
+      }
+      line = "}";
+      index += 1;
+      const nextNonWhitespace = normalized.slice(index).match(/^\s*(.)/u)?.[1];
+      if (
+        nextNonWhitespace !== ";" &&
+        nextNonWhitespace !== "," &&
+        nextNonWhitespace !== "|" &&
+        nextNonWhitespace !== "&" &&
+        nextNonWhitespace !== ">" &&
+        nextNonWhitespace !== ")" &&
+        nextNonWhitespace !== "]"
+      ) {
+        pushLine();
+      }
+      continue;
+    }
+    if (current === ";") {
+      line = `${line.trimEnd()};`;
+      pushLine();
+      index += 1;
+      continue;
+    }
+    appendPendingSpace();
+    line += current;
+    index += 1;
+  }
+  pushLine();
+  if (indent !== 0) balanced = false;
+  return balanced && lines.length > 1 ? lines.join("\n") : normalized;
+}
+
+function renderCodeBlock(
+  source: string,
+  languageHint?: string,
+  options: { readonly formatTypeScriptDeclaration?: boolean } = {}
+): string {
+  const language = normalizeCodeLanguage(languageHint);
+  const displaySource = language === "typescript" && options.formatTypeScriptDeclaration
+    ? formatTypeScriptDeclaration(source)
+    : source;
+  const languageName = language === "plain" ? "text" : language;
+  return `<pre class="code-block language-${languageName}" data-language="${languageName}"><code>${highlightCode(displaySource, language)}</code></pre>`;
+}
+
 function renderStringList(values: unknown): string {
   const items = Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [];
   if (items.length === 0) return '<p class="empty">None.</p>';
@@ -229,13 +547,15 @@ function renderResolvedContent(value: unknown): string {
   if (typeof value === "string") {
     const isCode = value.includes("\n") || value.includes("export ") || value.includes("# ");
     return isCode
-      ? `<pre><code>${escapeHtml(value)}</code></pre>`
+      ? renderCodeBlock(value, value.includes("export ") ? "typescript" : undefined, {
+          formatTypeScriptDeclaration: value.includes("export ")
+        })
       : `<p>${escapeHtml(value)}</p>`;
   }
   if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
     return renderStringList(value);
   }
-  return `<pre><code>${escapeHtml(prettyJson(value))}</code></pre>`;
+  return renderCodeBlock(prettyJson(value), "json");
 }
 
 interface ResolvedFileContent {
@@ -474,9 +794,7 @@ function renderMarkdownDocument(content: string): string {
       }
       if (index < lines.length) index += 1;
       const language = (fence[1] ?? "").replaceAll(/[^a-zA-Z0-9_+.-]/g, "");
-      blocks.push(
-        `<pre class="document-code"><code${language ? ` data-language="${escapeHtml(language)}"` : ""}>${escapeHtml(fenceLines.join("\n"))}</code></pre>`
-      );
+      blocks.push(renderCodeBlock(fenceLines.join("\n"), language));
       continue;
     }
 
@@ -531,7 +849,7 @@ function renderMarkdownDocument(content: string): string {
 function renderFileContent(file: ResolvedFileContent): string {
   return isMarkdownDocument(file)
     ? renderMarkdownDocument(file.content)
-    : `<pre class="document-code"><code>${escapeHtml(file.content)}</code></pre>`;
+    : renderCodeBlock(file.content, codeLanguageForFile(file));
 }
 
 function collectAcceptedInputs(
@@ -738,37 +1056,50 @@ function renderSkills(skills: JsonRecord[]): string {
 
 function renderDeclarations(
   agentInput: JsonRecord,
-  ownerPaths: ReadonlyMap<string, string>
+  ownerPaths: ReadonlyMap<string, string>,
+  fileAnchor: string
 ): string {
   const declarations = asRecord(agentInput.declarations);
   const owned = asRecords(declarations.owned);
   const consumed = asRecords(declarations.consumed);
-  const item = (declaration: JsonRecord, relationship: string, readOnly: boolean) => {
-    const readOnlyCopy = readOnly
-      ? "<p>Use this documented interface as read-only context. Do not redefine it in this file.</p>"
-      : "";
+  const item = (
+    declaration: JsonRecord,
+    relationship: "Defines" | "Uses",
+    index: number,
+    ownerPath?: string
+  ) => {
+    const sourceCopy =
+      relationship === "Uses"
+        ? `<p>${ownerPath === undefined ? "This Agent receives the declaration" : `Defined in <code>${escapeHtml(ownerPath)}</code> and received by this Agent`} as read-only context.</p>`
+        : "";
     return `
-      <details class="context-item">
+      <details class="context-item" id="${escapeHtml(declarationAnchor(fileAnchor, relationship, declaration, index))}">
         <summary><span>${escapeHtml(stringValue(declaration.name))}</span><span class="context-kind">${relationship}</span></summary>
         <div class="context-content">
           <p>${escapeHtml(stringValue(declaration.description))}</p>
-          ${readOnlyCopy}<pre><code>${escapeHtml(stringValue(declaration.declaration))}</code></pre>
+          ${sourceCopy}${renderCodeBlock(stringValue(declaration.declaration), "typescript", {
+            formatTypeScriptDeclaration: true
+          })}
         </div>
       </details>`;
   };
   return [
-    ...owned.map((declaration) => item(declaration, "Implement here", false)),
-    ...consumed.map((declaration) => {
+    ...owned.map((declaration, index) => item(declaration, "Defines", index)),
+    ...consumed.map((declaration, index) => {
       const ownerPath = ownerPaths.get(stringValue(declaration.name));
-      return item(
-        declaration,
-        ownerPath === undefined
-          ? "Use from owner"
-          : `Use from <code>${escapeHtml(ownerPath)}</code>`,
-        true
-      );
+      return item(declaration, "Uses", index, ownerPath);
     })
   ].join("");
+}
+
+function declarationAnchor(
+  fileAnchor: string,
+  relationship: "Defines" | "Uses",
+  declaration: JsonRecord,
+  index: number
+): string {
+  const role = relationship === "Defines" ? "declaration" : "uses";
+  return `${fileAnchor}-${role}-${index + 1}-${anchorSlug(stringValue(declaration.name))}`;
 }
 
 function declarationCount(agentInput: JsonRecord): number {
@@ -914,49 +1245,6 @@ function humanOperation(operation: string): string {
   return "Delete";
 }
 
-function renderFileRelationshipMap(
-  pass: RenderableReviewSnapshot["passes"][number],
-  capsules: RenderableReviewSnapshot["passes"][number]["capsules"],
-  ownerPaths: ReadonlyMap<string, ReadonlyMap<string, string>>,
-  sliceIndex: number,
-  headingLevel: 2 | 3
-): string {
-  const rows = capsules.map((capsule) => {
-    const agentInput = asRecord(capsule.agent_input);
-    const consumed = asRecords(asRecord(agentInput.declarations).consumed);
-    const declarations = consumed.flatMap((declaration) => {
-      const name = stringValue(declaration.name);
-      const ownerPath = ownerPaths.get(capsule.capsule_id)?.get(name);
-      return ownerPath === undefined
-        ? []
-        : [`<li><strong>${escapeHtml(name)}</strong> from <code>${escapeHtml(ownerPath)}</code></li>`];
-    });
-    const contexts = asRecords(agentInput.input_bindings).flatMap((binding) => {
-      if (binding.kind !== "project_context") return [];
-      const file = resolvedFileContent(binding.content);
-      if (file === undefined) return [];
-      return [`<li><code>${escapeHtml(file.path)}</code><span>${escapeHtml(stringValue(binding.purpose))}</span></li>`];
-    });
-    const uses = [...declarations, ...contexts];
-    return `<tr>
-          <th scope="row"><a href="#slice-${sliceIndex + 1}-file-${anchorSlug(capsule.target_path)}"><code>${escapeHtml(capsule.target_path)}</code></a></th>
-          <td>${humanOperation(capsule.operation)}</td>
-          <td>${escapeHtml(stringValue(agentInput.objective, capsule.objective))}</td>
-          <td>${uses.length === 0 ? '<span class="empty">None</span>' : `<ul class="file-map-uses">${uses.join("")}</ul>`}</td>
-        </tr>`;
-  });
-  return `<section class="slice-overview file-relationship-map" aria-labelledby="file-map-${escapeHtml(pass.pass_id)}">
-      <h${headingLevel} id="file-map-${escapeHtml(pass.pass_id)}">How the files fit together</h${headingLevel}>
-      <p class="section-help">Declaration owners appear before the files that use them. Agents still work independently.</p>
-      <div class="file-map-scroll" role="region" aria-label="File relationships" tabindex="0">
-        <table class="file-map">
-          <thead><tr><th scope="col">File</th><th scope="col">Action</th><th scope="col">Purpose</th><th scope="col">Uses</th></tr></thead>
-          <tbody>${rows.join("")}</tbody>
-        </table>
-      </div>
-    </section>`;
-}
-
 function renderProjectInputReferences(
   bindings: JsonRecord[],
   acceptedInputs: AcceptedInput[]
@@ -1099,7 +1387,7 @@ function renderCapsule(
         </section>`;
   const declarationsSection = declarationCount(agentInput) === 0
     ? ""
-    : `<section class="package-section"><h${packageHeadingLevel}>Declarations</h${packageHeadingLevel}><div class="context-items">${renderDeclarations(agentInput, ownerPaths)}</div></section>`;
+    : `<section class="package-section"><h${packageHeadingLevel}>Declarations</h${packageHeadingLevel}><div class="context-items">${renderDeclarations(agentInput, ownerPaths, fileAnchor)}</div></section>`;
   const skillsSection = skills.length === 0
     ? ""
     : `<section class="package-section"><h${packageHeadingLevel}>Skills</h${packageHeadingLevel}><div>${renderSkills(skills)}</div></section>`;
@@ -1121,7 +1409,7 @@ function renderCapsule(
     limitsSection
   ].filter((section) => section.length > 0).join("\n\n");
   return `
-    <details class="file-package" id="${escapeHtml(fileAnchor)}" name="slice-${sliceIndex + 1}-files">
+    <details class="file-package" id="${escapeHtml(fileAnchor)}">
       <summary>
         <div class="file-summary-main">
           <h${fileHeadingLevel} class="file-name"><code>${escapeHtml(capsule.target_path)}</code></h${fileHeadingLevel}>
@@ -1139,6 +1427,59 @@ ${humanSections}
         </details>
       </div>
     </details>`;
+}
+
+function renderReviewNavigation(
+  snapshot: RenderableReviewSnapshot,
+  hasFindings: boolean
+): string {
+  const requirementRecords = snapshot.requirements.map(asRecord);
+  const multiplePasses = snapshot.passes.length > 1;
+  const passNavigation = snapshot.passes.map((pass, sliceIndex) => {
+    const orderedCapsules = dependencyFirstCapsules(pass);
+    const requirements = collectRequirementCoverage(
+      requirementRecords,
+      pass,
+      sliceIndex
+    );
+    const files = orderedCapsules.map((capsule) => {
+      const agentInput = asRecord(capsule.agent_input);
+      const owned = asRecords(asRecord(agentInput.declarations).owned);
+      const fileAnchor = `slice-${sliceIndex + 1}-file-${anchorSlug(capsule.target_path)}`;
+      const declarationLinks = owned.length === 0
+        ? ""
+        : `<details class="rail-declarations">
+            <summary>${owned.length} ${owned.length === 1 ? "declaration" : "declarations"}</summary>
+            <div class="rail-declaration-links">${owned.map((declaration, index) =>
+              `<a href="#${escapeHtml(declarationAnchor(fileAnchor, "Defines", declaration, index))}">${escapeHtml(stringValue(declaration.name))}</a>`
+            ).join("")}</div>
+          </details>`;
+      return `<div class="rail-file">
+          <a class="rail-file-link" href="#${escapeHtml(fileAnchor)}"><code>${escapeHtml(capsule.target_path)}</code><span class="rail-operation">${escapeHtml(humanOperation(capsule.operation))}</span></a>
+          ${declarationLinks}
+        </div>`;
+    }).join("");
+    const groupLabel = multiplePasses
+      ? `<p class="rail-group-label">Work group ${sliceIndex + 1}</p>`
+      : "";
+    const requirementsLink = requirements.length === 0
+      ? ""
+      : `<a class="rail-section-link" href="#requirements-${escapeHtml(pass.pass_id)}">Requirements</a>`;
+    return `${groupLabel}
+        <a class="rail-section-link" href="#files-${escapeHtml(pass.pass_id)}">Agent Briefs</a>
+        <div class="rail-file-index" aria-label="Agent Briefs and declarations">${files}</div>
+        ${requirementsLink}
+        <a class="rail-section-link" href="#accepted-inputs-${escapeHtml(pass.pass_id)}">Context</a>`;
+  }).join("");
+
+  return `<aside class="review-rail" aria-label="Review navigation">
+      <nav class="review-nav" aria-label="Review sections">
+        <a class="rail-section-link" href="#review-overview">Overview</a>
+        ${hasFindings ? '<a class="rail-section-link" href="#review-issues">Issues</a>' : ""}
+        ${passNavigation}
+        <a class="rail-section-link" href="#technical-record">Technical record</a>
+      </nav>
+    </aside>`;
 }
 
 function renderDigestRows(snapshot: RenderableReviewSnapshot): string {
@@ -1219,6 +1560,7 @@ export function renderPublicationReviewHtml(
       --danger-soft: oklch(0.95 0.04 24);
       --success: oklch(0.42 0.12 150);
       --content: 960px;
+      --rail: 280px;
     }
 
     * { box-sizing: border-box; }
@@ -1256,16 +1598,166 @@ export function renderPublicationReviewHtml(
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
+    pre.code-block {
+      position: relative;
+      padding-top: 2.2rem;
+      white-space: pre;
+      overflow-wrap: normal;
+      tab-size: 2;
+    }
+    pre.code-block::before {
+      content: attr(data-language);
+      position: absolute;
+      top: 0.65rem;
+      right: 0.8rem;
+      color: oklch(0.72 0.018 245);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 0.65rem;
+      font-weight: 720;
+      letter-spacing: 0.08em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    pre.code-block code { overflow-wrap: normal; }
+    .syntax-keyword { color: oklch(0.79 0.15 345); font-weight: 650; }
+    .syntax-declaration { color: oklch(0.86 0.11 205); }
+    .syntax-type { color: oklch(0.84 0.11 195); }
+    .syntax-string { color: oklch(0.84 0.12 135); }
+    .syntax-property { color: oklch(0.86 0.1 205); }
+    .syntax-number { color: oklch(0.84 0.13 75); }
+    .syntax-comment { color: oklch(0.72 0.025 245); font-style: italic; }
+    .syntax-punctuation { color: oklch(0.79 0.025 245); }
     ul, ol { margin: 0.5rem 0 0; padding-left: 1.25rem; }
     li + li { margin-top: 0.38rem; }
     blockquote { margin: 1rem 0; padding-left: 1rem; border-left: 1px solid var(--line); color: var(--muted); }
     hr { margin: 1.5rem 0; border: 0; border-top: 1px solid var(--line); }
 
     .shell { width: min(calc(100% - 2rem), var(--content)); margin: 0 auto; }
+    .skip-link {
+      position: fixed;
+      z-index: 50;
+      top: 0.5rem;
+      left: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      background: var(--ink);
+      color: white;
+      font-weight: 720;
+      text-decoration: none;
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
     .topbar { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.84rem; }
-    .topbar .shell { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 56px; }
+    .topbar .shell { display: flex; align-items: center; justify-content: space-between; width: min(calc(100% - 2rem), 1520px); gap: 1rem; min-height: 56px; }
     .topbar .shell > *, .slice-header > *, .accepted-input > summary > *, .requirement-list > li > *, .package-section > *, .input-usage li > *, .file-package > summary > * { min-width: 0; }
     .product-name { color: var(--ink); font-weight: 720; letter-spacing: -0.015em; }
+
+    .review-layout {
+      display: grid;
+      grid-template-columns: var(--rail) minmax(0, 1fr);
+      width: min(100%, 1520px);
+      margin: 0 auto;
+    }
+    .review-main { min-width: 0; }
+    .review-rail {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      padding: 1.25rem 1rem;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .review-nav { display: grid; gap: 0.08rem; }
+    .rail-section-link {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      margin: 0 -0.25rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 7px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 680;
+      text-decoration: none;
+    }
+    .rail-section-link:hover,
+    .rail-section-link[aria-current="location"],
+    .rail-file-link:hover,
+    .rail-file-link[aria-current="location"] {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .rail-group-label {
+      margin: 0.85rem 0 0.2rem;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 720;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .rail-file-index {
+      display: grid;
+      gap: 0.08rem;
+      margin: 0.25rem 0 0.75rem;
+      padding: 0.5rem 0 0.5rem 0.5rem;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .rail-file-link {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      min-height: 42px;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 7px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .rail-file-link code {
+      color: inherit;
+      font-family: inherit;
+      font-size: 0.74rem;
+      font-weight: 670;
+      overflow-wrap: anywhere;
+    }
+    .rail-operation {
+      color: inherit;
+      font-size: 0.62rem;
+      font-weight: 720;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .rail-declarations { margin: 0 0.35rem 0.35rem; }
+    .rail-declarations > summary {
+      min-height: 36px;
+      padding: 0.45rem 0.25rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 680;
+    }
+    .rail-declarations > summary::before { content: "+"; display: inline-block; width: 1rem; }
+    .rail-declarations[open] > summary::before { content: "−"; }
+    .rail-declaration-links { display: grid; padding-left: 1rem; }
+    .rail-declaration-links a {
+      padding: 0.35rem 0;
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.67rem;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+    .rail-declaration-links a:hover { color: var(--accent); text-decoration: underline; }
+    #review-overview,
+    #review-issues,
+    .files,
+    .requirement-coverage,
+    .accepted-inputs,
+    .file-package,
+    .context-item,
+    .verification-wrap { scroll-margin-top: 1rem; }
 
     .hero { padding: 4rem 0 3rem; }
     .lede { margin-bottom: 0; color: var(--muted); font-size: 1.08rem; }
@@ -1320,7 +1812,6 @@ export function renderPublicationReviewHtml(
     .accepted-document h4:first-child { margin-top: 0; font-size: 1.15rem; }
     .accepted-document p, .accepted-document ul, .accepted-document ol { margin-bottom: 1rem; }
     .accepted-document li > ul, .accepted-document li > ol { margin-bottom: 0; }
-    .document-code { white-space: pre; }
     .input-usage { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
     .input-usage-label { margin-bottom: 0.65rem; }
     .input-usage ul { list-style: none; padding: 0; }
@@ -1338,20 +1829,6 @@ export function renderPublicationReviewHtml(
     .coverage-files a:hover { color: var(--accent); text-decoration: underline; }
     .files-heading { margin-bottom: 0.2rem; }
     .files-help { margin-bottom: 1rem; color: var(--muted); font-size: 0.9rem; }
-    .file-map-scroll { overflow-x: auto; }
-    .file-map { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 0.84rem; }
-    .file-map th, .file-map td { padding: 0.85rem 0.7rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-    .file-map thead th { color: var(--muted); font-size: 0.74rem; font-weight: 680; text-transform: uppercase; letter-spacing: 0.04em; }
-    .file-map tbody th { width: 22%; font-weight: 650; }
-    .file-map td:nth-child(2) { width: 10%; }
-    .file-map td:nth-child(3) { width: 30%; }
-    .file-map a { color: inherit; text-decoration: none; }
-    .file-map a:hover { color: var(--accent); text-decoration: underline; }
-    .file-map-uses { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
-    .file-map-uses li { display: grid; gap: 0.1rem; }
-    .file-map-uses li + li { margin-top: 0; }
-    .file-map-uses span { color: var(--muted); font-size: 0.78rem; }
-
     summary { cursor: pointer; list-style: none; }
     summary::-webkit-details-marker { display: none; }
     .file-package { border-top: 1px solid var(--line); }
@@ -1433,9 +1910,43 @@ export function renderPublicationReviewHtml(
 
     .footer { padding: 2rem 0 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; }
 
+    @media (max-width: 1120px) {
+      html { scroll-padding-top: 64px; }
+      .review-layout { display: block; width: 100%; }
+      .review-rail {
+        position: sticky;
+        z-index: 20;
+        top: 0;
+        width: 100%;
+        height: auto;
+        padding: 0 1rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .review-nav { display: flex; width: max-content; align-items: center; gap: 0.1rem; }
+      .rail-section-link { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+      .rail-group-label { margin: 0 0.4rem 0 0.75rem; white-space: nowrap; }
+      .rail-file-index { display: flex; gap: 0.1rem; margin: 0; padding: 0; border: 0; }
+      .rail-file { flex: 0 0 auto; }
+      .rail-file-link { display: flex; min-height: 44px; }
+      .rail-file-link code { white-space: nowrap; }
+      .rail-declarations { display: none; }
+      #review-overview,
+      #review-issues,
+      .files,
+      .requirement-coverage,
+      .accepted-inputs,
+      .file-package,
+      .context-item,
+      .verification-wrap { scroll-margin-top: 64px; }
+    }
+
     @media (max-width: 760px) {
       h1 { font-size: 2rem; }
       .hero { padding: 3rem 0 2.5rem; }
+      .rail-file-index, .rail-group-label { display: none; }
       .slice-header { display: grid; gap: 0.75rem; }
       .approval-ready { grid-template-columns: 1fr; gap: 0.35rem; }
       .requirement-list > li { grid-template-columns: 1fr; gap: 0.75rem; }
@@ -1460,13 +1971,18 @@ export function renderPublicationReviewHtml(
 
     @media print {
       .shell { width: 100%; }
-      .topbar { display: none; }
+      .skip-link, .topbar, .review-rail { display: none; }
+      .review-layout { display: block; width: 100%; }
       .hero, .slice { padding: 1.5rem 0; }
       .file-package { break-inside: avoid; }
+      pre.code-block { border: 1px solid #bbb; background: #fff; color: #111; }
+      pre.code-block::before { color: #555; }
+      pre.code-block [class^="syntax-"] { color: #111; }
     }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#review-content">Skip to review</a>
   <header class="topbar">
     <div class="shell">
       <span class="product-name">SCORE ${reviewKindLabel} Review</span>
@@ -1474,8 +1990,10 @@ export function renderPublicationReviewHtml(
     </div>
   </header>
 
-  <main>
-    <section class="hero">
+  <div class="review-layout">
+    ${renderReviewNavigation(snapshot, hasFindings)}
+    <main class="review-main" id="review-content">
+    <section class="hero" id="review-overview">
       <div class="shell">
         <h1>${escapeHtml(snapshot.manifest.label)}</h1>
         <p class="lede">${escapeHtml(snapshot.manifest.objective)}</p>
@@ -1493,7 +2011,7 @@ ${reviewKind === "plan" ? "" : `        <div class="approval-ready" aria-labelle
 
 ${
       hasFindings
-        ? `<section class="issues" aria-labelledby="issues-title">
+        ? `<section class="issues" id="review-issues" aria-labelledby="issues-title">
       <div class="shell">
         <h2 id="issues-title">Issues</h2>
         ${renderFindings("Blockers", blockers, "blockers")}
@@ -1538,7 +2056,6 @@ ${snapshot.passes
         return `${wrapperStart}
       <div class="shell">
 ${sliceHeader}
-        ${renderFileRelationshipMap(pass, orderedCapsules, ownerPaths, sliceIndex, sectionHeadingLevel)}
         <section class="files slice-overview" aria-labelledby="files-${escapeHtml(pass.pass_id)}">
           <h${sectionHeadingLevel} id="files-${escapeHtml(pass.pass_id)}" class="files-heading">Files to change</h${sectionHeadingLevel}>
           <p class="files-help">One isolated agent handles each file. Open a row for its complete instructions.</p>
@@ -1551,7 +2068,7 @@ ${orderedCapsules.map((capsule) => renderCapsule(capsule, sliceIndex, acceptedIn
       })
       .join("")}
 
-    <section class="verification-wrap">
+    <section class="verification-wrap" id="technical-record">
       <div class="shell">
         <details class="verification">
           <summary>${reviewKindLabel} validation and audit</summary>
@@ -1608,7 +2125,8 @@ ${orderedCapsules.map((capsule) => renderCapsule(capsule, sliceIndex, acceptedIn
         </details>
       </div>
     </section>
-  </main>
+    </main>
+  </div>
 
   <footer class="footer">
     <div class="shell">Generated deterministically by SCORE. No LLM wrote or rewrote this page.</div>
@@ -1616,6 +2134,34 @@ ${orderedCapsules.map((capsule) => renderCapsule(capsule, sliceIndex, acceptedIn
   <script>
     (() => {
       let printState = null;
+
+      const revealTarget = (hash) => {
+        if (hash.length < 2) return;
+        const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+        if (target === null) return;
+        let ancestor = target;
+        while (ancestor !== null) {
+          if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+          ancestor = ancestor.parentElement;
+        }
+      };
+
+      document.addEventListener("click", (event) => {
+        const link = event.target instanceof Element
+          ? event.target.closest('a[href^="#"]')
+          : null;
+        if (!(link instanceof HTMLAnchorElement)) return;
+        revealTarget(link.hash);
+        if (link.closest(".review-nav") !== null) {
+          for (const current of document.querySelectorAll('.review-nav a[aria-current]')) {
+            current.removeAttribute("aria-current");
+          }
+          link.setAttribute("aria-current", "location");
+        }
+      });
+
+      window.addEventListener("hashchange", () => revealTarget(window.location.hash));
+      revealTarget(window.location.hash);
 
       window.addEventListener("beforeprint", () => {
         if (printState !== null) return;

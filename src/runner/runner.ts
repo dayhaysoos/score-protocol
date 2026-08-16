@@ -29,15 +29,12 @@ import {
   type RunRecoveryRequired,
   type RunId,
   type RunObservation,
+  type RepositoryBinding,
   type RunSnapshot,
   RunnerStoreError
 } from "./domain.js";
 import { loadApprovedPlan } from "./approved-plan.js";
-import {
-  RuntimeAdapter,
-  type RuntimeAdapterError,
-  type AdapterFailureCategory
-} from "./runtime-adapter.js";
+import { RuntimeAdapter } from "./runtime-adapter.js";
 import { RunnerStore, RunnerStoreLive } from "./runner-store.js";
 import type {
   RuntimeAttemptFact,
@@ -510,6 +507,7 @@ function makeRunObservationDelivery(
         failureMessage: file.failureMessage,
         failureStage: file.failureStage,
         terminalOutcome: file.terminalOutcome,
+        failureEvidence: file.failureEvidence,
         targetOutputState: file.targetOutputState,
         rejectedOutputDigest: file.rejectedOutputDigest,
         rejectedOutputPath: file.rejectedOutputPath
@@ -590,49 +588,6 @@ function notifyObservation(
   );
 }
 
-function stableFailureCategory(
-  category: AdapterFailureCategory | undefined
-): FailureCategory {
-  switch (category) {
-    case "provider":
-      return "provider";
-    case "tool":
-      return "tool";
-    case "timeout":
-      return "timeout";
-    case "interruption":
-      return "interruption";
-    case "missing_output":
-      return "missing output";
-    case "workspace_integrity":
-      return "workspace integrity";
-    case "runtime_startup":
-    case "runtime_protocol":
-    case "runtime_cleanup":
-    case undefined:
-      return "runtime";
-  }
-}
-
-function stableTerminalOutcome(error: RuntimeAdapterError): unknown {
-  const outcome = error.terminalOutcome;
-  if (outcome === undefined) return undefined;
-  const kind =
-    error.failureCategory === "timeout"
-      ? "timeout"
-      : error.failureCategory === "interruption"
-        ? "interruption"
-      : outcome.kind === "provider" || outcome.kind === "tool"
-        ? outcome.kind
-        : "runtime";
-  return {
-    kind,
-    ...(outcome.status === undefined ? {} : { status: outcome.status }),
-    ...(outcome.statusCode === undefined ? {} : { statusCode: outcome.statusCode }),
-    ...(outcome.name === undefined ? {} : { name: outcome.name })
-  };
-}
-
 const runPendingJobsEffect = Effect.fn("Runner.runPendingJobs")(
   function*(runId: RunId, options: InternalRunExecutionOptions) {
     const store = yield* RunnerStore;
@@ -689,15 +644,12 @@ const runPendingJobsEffect = Effect.fn("Runner.runPendingJobs")(
               Effect.andThen(invoke(job, reporter)),
               Effect.matchEffect({
                 onFailure: (error) => {
-                  const terminalOutcome = stableTerminalOutcome(error);
                   return store.completeFailure({
                     job,
-                    failureTag: error._tag,
-                    failureCategory: stableFailureCategory(error.failureCategory),
+                    failureEvidence: error.failureEvidence,
                     ...(error.runtimeSessionId === undefined
                       ? {}
                       : { runtimeSessionId: error.runtimeSessionId }),
-                    ...(terminalOutcome === undefined ? {} : { terminalOutcome }),
                     ...(error.targetOutputState === undefined
                       ? {}
                       : { targetOutputState: error.targetOutputState }),
@@ -760,12 +712,12 @@ const runPendingJobsEffect = Effect.fn("Runner.runPendingJobs")(
           : store.recordRunFailure({
               runId,
               phase: "not applied",
-              failureCategory: stableFailureCategory(error.failureCategory)
+              failureCategory: error.failureEvidence.category
             }).pipe(Effect.andThen(publish()))
       ),
       Effect.mapError((error) => {
         if (error._tag === "RunnerStoreError") return error;
-        const category = stableFailureCategory(error.failureCategory);
+        const category = error.failureEvidence.category;
         return new RunnerStoreError({
           operation: "runAdapter",
           message: `${safeFailureMessage(category)} Inspect Runner status for retained evidence.`
@@ -801,6 +753,60 @@ export function recoverRun(
       yield* store.initialize;
       return yield* store.recoverRun(runId);
     }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath)))
+  );
+}
+
+function verifyRunRepositoryState(input: {
+  readonly run: RunSnapshot;
+  readonly binding: RepositoryBinding;
+}): void {
+  if (input.binding.confirmedTargets.length === 0) {
+    verifyRepositoryMatchesSnapshot({
+      repositoryRoot: input.binding.repositoryRoot,
+      snapshot: input.binding.sourceSnapshot,
+      targetPaths: input.run.jobs.map((job) => job.targetPath),
+      acceptedMissingPaths: input.run.acceptedMissingReplacementPaths,
+      absentPaths: input.run.jobs
+        .filter((job) => job.operation === "create")
+        .map((job) => job.targetPath)
+    });
+    return;
+  }
+  verifyRepositoryTargetsMatch({
+    repositoryRoot: input.binding.repositoryRoot,
+    confirmedTargets: input.binding.confirmedTargets
+  });
+}
+
+export function retryFailedJobsAndApply(
+  runnerDatabasePath: string,
+  runId: RunId,
+  options: RunExecutionOptions & { readonly targetPaths: ReadonlyArray<string> }
+): Effect.Effect<
+  RunSnapshot,
+  RunRecoveryRequired | RunnerStoreError | RepositoryDriftError,
+  RuntimeAdapter
+> {
+  return Effect.scoped(
+    Effect.gen(function*() {
+      const store = yield* RunnerStore;
+      yield* store.initialize;
+      const run = yield* store.inspectRun(runId);
+      const binding = yield* store.readRepositoryBinding(runId);
+      yield* Effect.try({
+        try: () => verifyRunRepositoryState({ run, binding }),
+        catch: (cause) =>
+          cause instanceof RepositoryDriftError
+            ? cause
+            : new RunnerStoreError({
+                operation: "verifyRetryRepositoryState",
+                message: cause instanceof Error ? cause.message : String(cause)
+              })
+      });
+      yield* store.prepareRetry({ runId, targetPaths: options.targetPaths });
+    }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath)))
+  ).pipe(
+    Effect.andThen(runPendingJobsAndApply(runnerDatabasePath, runId, options))
   );
 }
 
@@ -916,22 +922,7 @@ export function applyRunCandidates(
       yield* publish();
       const verifyTargetState = Effect.try({
         try: () => {
-          if (binding.confirmedTargets.length === 0) {
-            verifyRepositoryMatchesSnapshot({
-              repositoryRoot: binding.repositoryRoot,
-              snapshot: binding.sourceSnapshot,
-              targetPaths: run.jobs.map((job) => job.targetPath),
-              acceptedMissingPaths: run.acceptedMissingReplacementPaths,
-              absentPaths: run.jobs
-                .filter((job) => job.operation === "create")
-                .map((job) => job.targetPath)
-            });
-          } else {
-            verifyRepositoryTargetsMatch({
-              repositoryRoot: binding.repositoryRoot,
-              confirmedTargets: binding.confirmedTargets
-            });
-          }
+          verifyRunRepositoryState({ run, binding });
         },
         catch: (cause) =>
           cause instanceof RepositoryDriftError

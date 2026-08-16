@@ -16,6 +16,7 @@ import { Effect, Layer } from "effect";
 import Database from "better-sqlite3";
 
 import { canonicalJson, sha256Bytes, sha256Json } from "../src/canonical.js";
+import { formatRunApplicationSummary } from "../src/runner/application-summary.js";
 import { createAcceptedInputPacket } from "../src/fixture-inputs.js";
 import { repositoryRevisionContentDigest } from "../src/repository-source-state.js";
 import {
@@ -273,7 +274,14 @@ describe("Runner worker pool", () => {
       const adapterFailure = new AdapterInvocationError({
         jobId: JobId.make("adapter-run-scope"),
         message: "Synthetic adapter-wide startup failure",
-        failureCategory: "runtime_startup",
+        failureEvidence: {
+          category: "runtime",
+          stage: null,
+          name: null,
+          status: null,
+          statusCode: null,
+          reason: "Synthetic adapter-wide startup failure"
+        },
         targetOutputState: "not observed"
       });
       const adapterLayer = Layer.succeed(
@@ -342,7 +350,16 @@ describe("Runner worker pool", () => {
         message:
           "Provider failed with ghp_abcdefghijklmnopqrstuvwxyz1234567890; " +
           'raw_metadata={"private":true,"tenant":"secret"}',
-        failureCategory: "runtime_startup",
+        failureEvidence: {
+          category: "runtime",
+          stage: null,
+          name: null,
+          status: null,
+          statusCode: null,
+          reason:
+            "Provider failed with ghp_abcdefghijklmnopqrstuvwxyz1234567890; " +
+            'raw_metadata={"private":true,"tenant":"secret"}'
+        },
         targetOutputState: "not observed"
       });
       const adapterLayer = Layer.succeed(
@@ -986,13 +1003,15 @@ describe("Runner worker pool", () => {
                     throw new AdapterInvocationError({
                       jobId: job.jobId,
                       message: "Synthetic provider interruption",
-                      failureCategory: "interruption",
-                      runtimeSessionId: "synthetic-interrupted-session",
-                      terminalOutcome: {
-                        kind: "provider",
+                      failureEvidence: {
+                        category: "interruption",
+                        stage: null,
                         name: "AbortError",
-                        status: "aborted"
+                        status: "aborted",
+                        statusCode: null,
+                        reason: "Synthetic provider interruption"
                       },
+                      runtimeSessionId: "synthetic-interrupted-session",
                       targetOutputState: "not observed"
                     });
                   }
@@ -1008,7 +1027,14 @@ describe("Runner worker pool", () => {
                     : new AdapterInvocationError({
                         jobId: job.jobId,
                         message: cause instanceof Error ? cause.message : String(cause),
-                        failureCategory: "runtime_protocol",
+                        failureEvidence: {
+                          category: "runtime",
+                          stage: null,
+                          name: null,
+                          status: null,
+                          statusCode: null,
+                          reason: cause instanceof Error ? cause.message : String(cause)
+                        },
                         targetOutputState: "not observed"
                       })
               });
@@ -1135,6 +1161,133 @@ describe("Runner worker pool", () => {
       }
     }
   );
+
+  it("retains bounded sanitized evidence from an unfamiliar failing tool without storing rejected bytes", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "score-runner-tool-failure-evidence-"));
+    const runnerDatabasePath = join(directory, "runner.db");
+    const rejectedContent = "export const rejectedCandidate = true;\n";
+    const rejectedDigest = sha256Bytes(rejectedContent);
+    try {
+      const enqueued = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function*() {
+            const store = yield* RunnerStore;
+            yield* store.initialize;
+            return yield* store.enqueue({
+              approvedPlan: singleCreateApprovedPlan(),
+              repositoryRoot: directory,
+              adapter: {
+                kind: "opencode",
+                providerId: "test-provider",
+                modelId: "test-model",
+                variantId: null,
+                sdkVersion: "0.0.0-next-17111",
+                cliVersion: "0.0.0-next-17111"
+              },
+              maxConcurrency: 1
+            });
+          }).pipe(Effect.provide(RunnerStoreLive(runnerDatabasePath)))
+        )
+      );
+      const adapterLayer = Layer.succeed(
+        RuntimeAdapter,
+        testRuntimeAdapter({
+          invoke: (job) =>
+            Effect.fail(
+              new AdapterInvocationError({
+                jobId: job.jobId,
+                message:
+                  "Contract inspection found 2 invalid exports; " +
+                  "Authorization: Bearer fixture-tool-secret; " +
+                  'arguments={\"path\":\"/Users/example/private/repo/src/only.ts\"}; ' +
+                  'output={\"candidate\":\"private raw output\"}',
+                failureEvidence: {
+                  category: "tool",
+                  stage: null,
+                  name: "contract-inspector",
+                  status: "error",
+                  statusCode: 422,
+                  reason:
+                    "Contract inspection found 2 invalid exports; " +
+                    "Authorization: Bearer fixture-tool-secret; " +
+                    'arguments={"path":"/Users/example/private/repo/src/only.ts"}; ' +
+                    'output={"candidate":"private raw output"}'
+                },
+                runtimeSessionId: "tool-failure-session",
+                targetOutputState: "different",
+                targetOutputDigest: rejectedDigest,
+                diagnosticContent: rejectedContent
+              })
+            )
+        })
+      );
+
+      const completed = await Effect.runPromise(
+        runPendingJobs(runnerDatabasePath, enqueued.runId).pipe(
+          Effect.provide(adapterLayer)
+        )
+      );
+      const failed = completed.observation.files[0];
+      assert.ok(failed);
+      assert.equal(failed.failureCategory, "tool");
+      assert.equal(failed.failureStage, "starting");
+      assert.equal(failed.terminalOutcome?.name, "contract-inspector");
+      assert.equal(failed.terminalOutcome?.status, "error");
+      assert.equal(failed.terminalOutcome?.statusCode, 422);
+      assert.match(failed.failureMessage ?? "", /Contract inspection found 2 invalid exports/u);
+      assert.equal(failed.targetOutputState, "different");
+      assert.equal(failed.rejectedOutputDigest, rejectedDigest);
+      assert.deepEqual(failed.failureEvidence, {
+        category: "tool",
+        stage: "starting",
+        name: "contract-inspector",
+        status: "error",
+        statusCode: 422,
+        reason:
+          "Contract inspection found 2 invalid exports; [REDACTED CREDENTIAL]; [REDACTED DATA]; [REDACTED DATA]"
+      });
+
+      const summary = formatRunApplicationSummary(completed);
+      assert.match(summary, /^src\/only\.ts failed$/mu);
+      assert.match(summary, /^Tool: contract-inspector$/mu);
+      assert.match(summary, /^Reason: Contract inspection found 2 invalid exports;/mu);
+      assert.match(summary, /^Stage: Starting$/mu);
+      assert.match(summary, /^Candidate output: Changed, but rejected$/mu);
+      assert.match(summary, new RegExp(`^Next: npm run runner -- retry --run ${enqueued.runId}$`, "mu"));
+      assert.doesNotMatch(
+        summary,
+        /fixture-tool-secret|private raw output|arguments|\/Users\/example|rejectedCandidate/iu
+      );
+
+      const database = new Database(runnerDatabasePath, { readonly: true });
+      const attempt = database
+        .prepare(
+          `SELECT candidate_content AS candidateContent,
+                  failure_message AS failureMessage,
+                  terminal_outcome_json AS terminalOutcomeJson,
+                  failure_evidence_json AS failureEvidenceJson,
+                  rejected_output_digest AS rejectedOutputDigest
+           FROM runner_attempts`
+        )
+        .get() as {
+          candidateContent: string | null;
+          failureMessage: string | null;
+          terminalOutcomeJson: string | null;
+          failureEvidenceJson: string | null;
+          rejectedOutputDigest: string | null;
+        };
+      database.close();
+      assert.equal(attempt.candidateContent, null);
+      assert.equal(attempt.rejectedOutputDigest, rejectedDigest);
+      const durableEvidence = JSON.stringify(attempt);
+      assert.doesNotMatch(
+        durableEvidence,
+        /fixture-tool-secret|private raw output|arguments|\/Users\/example|rejectedCandidate/iu
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
   it("requires explicit recovery instead of re-delivering an ambiguous Attempt", async () => {
     const directory = mkdtempSync(join(tmpdir(), "score-runner-recovery-"));

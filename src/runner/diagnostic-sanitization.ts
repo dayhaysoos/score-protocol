@@ -1,5 +1,8 @@
 import type {
+  FailureEvidence,
+  FailureEvidenceStatus,
   FailureCategory,
+  FailureObservationStage,
   SanitizedTerminalOutcome,
   TerminalOutcomeKind
 } from "./domain.js";
@@ -32,8 +35,7 @@ const terminalOutcomeKinds = new Set<TerminalOutcomeKind>([
   "application",
   "unknown"
 ]);
-type TerminalOutcomeStatus = Exclude<SanitizedTerminalOutcome["status"], null>;
-const terminalOutcomeStatuses = new Set<TerminalOutcomeStatus>([
+const terminalOutcomeStatuses = new Set<FailureEvidenceStatus>([
   "completed",
   "error",
   "running",
@@ -41,15 +43,15 @@ const terminalOutcomeStatuses = new Set<TerminalOutcomeStatus>([
   "unknown",
   "aborted"
 ]);
-const terminalOutcomeNames = new Set([
-  "APIError",
-  "AbortError",
-  "RateLimitError",
-  "apply_patch",
-  "edit",
-  "read",
-  "write"
+const failureObservationStages = new Set<FailureObservationStage>([
+  "starting",
+  "Agent working",
+  "checking output",
+  "candidate ready"
 ]);
+
+export const FAILURE_EVIDENCE_NAME_MAX_LENGTH = 120;
+export const FAILURE_REASON_MAX_LENGTH = 320;
 
 const failureMessages = {
   provider: "Provider failure.",
@@ -68,13 +70,19 @@ const failureMessages = {
 } as const satisfies Record<FailureCategory, string>;
 
 const secretAssignment =
-  /\b(?:authorization|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|client[-_ ]?secret|password|secret|credential|token)\b\s*[:=]\s*(?:(?:bearer|basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;]+)/giu;
+  /\b(?:[A-Za-z0-9]+[-_])*(?:authorization|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|client[-_ ]?secret|password|secret|credential|token)\b\s*[:=]\s*(?:(?:bearer|basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;]+)/giu;
 const bearerToken = /\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+/giu;
 const metadataAssignment =
   /\b(?:raw|private)[-_ ]?metadata\b\s*[:=]\s*(?:\{[^}\r\n]*\}|\[[^\]\r\n]*\]|"[^"]*"|'[^']*'|[^;\r\n]*)/giu;
+const rawPayloadAssignment =
+  /\b(?:arguments?|args|input|output|stdout|stderr|tool[-_ ]?(?:arguments?|output))\b\s*[:=]\s*(?:\{[^}\r\n]*\}|\[[^\]\r\n]*\]|"[^"]*"|'[^']*'|[^;\r\n]*)/giu;
 const commonApiToken = /\b(?:sk|rk|pk)-[A-Za-z0-9_-]{8,}\b/gu;
 const standaloneCredential =
   /\b(?:(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,255}|github_pat_[A-Za-z0-9_]{20,255}|(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{12,255}|whsec_[A-Za-z0-9]{12,255}|xox[baprs]-[A-Za-z0-9-]{10,255}|AIza[A-Za-z0-9_-]{20,255})\b/gu;
+const fileUrl = /\bfile:\/\/[^\s,;)}\]]+/giu;
+const windowsLocalPath = /\b[A-Za-z]:\\[^\s,;)}\]]+/gu;
+const posixLocalPath =
+  /\/(?:Users|home|tmp|private|var|opt|etc|Volumes|workspace|workspaces|root|mnt|srv|Library)\/[^\s,;)}\]]+/gu;
 const pathLikeContent = /(?:\bfile:|[\\/])/iu;
 const runnerCliFallback =
   "Runner command failed. Inspect score status for retained diagnostics.";
@@ -87,11 +95,66 @@ export function sanitizeDiagnosticMessage(value: unknown, maxLength = 2_000): st
   const withoutControls = raw.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "");
   const redacted = withoutControls
     .replace(metadataAssignment, "[REDACTED METADATA]")
+    .replace(rawPayloadAssignment, "[REDACTED DATA]")
     .replace(secretAssignment, "[REDACTED CREDENTIAL]")
     .replace(bearerToken, "[REDACTED CREDENTIAL]")
     .replace(commonApiToken, "[REDACTED CREDENTIAL]")
     .replace(standaloneCredential, "[REDACTED CREDENTIAL]");
   return redacted.length <= maxLength ? redacted : `${redacted.slice(0, maxLength)}…`;
+}
+
+export function sanitizeFailureReason(value: unknown): string | null {
+  const raw = value instanceof Error ? value.message : String(value);
+  const sanitized = terminalSafeLine(
+    sanitizeDiagnosticMessage(
+      terminalSafeLine(raw, FAILURE_REASON_MAX_LENGTH * 4),
+      FAILURE_REASON_MAX_LENGTH * 4
+    )
+      .replace(fileUrl, "[REDACTED PATH]")
+      .replace(windowsLocalPath, "[REDACTED PATH]")
+      .replace(posixLocalPath, "[REDACTED PATH]"),
+    FAILURE_REASON_MAX_LENGTH
+  ).trim();
+  return sanitized.length === 0 ? null : sanitized;
+}
+
+export function sanitizeFailureEvidence(
+  value: unknown,
+  stageOverride?: FailureObservationStage | null
+): FailureEvidence {
+  const input = record(value);
+  const category = sanitizeFailureCategory(input?.category);
+  const storedStage = input?.stage;
+  const stage =
+    stageOverride !== undefined
+      ? stageOverride
+      : typeof storedStage === "string" &&
+          failureObservationStages.has(storedStage as FailureObservationStage)
+        ? (storedStage as FailureObservationStage)
+        : null;
+  const status =
+    typeof input?.status === "string" &&
+    terminalOutcomeStatuses.has(input.status as FailureEvidenceStatus)
+      ? (input.status as FailureEvidenceStatus)
+      : null;
+  const statusCode =
+    typeof input?.statusCode === "number" &&
+    Number.isSafeInteger(input.statusCode) &&
+    input.statusCode >= 0 &&
+    input.statusCode <= 999
+      ? input.statusCode
+      : null;
+  return {
+    category,
+    stage,
+    name: sanitizeEvidenceName(input?.name),
+    status,
+    statusCode,
+    reason:
+      typeof input?.reason === "string" || input?.reason instanceof Error
+        ? sanitizeFailureReason(input.reason)
+        : null
+  };
 }
 
 export function safeRunnerCliErrorMessage(value: unknown): string {
@@ -120,6 +183,24 @@ export function sanitizeRuntimeSessionId(value: unknown): string | null {
   }
   const sanitized = sanitizeDiagnosticMessage(candidate, 256);
   return sanitized === candidate ? candidate : null;
+}
+
+export function sanitizeEvidenceName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (
+    candidate.length === 0 ||
+    candidate.length > FAILURE_EVIDENCE_NAME_MAX_LENGTH ||
+    candidate !== terminalSafeLine(candidate, FAILURE_EVIDENCE_NAME_MAX_LENGTH) ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:/ -]*$/u.test(candidate) ||
+    /authorization|bearer|api[-_ ]?key|secret|password|credential|token/iu.test(
+      candidate
+    ) ||
+    sanitizeDiagnosticMessage(candidate, FAILURE_EVIDENCE_NAME_MAX_LENGTH) !== candidate
+  ) {
+    return null;
+  }
+  return candidate;
 }
 
 export function sanitizeFailureCategory(
@@ -157,8 +238,8 @@ export function sanitizeTerminalOutcome(value: unknown): SanitizedTerminalOutcom
       : "unknown";
   const status =
     typeof input.status === "string" &&
-    terminalOutcomeStatuses.has(input.status as TerminalOutcomeStatus)
-      ? (input.status as TerminalOutcomeStatus)
+    terminalOutcomeStatuses.has(input.status as FailureEvidenceStatus)
+      ? (input.status as FailureEvidenceStatus)
       : null;
   const statusCode =
     typeof input.statusCode === "number" &&
@@ -167,10 +248,6 @@ export function sanitizeTerminalOutcome(value: unknown): SanitizedTerminalOutcom
     input.statusCode <= 999
       ? input.statusCode
       : null;
-  const nameCandidate = typeof input.name === "string" ? input.name.trim() : undefined;
-  const name =
-    nameCandidate !== undefined && terminalOutcomeNames.has(nameCandidate)
-      ? nameCandidate
-      : null;
+  const name = sanitizeEvidenceName(input.name);
   return { kind, status, statusCode, name };
 }

@@ -23,7 +23,8 @@ _Avoid_: Contract, acceptance criterion, instruction
 
 **Plan Compiler**:
 The broad-context component that transforms an Accepted Specification and
-declared source state into a complete, closed Plan Manifest.
+declared source state into a complete, closed Plan Manifest. It may inspect
+declared source during preparation to derive immutable evidence.
 _Avoid_: Context Compiler, Agent, Runner, prompt renderer
 
 **Compilation Procedure**:
@@ -124,7 +125,9 @@ _Avoid_: Repository, workspace, session context
 
 **Closed Context**:
 The condition in which every project-specific input observable to a Worker is
-declared by its Brief and no undeclared project state is accessible.
+declared by its Brief and no undeclared project state is accessible. Runtime
+tools may only re-present already approved context, never discover new project
+facts.
 _Avoid_: Relevant context, sandbox alone, repository access
 
 **Minimal Sufficient Context**:
@@ -164,7 +167,8 @@ _Avoid_: Harness Control, Agent Input, hidden project instruction
 
 **Agent Input**:
 The complete and only project-specific instructions and resolved context that a
-Brief authorizes an Agent to observe.
+Brief authorizes an Agent to observe. It may contain a deterministically routed
+subset of a Declaration Evidence Bundle bound by the approved prepared revision.
 _Avoid_: Run Rules, audit history, ambient prompt
 
 **Agent Package Render**:
@@ -192,7 +196,8 @@ _Avoid_: Executor, Plan Compiler, Runner, scheduler
 **Runtime Adapter**:
 A provider- or runtime-specific integration used by a Runner to deliver
 approved Agent Packages to Workers and enforce Run Rules. It
-does not compile work, add project context, or make its runtime part of Core.
+does not compile work, add project context, inspect live repository declarations,
+or make its runtime part of Core.
 _Avoid_: Executor Adapter, Worker, Core Protocol, provider-specific field in Core
 
 ## Identity and interoperability
@@ -232,14 +237,14 @@ _Avoid_: Profile, custom fork, unversioned field
 **Change**:
 An agent-managed logical unit of coding work. Each prepared revision is
 immutable, supersedes rather than mutates an earlier revision, and contains one
-or more File Briefs compiled from one Source Snapshot and one set of Shared
+or more Agent Briefs compiled from one Source Snapshot and one set of Shared
 Contracts. A Change is the atomic unit of definition, approval, Runner
 execution, and application.
 _Avoid_: Change Plan, patch, Agent run, batch, single-file task
 
 **Slice**:
 A durable, project-authored feature identity whose prepared revisions use the
-same objective, requirements, File Briefs, documented declarations, explicit
+same objective, requirements, Agent Briefs, documented declarations, explicit
 context, skills, constraints, review, approval, Runner, and atomic-application
 semantics as a Change. A Slice additionally has stable authored identity and
 may declare dependencies on applied Slice revisions.
@@ -263,34 +268,106 @@ Slice revision is prepared. The Coding Profile may freeze only selected targets
 and context; it does not imply a snapshot of every repository file.
 _Avoid_: Repository Revision, workspace, branch name, latest source
 
-**File Brief**:
+**Agent Brief**:
 A Coding Profile Brief whose only permitted source mutation creates one absent
-target file or replaces one present target file.
-_Avoid_: File Capsule, patch job, multi-file task, Agent process
+target file or replaces one present target file. Its reviewed context includes
+one derived Approved Project File Set without separate per-file decisions.
+_Avoid_: File Brief, File Capsule, patch job, multi-file task, Agent process
+
+**Approved Project File Set**:
+The complete set of project-local files to which one Agent Brief candidate may
+couple its target. It combines frozen baseline imports, declaration owners and
+support, and selected context under the Agent Brief's existing review approval.
+_Avoid_: per-file approval, repository access, imports discovered during execution
 
 **Documented Declarations**:
-The immutable interface text planned for one File Brief. Each entry preserves
-its authored name, exact declaration text, and concise usage description.
-SCORE routes this ordinary Context Item to its owner and named consumers without
-parsing or interpreting it.
-_Avoid_: Declaration Registry, parsed syntax tree, inferred type model, runtime lock table
+The immutable interface text planned for one Agent Brief. Each entry preserves
+its authored name, exact declaration text, and concise usage description. It
+remains the authority for intended interface behavior even when SCORE parses
+project code to derive evidence about the current or candidate source.
+_Avoid_: Inspected Declaration, Declaration Registry, inferred type model, runtime lock table
+
+**Declaration Evidence Bundle**:
+An immutable Context Item derived during preparation from identified files in
+one frozen Source Snapshot. It contains Inspected Declarations, deterministic
+routing, provenance, digests, and the exact parser and normalizer identities
+without modifying the authored Slice.
+_Avoid_: Documented Declarations, Slice mutation, live repository lookup
+
+**Declaration Closure**:
+The smallest deterministically ordered set containing one root declaration and
+every transitively referenced project-local declaration needed to interpret its
+type structure. It excludes unrelated declarations, implementation bodies, and
+the internal declaration graphs of external packages.
+_Avoid_: source file, repository context, direct references only
+
+**Local Supporting Declaration**:
+A non-exported project-local declaration transitively reachable from an
+approved export. Its shape is contract-relevant read-only context, but it is not
+a public declaration and consumers are never instructed to import it.
+_Avoid_: private implementation detail, exported declaration, consumer import
+
+**External Declaration Reference**:
+A version-bound leaf in a Declaration Closure identifying an external package
+specifier, imported symbol, import kind, and dependency-lock provenance. It
+provides enough interface routing without copying the package's declaration graph.
+_Avoid_: vendored package types, package documentation, project-local declaration
+
+**Inspected Declaration**:
+A deterministic, source-backed projection of one declaration parsed from an
+identified frozen Source Snapshot or candidate, with its provenance and digest.
+It is Evidence about code and never authority for intended interface behavior.
+_Avoid_: Documented Declaration, inferred requirement, product intent
+
+**Normalized Declaration Shape**:
+The canonical structural representation of a declaration after removing
+formatting, comments, and other approved trivia while preserving every authored
+interface choice. It is stricter than TypeScript assignability and is not raw
+source text.
+_Avoid_: formatted declaration, assignable type, compiler output
+
+**Approved Export Surface**:
+The complete set of exports permitted for one Agent Brief candidate, formed
+from unchanged exports in the frozen baseline plus additions, changes, and
+removals explicitly authorized by approved Documented Declarations. Its
+Declaration Closures include every reachable Local Supporting Declaration.
+_Avoid_: required exports only, inferred public interface, private helpers
+
+**Declaration Verification**:
+A deterministic comparison of Inspected Declarations and their routing against
+the Normalized Declaration Shapes of approved Documented Declarations. It may
+accept or reject a candidate but never rewrite the approved declaration, infer
+new product intent, or accept an unapproved assignable alternative. It applies
+only to revisions prepared under a Profile version that requires it.
+_Avoid_: TypeScript compilation, authored requirement, declaration generation
+
+**Candidate Declaration Gate**:
+The hard pre-application evaluation of the complete candidate set using
+in-memory Declaration Verification. It requires every candidate to match its
+Approved Export Surface, persists bounded findings and digests, discards parser
+ASTs, and uses the exact parser and normalizer versions bound by the approved
+revision. It makes no claim about compilation or runtime behavior. Relevant
+unsupported syntax blocks the gate and cannot be waived.
+_Avoid_: TypeScript project, test run, repository verification, acceptance oracle
 
 **Declaration Ownership**:
 The exclusive relation assigning one documented declaration to exactly one File
 Brief that is instructed to provide it. Ownership is fixed before execution and
-does not depend on scheduling or a Worker claiming a queue item. SCORE does not
-inspect the candidate to prove that the declaration was exported.
+does not depend on scheduling, source inspection, or a Worker claiming a queue
+item. Candidate inspection may verify conformance but cannot infer or change
+ownership.
 _Avoid_: resource lock, job claim, file order, inferred ownership
 
 **Declaration Consumer**:
-A File Brief explicitly named to use a documented declaration from its owning
+An Agent Brief explicitly named to use a documented declaration from its owning
 file. The exact documented declaration is read-only context for that
-File Brief. Import spelling and caller behavior are authored instructions, not
-facts inferred or verified by SCORE.
+Agent Brief together with its bounded Declaration Closure. Required import
+spelling and caller behavior remain approved instructions; inspected source may
+provide evidence but cannot define or alter them.
 _Avoid_: co-owner, copied declaration, whole-Contract context
 
 **Agent**:
-A Coding Profile Worker that receives one File Brief's Agent Input and may make
+A Coding Profile Worker that receives one Agent Brief's Agent Input and may make
 only that brief's Allowed Change.
 _Avoid_: Executor, Plan Compiler, Runner, Runtime Adapter
 
@@ -320,6 +397,12 @@ _Avoid_: Brief revision, prompt, result
 **Attempt Payload**:
 The immutable serialized input reported as delivered for one Attempt.
 _Avoid_: Agent Package, live database query
+
+**Repair Notice**:
+A bounded structured explanation of one candidate's deterministic mismatch with
+its approved contract, supplied only to a manually authorized retry. It is
+derived execution evidence, not new project context or product intent.
+_Avoid_: Agent Input mutation, corrective requirement, raw candidate output
 
 **Attempt Result**:
 A structured submission binding one Artifact or Context Gap to the Attempt and
@@ -358,7 +441,7 @@ _Avoid_: Plan Decision, merge status
 
 **Candidate Revision**:
 An immutable assembly of a base Source Snapshot and one selected Artifact
-for each required File Brief.
+for each required Agent Brief.
 _Avoid_: Workspace, Plan Manifest, accepted revision
 
 **Evidence**:
@@ -382,7 +465,7 @@ _Avoid_: Attempt status, completion count
 **Corrective Compilation**:
 A new Plan Compiler cycle that uses attributable failure Evidence from a
 previous execution as declared input and proposes a replacement definition.
-_Avoid_: Same-input retry, hidden diagnostic injection
+_Avoid_: Same-input retry, Repair Notice, hidden diagnostic injection
 
 **Corrective Compilation Input**:
 An immutable binding from failed criteria, Verification Results, and Evidence
@@ -393,3 +476,25 @@ _Avoid_: Selected summary, active Change revision context
 The immutable history of reported Runs, Attempts, outputs, and verification
 governed by an unchanged approved definition.
 _Avoid_: Definition revision, mutable execution counter
+
+## Assurance
+
+**Assurance Case**:
+A maintained account of bounded Assurance Claims, their supporting Evidence,
+their Verification Results, and the limits on what SCORE may conclude.
+_Avoid_: Proof list, feature list, release checklist
+
+**Assurance Claim**:
+One falsifiable statement about SCORE, scoped to identified versions, inputs,
+environments, and Evidence.
+_Avoid_: Requirement, capability, universal guarantee
+
+**Assurance Envelope**:
+The complete set of Assurance Claims currently supported by identified Evidence
+without extrapolating beyond each claim's stated scope.
+_Avoid_: Roadmap, intended capability, product promise
+
+**Non-Claim**:
+An explicit boundary stating what identified Evidence or a Verification Result
+does not establish.
+_Avoid_: Disclaimer, hidden limitation, failed requirement

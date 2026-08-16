@@ -22,6 +22,7 @@ const CHANGE_HELP =
 const SCORE_USAGE =
   "Usage: score change --input -\n" +
   "       score change --schema\n" +
+  "       score inspect-module <path> [--export <name> [--closure]]\n" +
   "       score skill [score-authoring|how-to-score] [--path]\n" +
   "       score doctor [--json]\n" +
   `       score ${RUNNER_CLI_COMMANDS.join("|")} [options]\n`;
@@ -127,6 +128,44 @@ async function runChangeCommand(args: ReadonlyArray<string>): Promise<void> {
   if (result.status === "invalid") process.exitCode = 2;
 }
 
+async function runInspectModuleCommand(args: ReadonlyArray<string>): Promise<void> {
+  const valid =
+    args.length === 1 ||
+    (args.length === 3 && args[1] === "--export" && (args[2]?.length ?? 0) > 0) ||
+    (args.length === 4 &&
+      args[1] === "--export" &&
+      (args[2]?.length ?? 0) > 0 &&
+      args[3] === "--closure");
+  if (!valid) {
+    process.stderr.write(
+      "Usage: score inspect-module <path> [--export <name> [--closure]]\n"
+    );
+    process.exitCode = 64;
+    return;
+  }
+  if (args[3] === "--closure") {
+    const { inspectTypeScriptContractClosure } = await import(
+      "./typescript-contract-closure.js"
+    );
+    const result = inspectTypeScriptContractClosure({
+      projectRoot: process.cwd(),
+      path: args[0]!,
+      exportName: args[2]!
+    });
+    writeCompactJson(result);
+    if (result.status === "invalid") process.exitCode = 2;
+    return;
+  }
+  const { inspectTypeScriptModule } = await import("./typescript-module-inspection.js");
+  const result = inspectTypeScriptModule({
+    projectRoot: process.cwd(),
+    path: args[0]!,
+    ...(args[2] === undefined ? {} : { exportName: args[2] })
+  });
+  writeCompactJson(result);
+  if (result.status === "invalid") process.exitCode = 2;
+}
+
 async function runLegacyAlphaCommand(command: string): Promise<boolean> {
   const databasePath = join(process.cwd(), "output", "score.db");
   if (command === "reproduce") {
@@ -200,6 +239,10 @@ async function main(): Promise<void> {
   }
   if (command === "change") {
     await runChangeCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "inspect-module") {
+    await runInspectModuleCommand(process.argv.slice(3));
     return;
   }
   if (command === "skill") {

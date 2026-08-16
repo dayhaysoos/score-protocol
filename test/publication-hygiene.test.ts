@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const PRIVATE_CONTENT_PATTERNS = [
@@ -39,7 +39,7 @@ function repositoryFiles(): string[] {
   return result.stdout
     .toString("utf8")
     .split("\0")
-    .filter(Boolean);
+    .filter((path) => path.length > 0 && existsSync(path));
 }
 
 test("publishable repository contains no machine-local or runtime-private evidence", () => {

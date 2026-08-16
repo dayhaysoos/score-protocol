@@ -25,8 +25,18 @@ import {
 } from "effect";
 
 import { sha256Bytes } from "../canonical.js";
-import { sanitizeDiagnosticMessage as sanitizedMessage } from "./diagnostic-sanitization.js";
-import { JobId, type ClaimedJob, type TargetOutputState } from "./domain.js";
+import {
+  sanitizeDiagnosticMessage as sanitizedMessage,
+  sanitizeFailureEvidence
+} from "./diagnostic-sanitization.js";
+import {
+  JobId,
+  type ClaimedJob,
+  type FailureCategory,
+  type FailureEvidence,
+  type FailureEvidenceStatus,
+  type TargetOutputState
+} from "./domain.js";
 import {
   isolatedOpenCodeEnvironment,
   prepareOpenCodeIsolation
@@ -55,12 +65,26 @@ import {
   AdapterInvocationError,
   RuntimeAdapter,
   type AdapterCandidate,
-  type AdapterFailureCategory,
-  type AdapterTerminalOutcome,
   type RuntimeJobInvoke
 } from "./runtime-adapter.js";
 
-type SanitizedTerminalOutcome = AdapterTerminalOutcome;
+type AdapterFailureCategory =
+  | "runtime_startup"
+  | "provider"
+  | "tool"
+  | "timeout"
+  | "interruption"
+  | "missing_output"
+  | "workspace_integrity"
+  | "runtime_protocol"
+  | "runtime_cleanup";
+
+interface SanitizedTerminalOutcome {
+  readonly kind: "provider" | "tool" | "assistant" | "runtime" | "transport";
+  readonly name?: string;
+  readonly status?: FailureEvidenceStatus;
+  readonly statusCode?: number;
+}
 
 export interface OpenCodeGatewayInput {
   readonly jobId: JobId;
@@ -179,8 +203,37 @@ function optionalEvidence(evidence: TargetEvidence) {
   };
 }
 
-function optionalTerminalOutcome(terminalOutcome: SanitizedTerminalOutcome | undefined) {
-  return terminalOutcome === undefined ? {} : { terminalOutcome };
+function normalizedFailureCategory(category: AdapterFailureCategory): FailureCategory {
+  switch (category) {
+    case "provider":
+    case "tool":
+    case "timeout":
+    case "interruption":
+      return category;
+    case "missing_output":
+      return "missing output";
+    case "workspace_integrity":
+      return "workspace integrity";
+    case "runtime_startup":
+    case "runtime_protocol":
+    case "runtime_cleanup":
+      return "runtime";
+  }
+}
+
+function adapterFailureEvidence(
+  reason: string,
+  category: AdapterFailureCategory,
+  outcome?: SanitizedTerminalOutcome
+): FailureEvidence {
+  return sanitizeFailureEvidence({
+    category: normalizedFailureCategory(category),
+    stage: null,
+    name: outcome?.name ?? null,
+    status: outcome?.status ?? null,
+    statusCode: outcome?.statusCode ?? null,
+    reason
+  });
 }
 
 function boundaryError(
@@ -190,10 +243,12 @@ function boundaryError(
 ): AdapterBoundaryError {
   const inspection = cause instanceof WorkspaceInspectionFailure ? cause : undefined;
   const evidence = inspection?.evidence ?? { targetOutputState: "not observed" as const };
+  const message = sanitizedMessage(cause instanceof Error ? cause.message : String(cause));
+  const failureCategory = inspection?.failureCategory ?? "workspace_integrity";
   return new AdapterBoundaryError({
     jobId: job.jobId,
-    message: sanitizedMessage(cause instanceof Error ? cause.message : String(cause)),
-    failureCategory: inspection?.failureCategory ?? "workspace_integrity",
+    message,
+    failureEvidence: adapterFailureEvidence(message, failureCategory),
     ...(runtimeSessionId === undefined ? {} : { runtimeSessionId }),
     ...optionalEvidence(evidence)
   });
@@ -419,13 +474,14 @@ function admittedOpenCodeConfiguration(job: ClaimedJob) {
 }
 
 function unsupportedAdapterError(job: ClaimedJob): AdapterInvocationError {
+  const message =
+    job.adapter.kind !== "opencode"
+      ? "OpenCode runtime cannot execute a non-OpenCode job"
+      : "OpenCode job configuration does not match the pinned SDK and CLI versions";
   return new AdapterInvocationError({
     jobId: job.jobId,
-    message:
-      job.adapter.kind !== "opencode"
-        ? "OpenCode runtime cannot execute a non-OpenCode job"
-        : "OpenCode job configuration does not match the pinned SDK and CLI versions",
-    failureCategory: "runtime_startup",
+    message,
+    failureEvidence: adapterFailureEvidence(message, "runtime_startup"),
     targetOutputState: "not observed"
   });
 }
@@ -668,14 +724,16 @@ function invocationError(
 ): AdapterInvocationError {
   const classified = cause instanceof ClassifiedRuntimeFailure ? cause : undefined;
   const outcome = classified?.terminalOutcome ?? options.terminalOutcome;
+  const message = nestedErrorMessage(cause);
+  const failureCategory =
+    classified?.failureCategory ?? options.failureCategory ?? "runtime_startup";
   return new AdapterInvocationError({
     jobId: input.jobId,
-    message: nestedErrorMessage(cause),
-    failureCategory: classified?.failureCategory ?? options.failureCategory ?? "runtime_startup",
+    message,
+    failureEvidence: adapterFailureEvidence(message, failureCategory, outcome),
     ...(options.runtimeSessionId === undefined
       ? {}
       : { runtimeSessionId: options.runtimeSessionId }),
-    ...optionalTerminalOutcome(outcome),
     targetOutputState: "not observed"
   });
 }
@@ -689,9 +747,8 @@ function enrichInvocationError(
   return new AdapterInvocationError({
     jobId: error.jobId,
     message: sanitizedMessage(error.message),
-    failureCategory: error.failureCategory,
+    failureEvidence: error.failureEvidence,
     ...(runtimeSessionId === undefined ? {} : { runtimeSessionId }),
-    ...optionalTerminalOutcome(error.terminalOutcome),
     ...optionalEvidence(evidence)
   });
 }
@@ -726,18 +783,25 @@ function executionError(
       message:
         `OpenCode server process became unavailable during model execution ` +
         `(${processState}): ${detail}`,
-      failureCategory: "runtime_protocol",
+      failureEvidence: adapterFailureEvidence(
+        `OpenCode server process became unavailable during model execution ` +
+          `(${processState}): ${detail}`,
+        "runtime_protocol",
+        { kind: "transport", status: "error" }
+      ),
       runtimeSessionId,
-      terminalOutcome: { kind: "transport", status: "error" },
       targetOutputState: "not observed"
     });
   }
+  const message = sanitizedMessage(`OpenCode model execution request failed: ${detail}`);
   return new AdapterInvocationError({
     jobId: input.jobId,
-    message: sanitizedMessage(`OpenCode model execution request failed: ${detail}`),
-    failureCategory: "runtime_protocol",
+    message,
+    failureEvidence: adapterFailureEvidence(message, "runtime_protocol", {
+      kind: "runtime",
+      status: "error"
+    }),
     runtimeSessionId,
-    terminalOutcome: { kind: "runtime", status: "error" },
     targetOutputState: "not observed"
   });
 }
@@ -1003,7 +1067,10 @@ function resolveSharedServer(
             new AdapterInvocationError({
               jobId: input.jobId,
               message: sanitizedMessage(resolution.message),
-              failureCategory: "runtime_startup",
+              failureEvidence: adapterFailureEvidence(
+                sanitizedMessage(resolution.message),
+                "runtime_startup"
+              ),
               targetOutputState: "not observed"
             })
           )
@@ -1269,7 +1336,10 @@ const invokeV2Runtime = (
             new AdapterInvocationError({
               jobId: input.jobId,
               message: `OpenCode session startup deadline exceeded after ${options.startTimeoutMs ?? 10_000}ms`,
-              failureCategory: "runtime_startup",
+              failureEvidence: adapterFailureEvidence(
+                `OpenCode session startup deadline exceeded after ${options.startTimeoutMs ?? 10_000}ms`,
+                "runtime_startup"
+              ),
               targetOutputState: "not observed"
             })
           )
@@ -1287,9 +1357,12 @@ const invokeV2Runtime = (
               new AdapterInvocationError({
                 jobId: input.jobId,
                 message: `OpenCode model execution deadline exceeded after ${timeoutMs}ms`,
-                failureCategory: "timeout",
+                failureEvidence: adapterFailureEvidence(
+                  `OpenCode model execution deadline exceeded after ${timeoutMs}ms`,
+                  "timeout",
+                  { kind: "runtime", status: "aborted" }
+                ),
                 runtimeSessionId: resource.sessionId,
-                terminalOutcome: { kind: "runtime", status: "aborted" },
                 targetOutputState: "not observed"
               })
             );

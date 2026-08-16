@@ -1,6 +1,6 @@
 import { userInfo } from "node:os";
 
-import { confirm, search, select } from "@inquirer/prompts";
+import { checkbox, confirm, search, select } from "@inquirer/prompts";
 import { Effect, type Layer } from "effect";
 
 import { ScoreAlpha, type ReviewedChangePlan } from "../score-alpha.js";
@@ -15,11 +15,16 @@ import type {
   RuntimeModel,
   RuntimeModelVariant
 } from "./runtime-adapter-catalog.js";
-import type { AdapterConfiguration } from "./domain.js";
-import { formatApplicationSummary } from "./application-summary.js";
+import type { AdapterConfiguration, RunSnapshot } from "./domain.js";
+import {
+  formatApplicationSummary,
+  formatRunApplicationSummary
+} from "./application-summary.js";
 import {
   enqueueApprovedPlan,
+  inspectRun,
   prepareRepositoryForGuidedPlan,
+  retryFailedJobsAndApply,
   runPendingJobsAndApply,
   type RunObservationObserver
 } from "./runner.js";
@@ -36,6 +41,8 @@ import {
   type RunProgressTerminal
 } from "./run-progress-renderer.js";
 import { terminalSafeLine } from "./terminal-safe-line.js";
+import { formatFailedFile, formatRunStatus } from "./failure-presentation.js";
+import { classifyRunRetry } from "./retry-eligibility.js";
 
 export interface RunProgressDependencies {
   readonly now?: () => number;
@@ -154,6 +161,280 @@ export function formatGuidedApplicationSummary(
             120
           )
   });
+}
+
+export type ManualRetryDecision = "retry" | "stop";
+
+export class ManualRetryCancelled extends Error {
+  constructor(readonly retainedSuccessCount: number) {
+    super("Manual retry was cancelled.");
+    this.name = "ManualRetryCancelled";
+  }
+}
+
+export interface ManualRetryPrompts {
+  readonly selectDecision: (run: RunSnapshot) => Promise<ManualRetryDecision>;
+  readonly selectTargets?: (run: RunSnapshot) => Promise<ReadonlyArray<string>>;
+  readonly confirmRetry: (
+    run: RunSnapshot,
+    targetPaths: ReadonlyArray<string>
+  ) => Promise<boolean>;
+}
+
+export function formatRetryDecisionSummary(run: RunSnapshot): string {
+  const eligibility = classifyRunRetry(run);
+  const failedJobs =
+    eligibility.kind === "retryable" ? eligibility.failedJobs : [];
+  const failures = failedJobs.map((job) => {
+    const latestAttempt = [...(job.attempts ?? [])]
+      .reverse()
+      .find((attempt) => attempt.state === "failed");
+    const target = terminalField(job.targetPath, "[unprintable target]", 156);
+    const heading =
+      latestAttempt === undefined
+        ? `${target} failed`
+        : `${target} — Attempt ${latestAttempt.attemptNumber} failed`;
+    const file = run.observation.files.find(
+      (candidate) => candidate.jobId === job.jobId
+    );
+    const detail =
+      file === undefined
+        ? `${heading}\nFailure details are unavailable for this historical Attempt.`
+        : formatFailedFile(file, heading);
+    const timing =
+      latestAttempt === undefined
+        ? []
+        : [
+            `Attempt started: ${terminalField(latestAttempt.claimedAt, "Unavailable", 80)}`,
+            `Attempt completed: ${
+              latestAttempt.completedAt === null
+                ? "Unavailable"
+                : terminalField(latestAttempt.completedAt, "Unavailable", 80)
+            }`
+          ];
+    const runtimeSession =
+      file?.runtimeSessionId === null || file?.runtimeSessionId === undefined
+        ? []
+        : [
+            `Runtime session: ${terminalField(
+              file.runtimeSessionId,
+              "Unavailable",
+              120
+            )}`
+          ];
+    return [detail, ...timing, ...runtimeSession].join("\n");
+  });
+  const retained = eligibility.retainedSuccessCount;
+  const savedVerb = retained === 1 ? "is" : "are";
+  return (
+    `\nLatest failed ${failures.length === 1 ? "Attempt" : "Attempts"}\n\n` +
+    `${failures.join("\n\n") || "Failure details are unavailable."}\n\n` +
+    `${retained} of ${run.jobs.length} candidates ${savedVerb} saved. Nothing was applied.\n`
+  );
+}
+
+export function manualRetryDecisionChoices(run: RunSnapshot): ReadonlyArray<{
+  readonly name: string;
+  readonly value: ManualRetryDecision;
+  readonly description?: string;
+}> {
+  const eligibility = classifyRunRetry(run);
+  const retained = eligibility.retainedSuccessCount;
+  const failedCount =
+    eligibility.kind === "retryable" ? eligibility.failedJobs.length : 0;
+  const retryChoice =
+    eligibility.kind !== "retryable"
+      ? []
+      : [
+          {
+            name:
+              failedCount === 1
+                ? `Retry ${terminalField(
+                    eligibility.failedJobs[0]!.targetPath,
+                    "the failed Agent",
+                    100
+                  )} again`
+                : `Retry ${failedCount} failed Agents again`,
+            value: "retry" as const,
+            description: `${failedCount} new paid Agent ${
+              failedCount === 1 ? "invocation" : "invocations"
+            }`
+          }
+        ];
+  return [
+    ...retryChoice,
+    {
+      name: `Stop and keep ${retained} saved ${
+        retained === 1 ? "candidate" : "candidates"
+      }`,
+      value: "stop" as const
+    }
+  ];
+}
+
+export function formatRetryPreview(
+  run: RunSnapshot,
+  targetPaths?: ReadonlyArray<string>
+): string {
+  const eligibility = classifyRunRetry(run);
+  const retained = eligibility.retainedSuccessCount;
+  const selected = new Set(
+    targetPaths ??
+      (eligibility.kind === "retryable" && eligibility.failedJobs.length === 1
+        ? [eligibility.failedJobs[0]!.targetPath]
+        : [])
+  );
+  const allFailedJobs =
+    eligibility.kind === "retryable"
+      ? eligibility.failedJobs
+      : [];
+  const failedJobs = allFailedJobs.filter((job) => selected.has(job.targetPath));
+  const remainingFailedJobs = allFailedJobs.filter(
+    (job) => !selected.has(job.targetPath)
+  );
+  const failedFiles = run.observation.files.filter((file) => file.stage === "failed");
+  const candidateNoun = retained === 1 ? "candidate is" : "candidates are";
+  const runtime = `${terminalField(run.adapter.providerId, "[unprintable provider]", 80)}/${terminalField(
+    run.adapter.modelId,
+    "[unprintable model]",
+    80
+  )}${
+    run.adapter.variantId === null
+      ? " · adapter default"
+      : ` · ${terminalField(run.adapter.variantId, "[unprintable variant]", 80)}`
+  }`;
+  const targets =
+    failedJobs.length === 0
+      ? "  • None"
+      : failedJobs
+          .map(
+            (job) =>
+              `  • ${terminalField(job.targetPath, "[unprintable target]", 156)}`
+          )
+          .join("\n");
+  const remainingTargets =
+    remainingFailedJobs.length === 0
+      ? "  • None"
+      : remainingFailedJobs
+          .map(
+            (job) =>
+              `  • ${terminalField(job.targetPath, "[unprintable target]", 156)}`
+          )
+          .join("\n");
+  const evidence =
+    failedFiles.length === 0
+      ? "Failure details are unavailable for this historical Run."
+      : failedFiles.map((file) => formatFailedFile(file)).join("\n\n");
+  return (
+    `\nRetry failed ${failedJobs.length === 1 ? "Agent" : "Agents"}\n\n` +
+    `The other ${retained} ${candidateNoun} saved.\n` +
+    `Frozen runtime: ${runtime}\n` +
+    `New paid Agent invocations: ${failedJobs.length}\n\n` +
+    `Selected retry targets\n${targets}\n\n` +
+    `Other failed targets not retried now\n${remainingTargets}\n\n` +
+    `${evidence}\n\n` +
+    (remainingFailedJobs.length === 0
+      ? `Nothing is applied unless all ${run.jobs.length} candidates are present and valid.\n`
+      : `Even if this retry succeeds, nothing can be applied while ${remainingFailedJobs.length} other ${remainingFailedJobs.length === 1 ? "Job remains" : "Jobs remain"} failed.\n`)
+  );
+}
+
+export async function runManualRetryFlow(input: {
+  readonly initialRun: RunSnapshot;
+  readonly prompts: ManualRetryPrompts;
+  readonly executeRetry: (
+    run: RunSnapshot,
+    targetPaths: ReadonlyArray<string>
+  ) => Promise<RunSnapshot>;
+  readonly write?: (value: string) => void;
+  readonly initialDecision?: ManualRetryDecision;
+}): Promise<RunSnapshot> {
+  const write = input.write ?? ((value: string) => process.stdout.write(value));
+  let current = input.initialRun;
+  let initialDecision = input.initialDecision;
+  const prompt = async <A>(operation: () => Promise<A>): Promise<A> => {
+    try {
+      return await operation();
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "ExitPromptError") {
+        throw new ManualRetryCancelled(
+          classifyRunRetry(current).retainedSuccessCount
+        );
+      }
+      throw cause;
+    }
+  };
+  while (current.state === "completed_with_failures") {
+    let decision = initialDecision;
+    if (decision === undefined) {
+      write(formatRetryDecisionSummary(current));
+      decision = await prompt(() => input.prompts.selectDecision(current));
+    }
+    initialDecision = undefined;
+    if (decision === "stop") {
+      const retained = classifyRunRetry(current).retainedSuccessCount;
+      write(
+        `\nStopped. ${retained} saved ${retained === 1 ? "candidate remains" : "candidates remain"} available; nothing was retried or applied.\n`
+      );
+      return current;
+    }
+    const eligibility = classifyRunRetry(current);
+    if (eligibility.kind !== "retryable") return current;
+    const targetPaths =
+      eligibility.failedJobs.length === 1
+        ? [eligibility.failedJobs[0]!.targetPath]
+        : input.prompts.selectTargets === undefined
+          ? []
+          : await prompt(() => input.prompts.selectTargets!(current));
+    if (targetPaths.length === 0) {
+      write("\nNothing was selected. The saved candidates remain available.\n");
+      return current;
+    }
+    write(formatRetryPreview(current, targetPaths));
+    if (!(await prompt(() => input.prompts.confirmRetry(current, targetPaths)))) {
+      const retained = classifyRunRetry(current).retainedSuccessCount;
+      write(
+        `\nNothing was retried. The saved ${retained === 1 ? "candidate remains" : "candidates remain"} available.\n`
+      );
+      return current;
+    }
+    current = await input.executeRetry(current, targetPaths);
+    if (current.state !== "completed_with_failures") {
+      write(formatRunApplicationSummary(current));
+    }
+  }
+  return current;
+}
+
+export function createInquirerManualRetryPrompts(): ManualRetryPrompts {
+  return {
+    selectDecision: (run) =>
+      select({
+        message: "Retry again or stop?",
+        choices: manualRetryDecisionChoices(run)
+      }),
+    selectTargets: (run) => {
+      const eligibility = classifyRunRetry(run);
+      if (eligibility.kind !== "retryable") return Promise.resolve([]);
+      return checkbox({
+        message: "Which failed Agents do you want to retry?",
+        required: true,
+        choices: eligibility.failedJobs.map((job) => ({
+          name: terminalField(job.targetPath, "[unprintable target]", 156),
+          value: job.targetPath
+        }))
+      });
+    },
+    confirmRetry: (_run, targetPaths) => {
+      const failedCount = targetPaths.length;
+      return confirm({
+        message:
+          `Retry ${failedCount === 1 ? "this failed Agent" : `${failedCount} failed Agents`} ` +
+          `with the frozen runtime? This makes ${failedCount} new paid Agent ${failedCount === 1 ? "invocation" : "invocations"}.`,
+        default: false
+      });
+    }
+  };
 }
 
 function repositoryDifferenceLabel(finding: RepositoryDriftFinding): string {
@@ -394,13 +675,9 @@ export function makeGuidedStartBackend(input: {
             }).pipe(Effect.provide(input.runtimeLayer))
           )
       });
-      process.stdout.write(
-        formatGuidedApplicationSummary({
-          applicationState: completed.applicationState,
-          candidateCount: completed.jobs.length,
-          repositoryRoot: completed.repositoryRoot
-        })
-      );
+      if (completed.state !== "completed_with_failures") {
+        process.stdout.write(formatRunApplicationSummary(completed));
+      }
       return {
         runId: enqueued.runId,
         state: completed.state
@@ -420,12 +697,41 @@ export async function runGuidedOpenCodeStart(input: {
   readonly progress?: RunProgressDependencies;
   readonly concurrency: number;
   readonly variantOverride?: string;
+  readonly prompts?: GuidedStartPrompts;
+  readonly retryPrompts?: ManualRetryPrompts;
 }): Promise<GuidedStartResult> {
-  return runGuidedStart({
+  const result = await runGuidedStart({
     backend: makeGuidedStartBackend(input),
-    prompts: createInquirerGuidedPrompts(),
+    prompts: input.prompts ?? createInquirerGuidedPrompts(),
     adapterCatalog: input.adapterCatalog,
     concurrency: input.concurrency,
     ...(input.variantOverride === undefined ? {} : { variantOverride: input.variantOverride })
   });
+  if (result.state !== "completed_with_failures") return result;
+  const initialRun = await Effect.runPromise(
+    inspectRun(input.runnerDatabasePath, result.runId)
+  );
+  const finalRun = await runManualRetryFlow({
+    initialRun,
+    prompts: input.retryPrompts ?? createInquirerManualRetryPrompts(),
+    executeRetry: (run, targetPaths) =>
+      runWithRunProgress({
+        header: {
+          modelLabel: run.adapter.modelId,
+          providerLabel: run.adapter.providerId,
+          ...(run.adapter.variantId === null
+            ? {}
+            : { variantLabel: run.adapter.variantId })
+        },
+        ...(input.progress === undefined ? {} : { progress: input.progress }),
+        execute: (observer) =>
+          (input.runEffect ?? Effect.runPromise)(
+            retryFailedJobsAndApply(input.runnerDatabasePath, run.runId, {
+              targetPaths,
+              observer
+            }).pipe(Effect.provide(input.runtimeLayer))
+          )
+      })
+  });
+  return { runId: finalRun.runId, state: finalRun.state };
 }

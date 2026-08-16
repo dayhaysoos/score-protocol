@@ -4,6 +4,7 @@ export const RUNNER_CLI_COMMANDS = [
   "enqueue",
   "start",
   "work",
+  "retry",
   "recover",
   "status",
   "export-candidates",
@@ -30,8 +31,9 @@ export const RUNNER_CLI_HELP: Readonly<Record<RunnerCliCommand, string>> = {
     "Usage: score start [--repo <path>] [--concurrency <n>]\n" +
     "       score start --pass <id> --provider <id> --model <id> [--variant <id>] [--repo <path>] [--concurrency <n>]\n",
   work: "Usage: score work --run <id>\n",
+  retry: "Usage: score retry --run <id>\n",
   recover: "Usage: score recover --run <id>\n",
-  status: "Usage: score status [--run <id>]\n",
+  status: "Usage: score status [--run <id>] [--json]\n",
   "export-candidates": "Usage: score export-candidates --run <id> --destination <path>\n",
   counts: "Usage: score counts [--runner-db <path>]\n"
 };

@@ -1,0 +1,58 @@
+{
+  "slice_id": "declaration-shape-normalizer-experiment",
+  "title": "Test one declaration normalizer",
+  "objective": "Test whether one isolated Agent can deepen the existing declaration normalizer to support bounded exported type aliases while preserving every accepted function result.",
+  "requirements": [
+    "The module exports one pure function that accepts one TypeScript declaration string, uses the pinned OXC parser entirely in memory, and performs no filesystem, environment, project, package, command, preparation, Runner, or candidate work.",
+    "The function preserves its accepted ordinary-function behavior and also accepts exactly one named exported nongeneric type alias whose annotation is a primitive, one unqualified named reference without type arguments, or a flat ordered union of those leaves.",
+    "A supported declaration returns the exact normalized function or type-alias shape in stable field order, and differently formatted declarations with the same interface produce byte-identical JSON output.",
+    "Invalid TypeScript syntax, unsupported declaration shapes or type forms, and missing explicit function parameter or return types return the exact typed finding and message defined by the Agent Brief."
+  ],
+  "files": [
+    {
+      "path": "src/declaration-shape.ts",
+      "operation": "modify",
+      "task": "Deepen the existing declaration normalizer through its one public function. Preserve every accepted function result and add exact deterministic shapes for the reviewed primitive, named-reference, and flat-union type aliases. Do not add another public function or expand into interfaces, closure, routing, provenance, digests, preparation, Runner integration, or candidate verification.",
+      "requirements": [
+        "The module exports one pure function that accepts one TypeScript declaration string, uses the pinned OXC parser entirely in memory, and performs no filesystem, environment, project, package, command, preparation, Runner, or candidate work.",
+        "The function preserves its accepted ordinary-function behavior and also accepts exactly one named exported nongeneric type alias whose annotation is a primitive, one unqualified named reference without type arguments, or a flat ordered union of those leaves.",
+        "A supported declaration returns the exact normalized function or type-alias shape in stable field order, and differently formatted declarations with the same interface produce byte-identical JSON output.",
+        "Invalid TypeScript syntax, unsupported declaration shapes or type forms, and missing explicit function parameter or return types return the exact typed finding and message defined by the Agent Brief."
+      ],
+      "owns": [
+        {
+          "name": "normalizeDeclarationShape",
+          "declaration": "export function normalizeDeclarationShape(declaration: string): { readonly status: \"ok\"; readonly shape: { readonly kind: \"function\"; readonly name: string; readonly async: false; readonly generator: false; readonly typeParameters: readonly []; readonly params: ReadonlyArray<{ readonly name: string; readonly optional: boolean; readonly rest: boolean; readonly typeAnnotation: \"string\" | \"number\" | \"boolean\" | \"void\" }>; readonly returnType: \"string\" | \"number\" | \"boolean\" | \"void\" } | { readonly kind: \"type\"; readonly name: string; readonly typeParameters: readonly []; readonly typeAnnotation: { readonly kind: \"primitive\"; readonly name: \"string\" | \"number\" | \"boolean\" | \"void\" } | { readonly kind: \"reference\"; readonly name: string } | { readonly kind: \"union\"; readonly types: ReadonlyArray<{ readonly kind: \"primitive\"; readonly name: \"string\" | \"number\" | \"boolean\" | \"void\" } | { readonly kind: \"reference\"; readonly name: string }> } } } | { readonly status: \"invalid\"; readonly finding: { readonly code: \"DECLARATION_SYNTAX_INVALID\" | \"DECLARATION_SHAPE_UNSUPPORTED\" | \"DECLARATION_CONTRACT_INCOMPLETE\"; readonly message: string } };",
+          "description": "Parses one declaration string and returns one deterministic, body-free shape for the supported exported function or type alias, or one precise typed finding."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/typescript-module-inspection.ts",
+          "purpose": "Show the exact pinned OXC parseSync call and the repository's defensive AST-record handling. Reuse only the small parsing patterns needed for one in-memory string; do not copy file inspection, closure, import, or export-discovery behavior."
+        },
+        {
+          "path": "package.json",
+          "purpose": "Confirm the pinned oxc-parser version and the repository's ESM TypeScript conventions."
+        },
+        {
+          "path": "tsconfig.json",
+          "purpose": "Confirm the strict NodeNext TypeScript settings the new module must compile under."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Import parseSync directly from `oxc-parser` and parse the supplied string as a TypeScript module. Treat any parser error diagnostic as `{ status: \"invalid\", finding: { code: \"DECLARATION_SYNTAX_INVALID\", message: \"The declaration is not valid TypeScript syntax.\" } }` before inspecting its shape.",
+        "After syntax succeeds, require a Program body containing exactly one ExportNamedDeclaration with no source and no export specifiers. Its declaration must be one named FunctionDeclaration already supported by revision 2 or one named TSTypeAliasDeclaration supported by this revision. Reject every other declaration or export form as `{ status: \"invalid\", finding: { code: \"DECLARATION_SHAPE_UNSUPPORTED\", message: \"Expected exactly one supported exported declaration.\" } }`.",
+        "If the accepted function shape has any parameter without an explicit type annotation or has no explicit return type, return `{ status: \"invalid\", finding: { code: \"DECLARATION_CONTRACT_INCOMPLETE\", message: \"Every parameter and the return value must have an explicit supported type.\" } }`. Apply this after the general function-shape check but before normalizing annotations.",
+        "Preserve the accepted function rules exactly: reject overload sets, async functions, generators, type parameters, destructured parameters, parameter initializers, and non-primitive annotations; require explicit parameter and return annotations; read a rest annotation from `RestElement.typeAnnotation`; and preserve identifier names, optional flags, rest flags, and source order.",
+        "For a TSTypeAliasDeclaration, require an Identifier name and no type parameters. Accept a direct TSStringKeyword, TSNumberKeyword, TSBooleanKeyword, or TSVoidKeyword as `{ kind: \"primitive\", name }`. Accept a direct TSTypeReference only when its typeName is an Identifier and its typeArguments are null, producing `{ kind: \"reference\", name }`. Accept a TSUnionType only when every ordered member is one of those primitive or reference leaves, producing `{ kind: \"union\", types }`. Reject generic aliases, qualified references, reference type arguments, intersections, literals, parenthesized or nested unsupported forms, and every other annotation with DECLARATION_SHAPE_UNSUPPORTED and the exact supported-declaration message.",
+        "Return success fields in exactly this insertion order: status, shape. A function shape uses kind, name, async, generator, typeParameters, params, returnType; each parameter uses name, optional, rest, typeAnnotation. A type shape uses kind, name, typeParameters, typeAnnotation. A primitive or reference leaf uses kind, name. A union uses kind, types and preserves source order. Use new empty arrays for typeParameters.",
+        "Do not return AST nodes, source offsets, comments, implementation statements, diagnostics, thrown parser errors, or mutable parser-owned objects. Do not read or write files, inspect the repository, load configuration or environment variables, spawn commands, or import any SCORE module.",
+        "Export only `normalizeDeclarationShape`; keep all helper types and functions private so `inspect-module --export normalizeDeclarationShape --closure` can close the complete public contract without unresolved private declaration names.",
+        "Make no unrelated cleanup or refactor. Preserve the existing successful function results and exact typed findings for ordinary parameters, optional and rest parameters, formatting differences, incomplete contracts, and invalid syntax. The only intentional existing diagnostic change is the unsupported-shape message, which becomes `Expected exactly one supported exported declaration.` for both unsupported function and type-alias forms."
+      ]
+    }
+  ]
+}

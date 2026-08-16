@@ -87,6 +87,14 @@ export const JobState = Schema.Literals([
 ]);
 export type JobState = typeof JobState.Type;
 
+export const AttemptState = Schema.Literals([
+  "running",
+  "succeeded",
+  "failed",
+  "needs_attention"
+]);
+export type AttemptState = typeof AttemptState.Type;
+
 export const RunObservationPhase = Schema.Literals([
   "generating candidates",
   "checking current target state",
@@ -152,6 +160,31 @@ export const FailureCategory = Schema.Literals([
 ]);
 export type FailureCategory = typeof FailureCategory.Type;
 
+export const FailureEvidenceStatus = Schema.Literals([
+  "completed",
+  "error",
+  "running",
+  "streaming",
+  "unknown",
+  "aborted"
+]);
+export type FailureEvidenceStatus = typeof FailureEvidenceStatus.Type;
+
+/**
+ * Adapter-neutral, bounded evidence explaining one failed File Job.
+ * Runtime adapters populate every field they can know and use null for the rest;
+ * RunnerStore adds the observed Runner stage before durable persistence.
+ */
+export const FailureEvidence = Schema.Struct({
+  category: FailureCategory,
+  stage: Schema.NullOr(FailureObservationStage),
+  name: Schema.NullOr(Schema.String),
+  status: Schema.NullOr(FailureEvidenceStatus),
+  statusCode: Schema.NullOr(Schema.Number),
+  reason: Schema.NullOr(Schema.String)
+});
+export type FailureEvidence = typeof FailureEvidence.Type;
+
 export const TerminalOutcomeKind = Schema.Literals([
   "provider",
   "tool",
@@ -202,7 +235,8 @@ export const RunFileObservation = Schema.Struct({
   terminalOutcome: Schema.NullOr(SanitizedTerminalOutcome),
   targetOutputState: TargetOutputState,
   rejectedOutputDigest: Schema.NullOr(Schema.String),
-  rejectedOutputPath: Schema.NullOr(Schema.String)
+  rejectedOutputPath: Schema.NullOr(Schema.String),
+  failureEvidence: Schema.optionalKey(FailureEvidence)
 });
 export type RunFileObservation = typeof RunFileObservation.Type;
 
@@ -249,13 +283,25 @@ export const RunObservation = Schema.Struct({
 });
 export type RunObservation = typeof RunObservation.Type;
 
+export const RunAttemptSummary = Schema.Struct({
+  attemptId: AttemptId,
+  attemptNumber: Schema.Number,
+  state: AttemptState,
+  claimedAt: Schema.String,
+  completedAt: Schema.NullOr(Schema.String),
+  candidateDigest: Schema.NullOr(Schema.String),
+  failureEvidence: Schema.NullOr(FailureEvidence)
+});
+export type RunAttemptSummary = typeof RunAttemptSummary.Type;
+
 export const RunJobSummary = Schema.Struct({
   jobId: JobId,
   ordinal: Schema.Number,
   targetPath: Schema.String,
   operation: FileOperation,
   state: JobState,
-  packageDigest: Schema.String
+  packageDigest: Schema.String,
+  attempts: Schema.optionalKey(Schema.Array(RunAttemptSummary))
 });
 export type RunJobSummary = typeof RunJobSummary.Type;
 

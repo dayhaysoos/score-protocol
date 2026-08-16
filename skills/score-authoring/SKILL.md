@@ -1,6 +1,6 @@
 ---
 name: score-authoring
-version: 0.6.0
+version: 0.9.1
 description: Author and prepare small reviewed Changes or durable Slices when the person says "use SCORE". Inspect the exact project, declare complete File Brief scope, and stop before approval or execution.
 ---
 
@@ -30,6 +30,75 @@ Revising the semantic input or frozen source of the same logical Change creates
 an immutable superseding revision. It never rewrites a prior review, approval,
 or execution history. Submitting the same complete document against the same
 source reuses its existing revision and review artifacts.
+
+## Write for the person reviewing
+
+Before submitting a Change or Slice, run a plain-language pass over every title,
+objective, requirement, Agent Brief purpose, declaration description, context
+purpose, skill, and constraint. Write like one developer explaining the work to
+another:
+
+- Say what will change and why it matters.
+- Use short, direct sentences and familiar words.
+- Replace internal architecture jargon when ordinary words mean the same thing.
+- Define a necessary technical term the first time it appears.
+- Keep exact paths, code declarations, signatures, imports, field names, IDs,
+  version values, and required error codes unchanged.
+- Do not ask the HTML renderer to simplify or rewrite the text. SCORE must freeze
+  the reviewed wording and render it exactly.
+
+The pass is complete only when a reviewer can understand the Change or Slice
+goal, every requirement, and every Agent Brief purpose without knowing SCORE's
+internal implementation vocabulary.
+
+## Discover existing declarations
+
+Before drafting, determine whether each declaration the work depends on already
+exists in the current source. If it exists at a TypeScript module seam, inspect
+it. If it does not exist because its owner is a `create` target or the project is
+new, do not run `inspect-module` against the missing path; author the declaration
+from the accepted product meaning instead. For mixed work, inspect only the
+existing declarations and author the new declarations.
+
+Use `score inspect-module <path>` as a read-only authoring aid when a Change or
+Slice crosses an existing TypeScript module seam. Discovery mode reports the
+module's current imports and exports without returning implementation bodies.
+When one export is relevant, run
+`score inspect-module <path> --export <name>` to get its exact supported
+declaration, the referenced names and their observed routing, and a
+`sliceDraftContext` seed.
+
+Treat this as evidence about current source, not product intent. The command
+does not edit a Change or Slice, decide that a declaration should exist, or
+write what it means. Copy the seed intentionally only after deciding the owner
+and consumer. Supply the declaration description and consumer path yourself.
+
+Inspect each referenced declaration the future File Agent needs. A local export
+can be selected with another `--export` call; an imported reference names the
+observed module specifier. Resolve that specifier to its actual project-relative
+TypeScript file before the next `inspect-module` call. Do not paste a raw AST or
+unrelated declarations into Agent Input. New declarations absent from source
+must still be authored from the accepted product meaning.
+
+For the complete existing contract, run
+`score inspect-module <path> --export <name> --closure`. Closure mode recursively
+follows local exports and relative TypeScript module references. It returns the
+root declaration followed by the exact supporting declarations needed by that
+signature. Cycles are included once in stable traversal order.
+
+Closure resolution does not read `tsconfig.json` or `package.json`, guess path
+aliases, or resolve package dependencies. A missing module, ambiguous source
+candidate, bare package specifier, unsupported declaration, or unprovable route
+must fail without a context seed. The command is still read-only and does not
+write a Change or Slice. The author must supply every declaration description,
+consumer path, exact import and usage, and caller-observable behavior before
+placing selected facts into reviewed input.
+
+Discovery is complete only when every declaration the work depends on is either
+confirmed from existing source with closure inspection or explicitly authored
+as a new declaration from the accepted product meaning. When inspection exposes
+a wrong source assumption, correct the draft before preparation; ask the person
+before changing product meaning or expanding scope.
 
 ## Author a Change
 
@@ -94,14 +163,14 @@ source reuses its existing revision and review artifacts.
      caller may rely on, not the owner's implementation algorithm.
    - Freeze each consumer connection literally in its file task, requirements,
      or constraints: the exact import statement, followed by the exact function
-     arguments or JSX prop names used at the call site. SCORE does not parse
-     declarations or infer module paths, binding forms, supporting types, or
-     call-site behavior. If a declaration references another declaration owned
-     in the same slice, list that supporting declaration as another explicit
-     `consumes` entry even when the generated file will not import its name
-     directly. Otherwise include the required supporting declaration text in
-     the file's prompt context explicitly. Do not leave an unresolved type name
-     or shorthand like "use Foo" as the only guidance.
+     arguments or JSX prop names used at the call site. SCORE plan preparation
+     does not parse declarations or infer module paths, binding forms,
+     supporting types, or call-site behavior. If a declaration references another
+     declaration owned in the same slice, list that supporting declaration as
+     another explicit `consumes` entry even when the generated file will not
+     import its name directly. Otherwise include the required supporting
+declaration text in the file's prompt context explicitly. Do not leave an
+unresolved type name or shorthand like "use Foo" as the only guidance.
    - Give each user-visible empty, loading, error, or success state one
      rendering owner. When other files supply its data, name that boundary
      instead of asking multiple files to render the same state.
@@ -145,8 +214,8 @@ source reuses its existing revision and review artifacts.
 Do not approve the review, start a Runner, launch an executor, create candidates,
 or edit source files during preparation. Do not author SCORE storage records or
 internal protocol graphs. Deterministic SCORE derives and stores those behind
-the preparation tool. SCORE does not parse or type-check declaration text or
-generated source, and it does not run project checks. Typechecking, builds,
+the preparation tool. Preparation does not parse or type-check declaration text
+or generated source, and it does not run project checks. Typechecking, builds,
 tests, and linting remain post-application work in the real project.
 
 Completion means every currently unblocked draft passed the cross-file seam

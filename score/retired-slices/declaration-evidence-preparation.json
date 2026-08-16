@@ -1,0 +1,273 @@
+{
+  "slice_id": "declaration-evidence-preparation",
+  "after": [
+    "execution-flow-contracts"
+  ],
+  "title": "Freeze declaration evidence during preparation",
+  "objective": "Prepare deterministic declaration evidence once at the shared Change and Slice seam so every Agent Brief receives complete, approved interface context before execution.",
+  "requirements": [
+    "One shared declaration-evidence module accepts a Slice Draft plus controlled frozen-source and dependency lookups, parses only relevant TypeScript declarations in memory with the pinned OXC parser, and returns either complete evidence or typed findings without partial output.",
+    "For a declaration that already exists in a frozen modify target, evidence contains its deterministic bounded transitive closure of exported and local supporting project declarations, with stable ordering, provenance, normalized shapes, and digests; cycles appear once and terminate.",
+    "For a declaration that is new or belongs to an absent create target, evidence is normalized from the authoritative authored Documented Declaration without inspecting a missing file; mixed work combines inspected existing evidence and authored new evidence in one result.",
+    "Every relevant reference has one deterministic route to a same-file declaration, project file, TypeScript global, Node platform module, or version-bound external package leaf. Missing, ambiguous, unsupported, incomplete, or over-limit relevant declarations return precise typed preparation findings before review, while unrelated syntax is not parsed or rejected.",
+    "Each prepared Agent Brief receives only the declaration evidence needed for declarations it owns or consumes. Each evidence item is immutable, bound to its frozen sources and authored declaration digests, and included in the prepared revision and preparation digest without changing Documented Declaration authority.",
+    "The shared prepareValidatedSliceDraft path supplies the same evidence behavior to Changes and Slices, supports an empty greenfield project, and performs no TypeScript project construction, repository copy, environment loading, dependency installation, project command execution, candidate verification, Runner work, or source-file writes.",
+    "Focused tests cover existing, greenfield, and mixed preparation; cyclic support; exact missing, ambiguous, unsupported, incomplete, and bounded findings; relevant-only failure; byte-identical repeated evidence and digests; Change and Slice routing; and unchanged source bytes."
+  ],
+  "files": [
+    {
+      "path": "src/declaration-evidence.ts",
+      "operation": "create",
+      "task": "Create the small production declaration-evidence module. Parse frozen strings with OXC, normalize only declaration structure, build deterministic bounded closures, and discard ASTs before returning. Treat authored declarations as authority and inspected source as evidence. Resolve source and dependency facts only through the supplied lookups, return no partial bundle on a finding, and do not import or copy the experimental prototype.",
+      "requirements": [
+        "One shared declaration-evidence module accepts a Slice Draft plus controlled frozen-source and dependency lookups, parses only relevant TypeScript declarations in memory with the pinned OXC parser, and returns either complete evidence or typed findings without partial output.",
+        "For a declaration that already exists in a frozen modify target, evidence contains its deterministic bounded transitive closure of exported and local supporting project declarations, with stable ordering, provenance, normalized shapes, and digests; cycles appear once and terminate.",
+        "For a declaration that is new or belongs to an absent create target, evidence is normalized from the authoritative authored Documented Declaration without inspecting a missing file; mixed work combines inspected existing evidence and authored new evidence in one result.",
+        "Every relevant reference has one deterministic route to a same-file declaration, project file, TypeScript global, Node platform module, or version-bound external package leaf. Missing, ambiguous, unsupported, incomplete, or over-limit relevant declarations return precise typed preparation findings before review, while unrelated syntax is not parsed or rejected.",
+        "The shared prepareValidatedSliceDraft path supplies the same evidence behavior to Changes and Slices, supports an empty greenfield project, and performs no TypeScript project construction, repository copy, environment loading, dependency installation, project command execution, candidate verification, Runner work, or source-file writes."
+      ],
+      "owns": [
+        {
+          "name": "DeclarationEvidenceSource",
+          "declaration": "export interface DeclarationEvidenceSource { readonly path: string; readonly mediaType: string; readonly content: string; readonly contentDigest: string; }",
+          "description": "One exact UTF-8 project file already captured for in-memory declaration inspection."
+        },
+        {
+          "name": "DeclarationEvidenceSourceLookup",
+          "declaration": "export type DeclarationEvidenceSourceLookup = (path: string) => { readonly status: \"found\"; readonly source: DeclarationEvidenceSource } | { readonly status: \"missing\" } | { readonly status: \"invalid\"; readonly finding: SliceFinding };",
+          "description": "The controlled preparation callback that returns frozen source bytes, absence, or one safe typed file finding without exposing ambient repository access to the parser."
+        },
+        {
+          "name": "DeclarationEvidenceDependency",
+          "declaration": "export interface DeclarationEvidenceDependency { readonly packageName: string; readonly version: string; readonly lockSource: DeclarationEvidenceSource; }",
+          "description": "One external package version proven by a frozen dependency-lock file that becomes part of the prepared source revision."
+        },
+        {
+          "name": "DeclarationEvidenceDependencyLookup",
+          "declaration": "export type DeclarationEvidenceDependencyLookup = (packageName: string) => { readonly status: \"found\"; readonly dependency: DeclarationEvidenceDependency } | { readonly status: \"missing\" } | { readonly status: \"invalid\"; readonly finding: SliceFinding };",
+          "description": "The controlled callback used only when a relevant declaration refers to an external package."
+        },
+        {
+          "name": "DECLARATION_EVIDENCE_LIMITS",
+          "declaration": "export const DECLARATION_EVIDENCE_LIMITS: { readonly maxSourceFiles: 256; readonly maxSingleSourceBytes: 524288; readonly maxTotalSourceBytes: 2097152; readonly maxDeclarations: 64; readonly maxDeclarationBytes: 262144 } = { maxSourceFiles: 256, maxSingleSourceBytes: 524288, maxTotalSourceBytes: 2097152, maxDeclarations: 64, maxDeclarationBytes: 262144 };",
+          "description": "The exact preparation limits for frozen source files and declaration closures."
+        },
+        {
+          "name": "DECLARATION_EVIDENCE_FINDING_CODES",
+          "declaration": "export const DECLARATION_EVIDENCE_FINDING_CODES: readonly [\"DECLARATION_SOURCE_MISSING\", \"DECLARATION_SOURCE_AMBIGUOUS\", \"DECLARATION_NOT_FOUND\", \"DECLARATION_AMBIGUOUS\", \"DECLARATION_SYNTAX_UNSUPPORTED\", \"DECLARATION_CONTRACT_INCOMPLETE\", \"DECLARATION_REFERENCE_UNRESOLVED\", \"DECLARATION_DEPENDENCY_EVIDENCE_MISSING\", \"DECLARATION_DEPENDENCY_EVIDENCE_INVALID\", \"DECLARATION_EVIDENCE_LIMIT_EXCEEDED\"] = [\"DECLARATION_SOURCE_MISSING\", \"DECLARATION_SOURCE_AMBIGUOUS\", \"DECLARATION_NOT_FOUND\", \"DECLARATION_AMBIGUOUS\", \"DECLARATION_SYNTAX_UNSUPPORTED\", \"DECLARATION_CONTRACT_INCOMPLETE\", \"DECLARATION_REFERENCE_UNRESOLVED\", \"DECLARATION_DEPENDENCY_EVIDENCE_MISSING\", \"DECLARATION_DEPENDENCY_EVIDENCE_INVALID\", \"DECLARATION_EVIDENCE_LIMIT_EXCEEDED\"];",
+          "description": "The complete stable code set for declaration-evidence preparation findings."
+        },
+        {
+          "name": "DeclarationEvidenceBundle",
+          "declaration": "export interface DeclarationEvidenceBundle { readonly schema: \"score.declaration-evidence\"; readonly version: \"1.0.0\"; readonly targetPath: string; readonly parser: { readonly name: \"oxc-parser\"; readonly version: \"0.144.0\" }; readonly normalizer: { readonly name: \"score.declaration-shape\"; readonly version: \"1.0.0\" }; readonly roots: ReadonlyArray<{ readonly role: \"owned\" | \"consumed\"; readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\" }>; readonly sources: ReadonlyArray<{ readonly kind: \"typescript\" | \"dependency_lock\"; readonly path: string; readonly contentDigest: string }>; readonly declarations: ReadonlyArray<{ readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\"; readonly visibility: \"exported\" | \"local_supporting\"; readonly declaration: string; readonly declarationDigest: string; readonly normalizedShapeJson: string; readonly shapeDigest: string; readonly provenance: { readonly kind: \"authored\"; readonly authoredDeclarationDigest: string } | { readonly kind: \"inspected\"; readonly sourcePath: string; readonly sourceDigest: string }; readonly references: ReadonlyArray<{ readonly name: string; readonly namespace: \"type\" | \"value\"; readonly resolution: { readonly kind: \"same_file\"; readonly declarationName: string } | { readonly kind: \"project_file\"; readonly source: string; readonly targetPath: string; readonly importedName: string } | { readonly kind: \"typescript_global\" } | { readonly kind: \"node_platform\"; readonly source: string; readonly importedName: string } | { readonly kind: \"external_package\"; readonly packageName: string; readonly source: string; readonly importedName: string; readonly version: string; readonly lockPath: string; readonly lockDigest: string } }> }>; readonly contentDigest: string; }",
+          "description": "The immutable per-Agent Brief projection of normalized authored and inspected declaration evidence, including exact provenance, routing, bounds, parser identity, and its canonical digest."
+        },
+        {
+          "name": "DeclarationEvidenceResult",
+          "declaration": "export type DeclarationEvidenceResult = { readonly status: \"ok\"; readonly bundles: ReadonlyArray<DeclarationEvidenceBundle>; readonly usedSources: ReadonlyArray<DeclarationEvidenceSource> } | { readonly status: \"invalid\"; readonly findings: ReadonlyArray<SliceFinding> };",
+          "description": "The all-or-nothing preparation result: complete per-Agent evidence and every source it used, or precise typed findings with no evidence bundle."
+        },
+        {
+          "name": "prepareDeclarationEvidence",
+          "declaration": "export function prepareDeclarationEvidence(input: { readonly draft: SliceDraft; readonly lookupSource: DeclarationEvidenceSourceLookup; readonly lookupDependency: DeclarationEvidenceDependencyLookup }): DeclarationEvidenceResult;",
+          "description": "Builds deterministic bounded declaration evidence entirely from the authored draft and controlled frozen source and dependency lookups."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Supply the existing SliceDraft, DeclarationDraft, and SliceFinding contracts consumed by the new module."
+        },
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Supply the existing canonical JSON and SHA-256 helpers used for stable shape and bundle digests."
+        },
+        {
+          "path": "src/project-path.ts",
+          "purpose": "Supply the existing normalized project-relative path rule used by preparation."
+        },
+        {
+          "path": "src/repository-source-state.ts",
+          "purpose": "Supply the existing deterministic repository path ordering helper."
+        },
+        {
+          "path": "src/typescript-module-inspection.ts",
+          "purpose": "Show the pinned OXC parser and diagnostic conventions already used by inspect-module without making this work replace or call its filesystem-facing CLI path."
+        },
+        {
+          "path": "docs/experiments/declaration-contract-verification.md",
+          "purpose": "Record the successful feasibility result and its limits; it is evidence for the design, not production code to copy."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Use `import type { SliceDraft, SliceFinding } from \"./slice-draft.js\";`, import canonical digest helpers from `./canonical.js`, and use the supplied lookup for project bytes.",
+        "Do not read process state, environment variables, compiler configuration, installed package declarations, or implementation bodies that are not part of a relevant declaration contract.",
+        "Do not import from `src/prototypes/` or copy the large experimental implementation wholesale; implement the smallest supported production subset and fail closed with a typed finding for relevant unsupported syntax.",
+        "Support direct exported and local supporting interfaces, type aliases, functions or declared functions with explicit parameter and return annotations, and one named variable with an explicit type annotation. Treat default exports, export-all, namespaces, import-equals, inline import types, destructured variables, overloaded or duplicate declarations, and missing function or variable annotations as relevant unsupported or incomplete syntax.",
+        "Parse every authored Documented Declaration as one TypeScript declaration snippet even when its target is not a TypeScript file. For a create target, a non-TypeScript target, or a name absent from a modify target, use the authored declaration as the evidence source. Inspect a modify target only when its path ends in .ts, .tsx, .mts, .cts, .d.ts, .d.mts, or .d.cts and it contains the named declaration. A target with no owned or consumed declarations receives an empty bundle.",
+        "When OXC reports syntax problems, reject only a diagnostic whose labeled range intersects a relevant declaration or its import or export route. Ignore unrelated diagnostics unless they prevent the relevant route from being proven, in which case return DECLARATION_REFERENCE_UNRESOLVED.",
+        "Resolve a relative import with the exact candidate order already used by inspect-module closure: explicit TypeScript paths stay exact; .js maps to .ts, .tsx, then .d.ts; .mjs maps to .mts then .d.mts; .cjs maps to .cts then .d.cts; extensionless paths try .ts, .tsx, .mts, .cts, .d.ts, then the same index forms. Zero matches returns DECLARATION_SOURCE_MISSING and more than one returns DECLARATION_SOURCE_AMBIGUOUS. Do not read tsconfig paths or guess any other route.",
+        "Use the exact exported DECLARATION_EVIDENCE_FINDING_CODES values. A finding location is the JSON Pointer of the owned declaration or consumed declaration that started the failed closure. Put the supporting ownerPath, declarationName, referenceName, candidatePaths, and observed byte or count values in detail when applicable. Sort findings by location, code, and canonical detail.",
+        "Apply DECLARATION_EVIDENCE_LIMITS before adding each source or declaration. Count UTF-8 bytes, count each source path and declaration key once, and return DECLARATION_EVIDENCE_LIMIT_EXCEEDED without a partial bundle when any exact limit would be crossed.",
+        "Sort bundles by targetPath; roots by owned before consumed, then ownerPath, name, and namespace; sources by kind then path; declarations by ownerPath, name, namespace, and visibility; and references by name, namespace, then canonical resolution JSON. Include cyclic declarations once by the same declaration key.",
+        "Build normalizedShapeJson with the experiment's small production projection, not a raw AST. A function shape is exactly { kind: \"function\", name, async, generator, typeParameters, params, returnType }; an interface shape is { kind: \"interface\", name, typeParameters, extends, body }; a type-alias shape is { kind: \"type\", name, typeParameters, typeAnnotation }; and a variable shape is { kind: \"const\" | \"let\" | \"var\", name, typeAnnotation }. Recursively normalize only those selected child values, preserving array order and every other OXC property while omitting exactly start, end, range, loc, raw, parent, scopeId, symbolId, and referenceId. canonicalJson that shape into normalizedShapeJson; do not include function bodies or variable initializers. shapeDigest is sha256Json of the parsed normalizedShapeJson value. declarationDigest is the SHA-256 digest of the exact declaration string.",
+        "Compute contentDigest as sha256Json of the complete bundle object without its contentDigest field. usedSources contains each exact source returned by either lookup once in path order, including a dependency lock source used for an external package.",
+        "External packages and `node:` platform modules are leaves. Never recurse into node_modules. Call lookupDependency only for a relevant bare package reference and require its exact version and frozen lockSource; missing or invalid proof returns the matching declared finding code.",
+        "Do not add candidate comparison, declaration verification, Runner integration, Repair Notices, retry behavior, or automatic Agent execution."
+      ]
+    },
+    {
+      "path": "src/plan-intake.ts",
+      "operation": "modify",
+      "task": "Integrate declaration evidence once inside compileSlice, which is shared by Change and Slice preparation. Adapt the existing safe file capture into the controlled lookup, freeze every source actually used by a closure into the repository revision, and return evidence findings before IDs, SCORE state, or reviews are created. Add one required declaration-evidence context binding per Agent Brief, using only that target's bundle and digest. Include evidence and used-source digests in the preparation digest and advance the preparation procedure version so older prepared revisions keep their original meaning.",
+      "requirements": [
+        "For a declaration that already exists in a frozen modify target, evidence contains its deterministic bounded transitive closure of exported and local supporting project declarations, with stable ordering, provenance, normalized shapes, and digests; cycles appear once and terminate.",
+        "For a declaration that is new or belongs to an absent create target, evidence is normalized from the authoritative authored Documented Declaration without inspecting a missing file; mixed work combines inspected existing evidence and authored new evidence in one result.",
+        "Every relevant reference has one deterministic route to a same-file declaration, project file, TypeScript global, Node platform module, or version-bound external package leaf. Missing, ambiguous, unsupported, incomplete, or over-limit relevant declarations return precise typed preparation findings before review, while unrelated syntax is not parsed or rejected.",
+        "Each prepared Agent Brief receives only the declaration evidence needed for declarations it owns or consumes. Each evidence item is immutable, bound to its frozen sources and authored declaration digests, and included in the prepared revision and preparation digest without changing Documented Declaration authority.",
+        "The shared prepareValidatedSliceDraft path supplies the same evidence behavior to Changes and Slices, supports an empty greenfield project, and performs no TypeScript project construction, repository copy, environment loading, dependency installation, project command execution, candidate verification, Runner work, or source-file writes."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "DeclarationEvidenceSource",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceSourceLookup",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceDependency",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceDependencyLookup",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DECLARATION_EVIDENCE_LIMITS",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DECLARATION_EVIDENCE_FINDING_CODES",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceBundle",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceResult",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "prepareDeclarationEvidence",
+          "from": "src/declaration-evidence.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/types.ts",
+          "purpose": "Show that compilation Context Items and bindings already accept a new deterministic declaration_evidence kind without a schema or storage change."
+        },
+        {
+          "path": "docs/adr/0003-keep-derived-declaration-evidence-out-of-slices.md",
+          "purpose": "Keep derived evidence in the prepared revision rather than adding it to the authored Slice."
+        },
+        {
+          "path": "docs/adr/0013-introduce-declaration-verification-forward-only.md",
+          "purpose": "Preserve the forward-only rule so older prepared revisions are not reinterpreted."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Use one exact import from `./declaration-evidence.js` for `prepareDeclarationEvidence`, `DECLARATION_EVIDENCE_FINDING_CODES`, and the consumed types.",
+        "Call declaration evidence only after ordinary draft, target, context, skill, owner, and consumer validation succeeds, and before time-dependent IDs, state directories, SQLite, or review artifacts are created.",
+        "Build lookupSource on the existing safe UTF-8 file capture path. Build lookupDependency as a lazy root package-lock.json version 2 or 3 reader: derive a bare package name from the relevant specifier, read only packages[`node_modules/${packageName}`].version, return the full frozen lock file as lockSource, and do not read package.json, tsconfig, node_modules, or any lock file when no relevant external package is requested.",
+        "A source returned as used evidence must be added to the same capturedFiles map before repository and preparation digests are calculated; never reread it after evidence succeeds. This includes a package-lock.json returned as dependency evidence.",
+        "Add one Contract Input with handle input_declaration_evidence, logical name declaration-evidence, required true, expected kind declaration_evidence, version rule =1.0.0, and cardinality exactly one. Add exactly one Context Item per Agent Brief with handle declaration_evidence_${ordinal}, kind declaration_evidence, version 1.0.0, source kind derived_declaration_evidence, locator equal to the target path, source version equal to the bundle contentDigest, inline resolution, and content equal to only that target's bundle.",
+        "Order each Agent Brief Context Set and its bindings as target state, allocated requirements, documented declarations, declaration evidence, execution flows when present, project context, then skills. Bind declaration evidence at position zero of input_declaration_evidence.",
+        "Keep the existing documented_declarations Context Item unchanged and authoritative. Evidence is an additional input binding, not a replacement.",
+        "Advance the preparation procedure version from 2.0.0 to exactly 3.0.0. Include the ordered bundle content digests and every newly captured source digest in compiler_input_revision content before calculating its digest, so the existing repository revision and preparation digest bind the same bytes.",
+        "Do not change ScoreAlpha, the review renderer, the Compilation Bundle schema, Change authoring, Plan Intake Set, Runner code, or inspect-module; their existing generic context-item and shared preparation paths are sufficient.",
+        "Do not add candidate verification, project command execution, or any post-application correctness claim."
+      ]
+    },
+    {
+      "path": "test/plan-intake.test.ts",
+      "operation": "modify",
+      "task": "Add focused preparation tests at the existing public seam. Inspect persisted review snapshots and typed invalid results rather than testing internal AST nodes. Cover both prepareSlice and prepareChange while keeping all fixtures local, free of paid calls, and independent of project commands.",
+      "requirements": [
+        "For a declaration that already exists in a frozen modify target, evidence contains its deterministic bounded transitive closure of exported and local supporting project declarations, with stable ordering, provenance, normalized shapes, and digests; cycles appear once and terminate.",
+        "For a declaration that is new or belongs to an absent create target, evidence is normalized from the authoritative authored Documented Declaration without inspecting a missing file; mixed work combines inspected existing evidence and authored new evidence in one result.",
+        "Every relevant reference has one deterministic route to a same-file declaration, project file, TypeScript global, Node platform module, or version-bound external package leaf. Missing, ambiguous, unsupported, incomplete, or over-limit relevant declarations return precise typed preparation findings before review, while unrelated syntax is not parsed or rejected.",
+        "Each prepared Agent Brief receives only the declaration evidence needed for declarations it owns or consumes. Each evidence item is immutable, bound to its frozen sources and authored declaration digests, and included in the prepared revision and preparation digest without changing Documented Declaration authority.",
+        "The shared prepareValidatedSliceDraft path supplies the same evidence behavior to Changes and Slices, supports an empty greenfield project, and performs no TypeScript project construction, repository copy, environment loading, dependency installation, project command execution, candidate verification, Runner work, or source-file writes.",
+        "Focused tests cover existing, greenfield, and mixed preparation; cyclic support; exact missing, ambiguous, unsupported, incomplete, and bounded findings; relevant-only failure; byte-identical repeated evidence and digests; Change and Slice routing; and unchanged source bytes."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "DeclarationEvidenceSource",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceSourceLookup",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceDependency",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceDependencyLookup",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DECLARATION_EVIDENCE_LIMITS",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DECLARATION_EVIDENCE_FINDING_CODES",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceBundle",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceResult",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "prepareDeclarationEvidence",
+          "from": "src/declaration-evidence.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/change-authoring.ts",
+          "purpose": "Show the existing Change entry point and its use of the same prepareValidatedSliceDraft seam."
+        },
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Show how generic non-documented Context Items are persisted and projected into Agent Input so tests can assert the public snapshot shape."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Use `import { prepareChange } from \"../src/change-authoring.js\";` for the Change-path acceptance case and preserve the existing `prepareSlice` import.",
+        "Use `import { DECLARATION_EVIDENCE_FINDING_CODES, DECLARATION_EVIDENCE_LIMITS, prepareDeclarationEvidence, type DeclarationEvidenceBundle } from \"../src/declaration-evidence.js\";` only for focused pure-module cases that cannot be observed through a prepared snapshot.",
+        "Assert that DECLARATION_EVIDENCE_FINDING_CODES exactly equals the documented ten-code tuple and DECLARATION_EVIDENCE_LIMITS exactly equals the documented five numeric limits. Assert exact codes and root JSON Pointer locations for missing, ambiguous, unsupported, incomplete, dependency-evidence, and over-limit relevant declarations, and assert that no review or SCORE state is created for those failures.",
+        "Update the prior opaque-invalid-declaration expectation: tsconfig remains unread, but syntactically invalid relevant Documented Declarations now fail before review; unrelated invalid or unsupported declarations remain ignored.",
+        "Cover direct supported declarations, an empty bundle, authored declarations on create and non-TypeScript targets, inspected declarations on existing TypeScript targets, mixed work, exact relative-route candidates, a version-bound package-lock external leaf, a node: platform leaf, and a cycle included once.",
+        "Assert every bundle root, source kind, declaration provenance variant, declarationDigest, shapeDigest, closed reference-resolution variant, and contentDigest. Assert the exact normalizedShapeJson fixture for one function, interface, type alias, and typed variable, then recompute contentDigest from the bundle without that field and shapeDigest from parsed normalizedShapeJson.",
+        "Compare the declaration_evidence Context Item content and digest across repeated identical Change and Slice preparation, and compare every pre-existing source byte before and after preparation. Assert package-lock.json is not read for work with no relevant external reference and is frozen into the repository revision when it is relevant.",
+        "Do not run TypeScript, builds, tests, lint, subprocesses, Runner work, or paid Agents from inside these tests."
+      ]
+    }
+  ]
+}

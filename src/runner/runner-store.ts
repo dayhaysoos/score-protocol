@@ -22,8 +22,8 @@ import {
   ClaimedJob,
   type ClaimedJob as ClaimedJobType,
   type EnqueuedRun,
+  type FailureEvidence as FailureEvidenceType,
   type FailureCategory as FailureCategoryType,
-  type FailureObservationStage as FailureObservationStageType,
   type FileObservationStage as FileObservationStageType,
   JobId,
   MAX_RUNNER_CONCURRENCY,
@@ -43,6 +43,7 @@ import {
 } from "./domain.js";
 import {
   safeFailureMessage,
+  sanitizeFailureEvidence,
   sanitizeFailureCategory,
   sanitizeRuntimeSessionId,
   sanitizeTerminalOutcome
@@ -90,6 +91,19 @@ const JobSummaryRow = Schema.Struct({
   state: Schema.String,
   packageDigest: Schema.String
 });
+const AttemptSummaryRow = Schema.Struct({
+  jobId: JobId,
+  attemptId: AttemptId,
+  attemptNumber: Schema.Number,
+  state: Schema.String,
+  claimedAt: Schema.String,
+  completedAt: Schema.NullOr(Schema.String),
+  candidateDigest: Schema.NullOr(Schema.String),
+  failureCategory: Schema.NullOr(Schema.String),
+  failureStage: Schema.NullOr(Schema.String),
+  terminalOutcomeJson: Schema.NullOr(Schema.String),
+  failureEvidenceJson: Schema.NullOr(Schema.String)
+});
 const ObservationJobRow = Schema.Struct({
   jobId: JobId,
   targetPath: Schema.String,
@@ -110,12 +124,14 @@ const ObservationJobRow = Schema.Struct({
   failureMessage: Schema.NullOr(Schema.String),
   failureStage: Schema.NullOr(Schema.String),
   terminalOutcomeJson: Schema.NullOr(Schema.String),
+  failureEvidenceJson: Schema.NullOr(Schema.String),
   targetOutputState: Schema.NullOr(Schema.String),
   hasCandidate: Schema.Number,
   rejectedOutputDigest: Schema.NullOr(Schema.String),
   rejectedOutputPath: Schema.NullOr(Schema.String)
 });
 const AcceptedMissingReplacementRow = Schema.Struct({ targetPath: Schema.String });
+const TargetPathRow = Schema.Struct({ targetPath: Schema.String });
 const ClaimableJobRow = Schema.Struct({
   jobId: JobId,
   runId: RunId,
@@ -133,6 +149,10 @@ const ClaimableJobRow = Schema.Struct({
 });
 
 const TransitionRow = Schema.Struct({ id: Schema.String });
+const StoredAttemptStageRow = Schema.Struct({
+  attemptId: AttemptId,
+  observedStage: Schema.NullOr(Schema.String)
+});
 const StoredAttemptFailureRow = Schema.Struct({
   attemptId: AttemptId,
   failureCategory: Schema.NullOr(Schema.String)
@@ -150,6 +170,10 @@ const StoredRuntimeSessionRow = Schema.Struct({
   runtimeSessionId: Schema.String
 });
 const RunnerSchemaStateRow = Schema.Struct({ failurePrivacyVersion: Schema.Number });
+const RetryableRunRow = Schema.Struct({
+  state: Schema.String,
+  applicationState: Schema.String
+});
 const StoredJobProtocolRow = Schema.Struct({
   targetPath: Schema.String,
   controlJson: Schema.String
@@ -389,6 +413,8 @@ const schemaStatements = [
      target_output_digest TEXT,
      rejected_output_digest TEXT,
      rejected_output_path TEXT,
+     failure_evidence_json TEXT CHECK
+       (failure_evidence_json IS NULL OR json_valid(failure_evidence_json)),
      UNIQUE (job_id, attempt_number)
    ) STRICT`,
   `CREATE TABLE IF NOT EXISTS runner_accepted_missing_replacements (
@@ -463,10 +489,8 @@ export class RunnerStore extends Context.Service<RunnerStore, {
   }) => Effect.Effect<void, RunnerStoreError>;
   readonly completeFailure: (input: {
     readonly job: ClaimedJobType;
-    readonly failureTag?: string;
-    readonly failureCategory?: FailureCategoryType;
+    readonly failureEvidence: FailureEvidenceType;
     readonly runtimeSessionId?: string;
-    readonly terminalOutcome?: unknown;
     readonly targetOutputState?: TargetOutputStateType;
     readonly targetOutputDigest?: string;
     readonly diagnosticContent?: string;
@@ -493,6 +517,10 @@ export class RunnerStore extends Context.Service<RunnerStore, {
     runId: RunId
   ) => Effect.Effect<void, RunRecoveryRequired | RunnerStoreError>;
   readonly recoverRun: (runId: RunId) => Effect.Effect<number, RunnerStoreError>;
+  readonly prepareRetry: (input: {
+    readonly runId: RunId;
+    readonly targetPaths: ReadonlyArray<string>;
+  }) => Effect.Effect<number, RunnerStoreError>;
   readonly beginWork: (runId: RunId) => Effect.Effect<void, RunnerStoreError>;
   readonly readCandidates: (
     runId: RunId
@@ -689,6 +717,72 @@ function storedTerminalOutcome(value: string | null): SanitizedTerminalOutcomeTy
   }
 }
 
+function terminalOutcomeKindForCategory(
+  category: FailureCategoryType
+): SanitizedTerminalOutcomeType["kind"] {
+  switch (category) {
+    case "provider":
+    case "tool":
+    case "timeout":
+    case "interruption":
+      return category;
+    case "workspace integrity":
+    case "missing output":
+      return "workspace";
+    case "candidate integrity":
+    case "target drift":
+      return "integrity";
+    case "application":
+      return "application";
+    case "runtime":
+    case "ambiguous recovery":
+    case "persistence":
+      return "runtime";
+    case "unknown":
+      return "unknown";
+  }
+}
+
+function terminalOutcomeFromEvidence(
+  evidence: FailureEvidenceType
+): SanitizedTerminalOutcomeType {
+  return {
+    kind: terminalOutcomeKindForCategory(evidence.category),
+    status: evidence.status,
+    statusCode: evidence.statusCode,
+    name: evidence.name
+  };
+}
+
+function storedFailureEvidence(input: {
+  readonly failureEvidenceJson: string | null;
+  readonly failureCategory: string | null;
+  readonly failureStage: string | null;
+  readonly terminalOutcomeJson: string | null;
+}): FailureEvidenceType | null {
+  if (input.failureEvidenceJson !== null) {
+    try {
+      return sanitizeFailureEvidence(JSON.parse(input.failureEvidenceJson));
+    } catch {
+      // Fall through to the honest legacy projection below.
+    }
+  }
+  if (input.failureCategory === null) return null;
+  const category = sanitizeFailureCategory(
+    input.failureCategory,
+    input.failureCategory
+  );
+  const terminal = storedTerminalOutcome(input.terminalOutcomeJson);
+  return sanitizeFailureEvidence({
+    category,
+    stage: input.failureStage,
+    name: terminal?.name ?? null,
+    status: terminal?.status ?? null,
+    statusCode: terminal?.statusCode ?? null,
+    reason: null
+  });
+}
+
 const makeRunnerStore = (
   databasePath: string,
   databaseIdentity?: SecureDatabaseIdentity
@@ -833,6 +927,11 @@ const makeRunnerStore = (
         "ALTER TABLE runner_attempts ADD COLUMN rejected_output_digest TEXT"
       ],
       ["rejected_output_path", "ALTER TABLE runner_attempts ADD COLUMN rejected_output_path TEXT"],
+      [
+        "failure_evidence_json",
+        `ALTER TABLE runner_attempts ADD COLUMN failure_evidence_json TEXT
+         CHECK (failure_evidence_json IS NULL OR json_valid(failure_evidence_json))`
+      ],
       [
         "failure_stage",
         `ALTER TABLE runner_attempts ADD COLUMN failure_stage TEXT CHECK
@@ -1265,6 +1364,24 @@ const makeRunnerStore = (
     ).pipe(
       Effect.flatMap((rows) => Schema.decodeUnknownEffect(Schema.Array(JobSummaryRow))(rows))
     );
+    const attemptHistory = yield* sql.unsafe(
+      `SELECT j.job_id AS jobId, a.attempt_id AS attemptId,
+              a.attempt_number AS attemptNumber, a.state,
+              a.claimed_at AS claimedAt, a.completed_at AS completedAt,
+              a.candidate_digest AS candidateDigest,
+              a.failure_tag AS failureCategory, a.failure_stage AS failureStage,
+              a.terminal_outcome_json AS terminalOutcomeJson,
+              a.failure_evidence_json AS failureEvidenceJson
+       FROM runner_jobs j
+       JOIN runner_attempts a ON a.job_id = j.job_id
+       WHERE j.run_id = ?
+       ORDER BY j.ordinal, a.attempt_number`,
+      [runId]
+    ).pipe(
+      Effect.flatMap((rows) =>
+        Schema.decodeUnknownEffect(Schema.Array(AttemptSummaryRow))(rows)
+      )
+    );
     const observationJobs = yield* sql.unsafe(
       `SELECT j.job_id AS jobId, j.target_path AS targetPath, j.operation,
               j.agent_input_digest AS agentInputDigest, j.state AS jobState,
@@ -1280,6 +1397,7 @@ const makeRunnerStore = (
               a.failure_message AS failureMessage,
               a.failure_stage AS failureStage,
               a.terminal_outcome_json AS terminalOutcomeJson,
+              a.failure_evidence_json AS failureEvidenceJson,
               a.target_output_state AS targetOutputState,
               CASE WHEN a.candidate_digest IS NULL THEN 0 ELSE 1 END AS hasCandidate,
               a.rejected_output_digest AS rejectedOutputDigest,
@@ -1399,10 +1517,12 @@ const makeRunnerStore = (
                 ? "present"
                 : "not observed"
             : (job.targetOutputState as TargetOutputStateType);
-        const failureCategory =
-          job.failureCategory === null
-            ? null
-            : sanitizeFailureCategory(job.failureCategory, job.failureCategory);
+        const failureEvidence = storedFailureEvidence(job);
+        const failureCategory = failureEvidence?.category ?? null;
+        const terminalOutcome =
+          failureEvidence === null
+            ? storedTerminalOutcome(job.terminalOutcomeJson)
+            : terminalOutcomeFromEvidence(failureEvidence);
         return {
           runId: run.runId,
           jobId: job.jobId,
@@ -1422,17 +1542,15 @@ const makeRunnerStore = (
               : sanitizeRuntimeSessionId(job.runtimeSessionId),
           failureCategory,
           failureMessage:
-            job.failureMessage === null || failureCategory === null
+            failureCategory === null
               ? null
-              : safeFailureMessage(failureCategory),
-          failureStage:
-            job.failureStage === null
-              ? null
-              : (job.failureStage as FailureObservationStageType),
-          terminalOutcome: storedTerminalOutcome(job.terminalOutcomeJson),
+              : failureEvidence?.reason ?? safeFailureMessage(failureCategory),
+          failureStage: failureEvidence?.stage ?? null,
+          terminalOutcome,
           targetOutputState,
           rejectedOutputDigest: job.rejectedOutputDigest,
-          rejectedOutputPath: null
+          rejectedOutputPath: null,
+          ...(failureEvidence === null ? {} : { failureEvidence })
         };
       })
     });
@@ -1451,7 +1569,20 @@ const makeRunnerStore = (
       confirmedTargets,
       adapter,
       maxConcurrency: run.maxConcurrency,
-      jobs,
+      jobs: jobs.map((job) => ({
+        ...job,
+        attempts: attemptHistory
+          .filter((attempt) => attempt.jobId === job.jobId)
+          .map((attempt) => ({
+            attemptId: attempt.attemptId,
+            attemptNumber: attempt.attemptNumber,
+            state: attempt.state,
+            claimedAt: attempt.claimedAt,
+            completedAt: attempt.completedAt,
+            candidateDigest: attempt.candidateDigest,
+            failureEvidence: storedFailureEvidence(attempt)
+          }))
+      })),
       observation
     });
   });
@@ -1525,13 +1656,23 @@ const makeRunnerStore = (
            WHERE job_id = ? AND state = 'pending'`,
           [row.jobId]
         );
+        const attemptNumberRows = yield* sql.unsafe(
+          `SELECT COALESCE(MAX(attempt_number), 0) + 1 AS count
+           FROM runner_attempts WHERE job_id = ?`,
+          [row.jobId]
+        ).pipe(
+          Effect.flatMap((unknownRows) =>
+            Schema.decodeUnknownEffect(Schema.Array(CountRow))(unknownRows)
+          )
+        );
+        const attemptNumber = attemptNumberRows[0]?.count ?? 1;
         yield* sql.unsafe(
           `INSERT INTO runner_attempts
            (attempt_id, job_id, attempt_number, state, claimed_at,
             observed_stage, observation_source, observed_at, observation_sequence,
             target_output_state)
-           VALUES (?, ?, 1, 'running', ?, 'starting', 'runner', ?, 1, 'not observed')`,
-          [attemptId, row.jobId, claimedAt, claimedAt]
+           VALUES (?, ?, ?, 'running', ?, 'starting', 'runner', ?, 1, 'not observed')`,
+          [attemptId, row.jobId, attemptNumber, claimedAt, claimedAt]
         );
         yield* sql.unsafe(
           `UPDATE runner_runs
@@ -1810,49 +1951,65 @@ const makeRunnerStore = (
 
   const completeFailure = Effect.fn("RunnerStore.completeFailure")(function*(input: {
     readonly job: ClaimedJobType;
-    readonly failureTag?: string;
-    readonly failureCategory?: FailureCategoryType;
+    readonly failureEvidence: FailureEvidenceType;
     readonly runtimeSessionId?: string;
-    readonly terminalOutcome?: unknown;
     readonly targetOutputState?: TargetOutputStateType;
     readonly targetOutputDigest?: string;
     readonly diagnosticContent?: string;
   }) {
     const completedAt = new Date().toISOString();
-    const failureCategory = sanitizeFailureCategory(input.failureCategory, input.failureTag);
-    const failureMessage = safeFailureMessage(failureCategory);
-    const terminalOutcome = sanitizeTerminalOutcome(input.terminalOutcome);
     const diagnosticContent = input.diagnosticContent;
     const diagnosticDigest =
       diagnosticContent === undefined ? null : sha256Bytes(diagnosticContent);
     yield* sql.withTransaction(
       Effect.gen(function*() {
+        const stageRows = yield* sql.unsafe(
+          `SELECT attempt_id AS attemptId, observed_stage AS observedStage
+           FROM runner_attempts
+           WHERE attempt_id = ? AND state = 'running'`,
+          [input.job.attemptId]
+        ).pipe(
+          Effect.flatMap((rows) =>
+            Schema.decodeUnknownEffect(Schema.Array(StoredAttemptStageRow))(rows)
+          )
+        );
+        const observedStage = stageRows[0]?.observedStage;
+        const failureStage =
+          observedStage === "starting" ||
+          observedStage === "Agent working" ||
+          observedStage === "checking output" ||
+          observedStage === "candidate ready"
+            ? observedStage
+            : null;
+        const failureEvidence = sanitizeFailureEvidence(
+          input.failureEvidence,
+          failureStage
+        );
+        const failureMessage =
+          failureEvidence.reason ?? safeFailureMessage(failureEvidence.category);
+        const terminalOutcome = terminalOutcomeFromEvidence(failureEvidence);
         const attemptRows = yield* sql.unsafe(
           `UPDATE runner_attempts
            SET state = 'failed', completed_at = ?, failure_tag = ?, failure_message = ?,
                runtime_session_id = COALESCE(?, runtime_session_id),
-               failure_stage = CASE observed_stage
-                 WHEN 'starting' THEN observed_stage
-                 WHEN 'Agent working' THEN observed_stage
-                 WHEN 'checking output' THEN observed_stage
-                 WHEN 'candidate ready' THEN observed_stage
-                 ELSE NULL
-               END,
+               failure_stage = ?,
                observed_stage = 'failed', observation_source = 'runner', observed_at = ?,
                observation_sequence = observation_sequence + 1,
                terminal_outcome_json = ?, target_output_state = ?, target_output_digest = ?,
-               rejected_output_digest = ?, rejected_output_path = ?
+               rejected_output_digest = ?, rejected_output_path = ?,
+               failure_evidence_json = ?
            WHERE attempt_id = ? AND state = 'running'
            RETURNING attempt_id AS id`,
           [
             completedAt,
-            failureCategory,
+            failureEvidence.category,
             failureMessage,
             input.runtimeSessionId === undefined
               ? null
               : sanitizeRuntimeSessionId(input.runtimeSessionId),
+            failureStage,
             completedAt,
-            terminalOutcome === null ? null : canonicalJson(terminalOutcome),
+            canonicalJson(terminalOutcome),
             input.targetOutputState ??
               (diagnosticContent !== undefined && input.job.operation === "create"
                 ? "present"
@@ -1860,6 +2017,7 @@ const makeRunnerStore = (
             diagnosticDigest ?? input.targetOutputDigest ?? null,
             diagnosticDigest ?? input.targetOutputDigest ?? null,
             null,
+            canonicalJson(failureEvidence),
             input.job.attemptId
           ]
         ).pipe(
@@ -2015,6 +2173,121 @@ const makeRunnerStore = (
           [recoveredAt, count + 1, runId]
         );
         return count;
+      })
+    );
+  });
+
+  const prepareRetry = Effect.fn("RunnerStore.prepareRetry")(function*(input: {
+    readonly runId: RunId;
+    readonly targetPaths: ReadonlyArray<string>;
+  }) {
+    const runId = input.runId;
+    return yield* sql.withTransaction(
+      Effect.gen(function*() {
+        const runRows = yield* sql.unsafe(
+          `SELECT state, application_state AS applicationState
+           FROM runner_runs WHERE run_id = ?`,
+          [runId]
+        ).pipe(
+          Effect.flatMap((rows) =>
+            Schema.decodeUnknownEffect(Schema.Array(RetryableRunRow))(rows)
+          )
+        );
+        const run = runRows[0];
+        if (
+          run?.state !== "completed_with_failures" ||
+          run.applicationState !== "not_applied"
+        ) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message: `Run ${runId} is not an unapplied Run with failed Jobs`
+          });
+        }
+        const ambiguousAttempts = yield* runningAttemptCount(runId);
+        if (ambiguousAttempts > 0) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message:
+              `Run ${runId} has ${ambiguousAttempts} ambiguous running ` +
+              `${ambiguousAttempts === 1 ? "Attempt" : "Attempts"}; explicit recovery is required before retry`
+          });
+        }
+        const attentionRows = yield* sql.unsafe(
+          `SELECT COUNT(*) AS count FROM runner_jobs
+           WHERE run_id = ? AND state = 'needs_attention'`,
+          [runId]
+        ).pipe(
+          Effect.flatMap((rows) => Schema.decodeUnknownEffect(Schema.Array(CountRow))(rows))
+        );
+        if ((attentionRows[0]?.count ?? 0) > 0) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message:
+              `Run ${runId} has ambiguous needs_attention Jobs; use explicit recovery ` +
+              "before retrying any failed Job"
+          });
+        }
+        const failedRows = yield* sql.unsafe(
+          `SELECT target_path AS targetPath FROM runner_jobs
+           WHERE run_id = ? AND state = 'failed'`,
+          [runId]
+        ).pipe(
+          Effect.flatMap((rows) =>
+            Schema.decodeUnknownEffect(Schema.Array(TargetPathRow))(rows)
+          )
+        );
+        const selectedTargets = [...new Set(input.targetPaths)];
+        if (selectedTargets.length === 0) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message: `Run ${runId} has no explicitly selected failed Jobs to retry`
+          });
+        }
+        if (selectedTargets.length !== input.targetPaths.length) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message: `Run ${runId} retry selection contains duplicate targets`
+          });
+        }
+        const failedTargets = new Set(failedRows.map((row) => row.targetPath));
+        const invalidTarget = selectedTargets.find(
+          (targetPath) => !failedTargets.has(targetPath)
+        );
+        if (invalidTarget !== undefined) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message: `${invalidTarget} is not an unambiguous failed Job in Run ${runId}`
+          });
+        }
+        const reopenedAt = new Date().toISOString();
+        yield* sql.unsafe(
+          `UPDATE runner_jobs SET state = 'pending'
+           WHERE run_id = ? AND state = 'failed'
+             AND target_path IN (${selectedTargets.map(() => "?").join(", ")})`,
+          [runId, ...selectedTargets]
+        );
+        const reopened = yield* sql.unsafe(
+          `UPDATE runner_runs
+           SET state = 'pending', observed_phase = 'generating candidates',
+               last_observed_at = ?, terminal_at = NULL,
+               observation_sequence = observation_sequence + 1,
+               run_failure_category = NULL, run_failure_message = NULL
+           WHERE run_id = ? AND state = 'completed_with_failures'
+             AND application_state = 'not_applied'
+           RETURNING run_id AS id`,
+          [reopenedAt, runId]
+        ).pipe(
+          Effect.flatMap((rows) =>
+            Schema.decodeUnknownEffect(Schema.Array(TransitionRow))(rows)
+          )
+        );
+        if (reopened.length !== 1) {
+          return yield* new RunnerStoreError({
+            operation: "prepareRetry",
+            message: `Run ${runId} changed while preparing its failed Jobs for retry`
+          });
+        }
+        return selectedTargets.length;
       })
     );
   });
@@ -2308,6 +2581,10 @@ const makeRunnerStore = (
       ),
     recoverRun: (runId) =>
       recoverRun(runId).pipe(Effect.mapError((cause) => storeError("recoverRun", cause))),
+    prepareRetry: (input) =>
+      prepareRetry(input).pipe(
+        Effect.mapError((cause) => storeError("prepareRetry", cause))
+      ),
     beginWork: (runId) =>
       beginWork(runId).pipe(Effect.mapError((cause) => storeError("beginWork", cause))),
     readCandidates: (runId) =>

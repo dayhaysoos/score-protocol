@@ -1,0 +1,139 @@
+{
+  "slice_id": "declaration-evidence-core",
+  "title": "Build the declaration-evidence core",
+  "objective": "Build and prove the small in-memory core that turns exact authored or inspected declaration contracts into deterministic evidence, before connecting declaration evidence to preparation.",
+  "requirements": [
+    "The module accepts only exact declaration contracts, explicit reference routes, roots, and provenance already chosen by its caller; it performs no filesystem, repository, environment, compiler-project, package-installation, command, preparation, Runner, or candidate work.",
+    "The module uses the pinned OXC parser to normalize relevant exported functions, interfaces, type aliases, and explicitly typed variables while preserving whether each declaration came from authored meaning or inspected source.",
+    "The module builds a bounded closure from exact declaration keys, distinguishes TypeScript type and value namespaces, follows explicit declaration routes, includes cycles once, and does not parse irrelevant declaration inputs.",
+    "Successful output has stable ordering, exact normalized-shape fixtures, provenance and declaration digests, and one canonical content digest; repeated identical input produces byte-identical output without mutating the input.",
+    "Duplicate inputs, missing roots or route targets, missing or ambiguous reference routes, unsupported syntax, incomplete contracts, and exceeded bounds return exact typed findings with no partial evidence bundle.",
+    "Dedicated tests use independently authored expectations and cover existing, greenfield, mixed, create-to-create, cyclic, dual-namespace, unsupported, incomplete, missing, ambiguous, bounded, deterministic, and input-immutability behavior without paid calls or project commands."
+  ],
+  "files": [
+    {
+      "path": "src/declaration-evidence.ts",
+      "operation": "modify",
+      "task": "Repair the applied declaration-evidence core without expanding it. Preserve the working in-memory closure behavior, make the public TypeScript surface exactly match the three documented declarations, validate that parsed declaration identity matches the requested key, and keep output ordering and typed failures deterministic. Do not redesign the normalized shape or add preparation integration.",
+      "requirements": [
+        "The module accepts only exact declaration contracts, explicit reference routes, roots, and provenance already chosen by its caller; it performs no filesystem, repository, environment, compiler-project, package-installation, command, preparation, Runner, or candidate work.",
+        "The module uses the pinned OXC parser to normalize relevant exported functions, interfaces, type aliases, and explicitly typed variables while preserving whether each declaration came from authored meaning or inspected source.",
+        "The module builds a bounded closure from exact declaration keys, distinguishes TypeScript type and value namespaces, follows explicit declaration routes, includes cycles once, and does not parse irrelevant declaration inputs.",
+        "Successful output has stable ordering, exact normalized-shape fixtures, provenance and declaration digests, and one canonical content digest; repeated identical input produces byte-identical output without mutating the input.",
+        "Duplicate inputs, missing roots or route targets, missing or ambiguous reference routes, unsupported syntax, incomplete contracts, and exceeded bounds return exact typed findings with no partial evidence bundle."
+      ],
+      "owns": [
+        {
+          "name": "DeclarationEvidenceRequest",
+          "declaration": "export interface DeclarationEvidenceRequest { readonly targetPath: string; readonly roots: ReadonlyArray<{ readonly role: \"owned\" | \"consumed\"; readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\" }>; readonly declarations: ReadonlyArray<{ readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\"; readonly declaration: string; readonly provenance: { readonly kind: \"authored\" } | { readonly kind: \"inspected\"; readonly sourcePath: string; readonly sourceDigest: string }; readonly routes: ReadonlyArray<{ readonly referenceName: string; readonly namespace: \"type\" | \"value\"; readonly resolution: { readonly kind: \"declaration\"; readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\" } | { readonly kind: \"typescript_global\" } | { readonly kind: \"node_platform\"; readonly source: string; readonly importedName: string } | { readonly kind: \"external_package\"; readonly packageName: string; readonly source: string; readonly importedName: string; readonly version: string; readonly lockDigest: string } }> }>; }",
+          "description": "The complete in-memory request selected by a future preparation adapter: one Agent Brief target, its exact declaration roots, every available exact declaration contract, provenance, and an explicit route for each non-lexical reference."
+        },
+        {
+          "name": "DeclarationEvidenceResult",
+          "declaration": "export type DeclarationEvidenceResult = { readonly status: \"ok\"; readonly bundle: { readonly schema: \"score.declaration-evidence\"; readonly version: \"1.0.0\"; readonly targetPath: string; readonly roots: ReadonlyArray<{ readonly role: \"owned\" | \"consumed\"; readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\" }>; readonly declarations: ReadonlyArray<{ readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\"; readonly declaration: string; readonly declarationDigest: string; readonly normalizedShapeJson: string; readonly shapeDigest: string; readonly provenance: { readonly kind: \"authored\" } | { readonly kind: \"inspected\"; readonly sourcePath: string; readonly sourceDigest: string }; readonly references: ReadonlyArray<{ readonly referenceName: string; readonly namespace: \"type\" | \"value\"; readonly resolution: { readonly kind: \"declaration\"; readonly ownerPath: string; readonly name: string; readonly namespace: \"type\" | \"value\" } | { readonly kind: \"typescript_global\" } | { readonly kind: \"node_platform\"; readonly source: string; readonly importedName: string } | { readonly kind: \"external_package\"; readonly packageName: string; readonly source: string; readonly importedName: string; readonly version: string; readonly lockDigest: string } }> }>; readonly contentDigest: string } } | { readonly status: \"invalid\"; readonly findings: ReadonlyArray<{ readonly code: \"DECLARATION_INPUT_DUPLICATE\" | \"DECLARATION_ROOT_MISSING\" | \"DECLARATION_SYNTAX_UNSUPPORTED\" | \"DECLARATION_CONTRACT_INCOMPLETE\" | \"DECLARATION_REFERENCE_ROUTE_MISSING\" | \"DECLARATION_REFERENCE_ROUTE_AMBIGUOUS\" | \"DECLARATION_ROUTE_TARGET_MISSING\" | \"DECLARATION_EVIDENCE_LIMIT_EXCEEDED\"; readonly location: string; readonly message: string; readonly detail: Readonly<Record<string, unknown>> }> };",
+          "description": "The all-or-nothing result: one immutable deterministic evidence bundle for the requested Agent Brief target, or sorted precise findings and no partial bundle."
+        },
+        {
+          "name": "prepareDeclarationEvidence",
+          "declaration": "export function prepareDeclarationEvidence(request: DeclarationEvidenceRequest): DeclarationEvidenceResult;",
+          "description": "Builds a bounded deterministic declaration closure entirely from exact in-memory inputs and returns no evidence when any relevant contract or route cannot be proven."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Provide the existing canonicalJson and sha256Json functions for stable shape and bundle digests."
+        },
+        {
+          "path": "src/typescript-module-inspection.ts",
+          "purpose": "Show the repository's pinned OXC parser invocation and supported declaration-shape conventions; use only the relevant parsing patterns and do not copy its filesystem inspection behavior."
+        },
+        {
+          "path": "docs/features/declaration-evidence.md",
+          "purpose": "Define the durable product outcome, the boundary of this first core Slice, and the later preparation integration that is intentionally excluded."
+        },
+        {
+          "path": "docs/adr/0001-authored-declarations-remain-authoritative.md",
+          "purpose": "Preserve the accepted rule that authored declarations define intended meaning while inspected declarations provide evidence."
+        },
+        {
+          "path": "docs/experiments/declaration-contract-verification.md",
+          "purpose": "Provide feasibility evidence and known experimental limits without treating the prototype as production implementation."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "The applied revision is not acceptable yet: its result type hides declaration output behind `ReadonlyArray<Record<string, unknown>>`, it exports undeclared DeclarationNamespace and DeclarationKey aliases, and inspect-module cannot close the documented public surface through private Resolution and Finding aliases. Inline or privately structure supporting types so the three documented declarations are the only exports and their exact inspected contracts are complete.",
+        "Keep `DeclarationEvidenceRequest`, `DeclarationEvidenceResult`, and `prepareDeclarationEvidence` textually and structurally compatible with the exact documented declarations. Do not weaken fields to unknown records, add optional fields, or export supporting implementation aliases.",
+        "Use `import { canonicalJson, sha256Json } from \"./canonical.js\";` and call `canonicalJson(normalizedShape)` for normalizedShapeJson, `sha256Json(normalizedShape)` for shapeDigest, `sha256Json(declaration)` for declarationDigest, and `sha256Json(bundleWithoutContentDigest)` for contentDigest.",
+        "Use the pinned `oxc-parser` dependency directly on one exact declaration snippet at a time. Do not call inspect-module, read files, import SliceDraft or Plan Intake, or import anything from `src/prototypes/`.",
+        "Treat a declaration key as ownerPath, name, and namespace together. A type and value with the same ownerPath and name are distinct and must not be reported as duplicates or ambiguous solely because they share that name.",
+        "Start from roots sorted by owned before consumed, then ownerPath, name, and namespace. Follow only resolution kind declaration. Include each reached declaration key once, terminate cycles, and sort the final declarations by ownerPath, name, and namespace. Do not parse an input declaration that is not reached.",
+        "Support exactly one named exported interface, type alias, function or declared function with explicit parameter and return types, or const, let, or var with an explicit type annotation in each snippet. Reject overloads, declaration merging, destructured variables, default exports, export-all, namespaces, import-equals, inline import types, missing function annotations, and missing variable annotations with the appropriate unsupported or incomplete finding.",
+        "Normalize only declaration structure, never implementation bodies or variable initializers. Function shape is exactly `{ kind: \"function\", name, async, generator, typeParameters, params, returnType }`; interface shape is `{ kind: \"interface\", name, typeParameters, extends, body }`; type-alias shape is `{ kind: \"type\", name, typeParameters, typeAnnotation }`; variable shape is `{ kind: \"const\" | \"let\" | \"var\", name, typeAnnotation }`. Recursively preserve selected child structure and array order while omitting exactly start, end, range, loc, raw, parent, scopeId, symbolId, and referenceId.",
+        "Detect named references from the normalized declaration, excluding property keys, declaration names, primitive keywords, and lexically bound type parameters. Treat references inside `typeof` as value namespace and other named type references as type namespace.",
+        "After parsing a reached snippet, require its selected declaration name and namespace to equal the input owner key. Report DECLARATION_CONTRACT_INCOMPLETE at that declaration's JSON Pointer with expected and observed identity detail when they differ.",
+        "Every detected reference must have exactly one matching route by referenceName and namespace. Zero matches returns DECLARATION_REFERENCE_ROUTE_MISSING; more than one returns DECLARATION_REFERENCE_ROUTE_AMBIGUOUS. A declaration resolution must name an available exact declaration key or return DECLARATION_ROUTE_TARGET_MISSING. Leaf routes are retained but never traversed.",
+        "Reject duplicate declaration keys before traversal. A missing root returns DECLARATION_ROOT_MISSING. Sort all findings by location, code, and canonical detail, and never return a bundle together with findings.",
+        "Limit one request to 64 reached declarations, 256 KiB for one declaration string, and 1 MiB for all reached declaration strings measured as UTF-8. Return DECLARATION_EVIDENCE_LIMIT_EXCEEDED without partial output when a bound would be crossed.",
+        "Use JSON Pointer locations rooted at `/declarations/<input index>` and `/roots/<input index>`. Reference-route findings use the reached declaration's location and include ownerPath, declarationName, referenceName, and namespace in detail.",
+        "Copy plain data into the result rather than retaining caller-owned mutable arrays or objects. Do not mutate, freeze, or otherwise alter the request.",
+        "Do not add source-file discovery, relative import resolution, dependency lookup, preparation integration, Agent Brief context delivery, candidate verification, Runner behavior, retries, project commands, or correctness claims. Those require later Slices after this core is proven."
+      ]
+    },
+    {
+      "path": "test/declaration-evidence.test.ts",
+      "operation": "modify",
+      "task": "Repair the applied declaration-evidence tests so they compile and test the reviewed contract rather than an invented shape. Keep expectations independent, but make their digest algorithm, normalized-shape keys, ordering, JSON Pointer locations, roots, routes, and limit fixtures exactly match revision 2. Add the missing public-type and declaration-identity coverage without changing production behavior to satisfy incorrect fixtures.",
+      "requirements": [
+        "The module uses the pinned OXC parser to normalize relevant exported functions, interfaces, type aliases, and explicitly typed variables while preserving whether each declaration came from authored meaning or inspected source.",
+        "The module builds a bounded closure from exact declaration keys, distinguishes TypeScript type and value namespaces, follows explicit declaration routes, includes cycles once, and does not parse irrelevant declaration inputs.",
+        "Successful output has stable ordering, exact normalized-shape fixtures, provenance and declaration digests, and one canonical content digest; repeated identical input produces byte-identical output without mutating the input.",
+        "Duplicate inputs, missing roots or route targets, missing or ambiguous reference routes, unsupported syntax, incomplete contracts, and exceeded bounds return exact typed findings with no partial evidence bundle.",
+        "Dedicated tests use independently authored expectations and cover existing, greenfield, mixed, create-to-create, cyclic, dual-namespace, unsupported, incomplete, missing, ambiguous, bounded, deterministic, and input-immutability behavior without paid calls or project commands."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "DeclarationEvidenceRequest",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "DeclarationEvidenceResult",
+          "from": "src/declaration-evidence.ts"
+        },
+        {
+          "name": "prepareDeclarationEvidence",
+          "from": "src/declaration-evidence.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/slice-draft-graph.test.ts",
+          "purpose": "Show the repository's concise unit-test structure, deep equality style, and deterministic graph assertions without supplying unrelated CLI fixtures."
+        },
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Let the tests independently recompute canonical shape and bundle digests instead of deriving expected values from implementation output."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Use exactly `import { prepareDeclarationEvidence, type DeclarationEvidenceRequest, type DeclarationEvidenceResult } from \"../src/declaration-evidence.js\";` for the new module seam.",
+        "Fix helper types so authored and inspected provenance both satisfy DeclarationEvidenceRequest and every assertion typechecks without an unknown cast. Add a compile-time assignment that reads the documented declaration output fields from a successful DeclarationEvidenceResult, proving the public result type was not weakened.",
+        "Write literal expected normalizedShapeJson fixtures for at least one reached function, interface, type alias, and typed variable. Use exactly the reviewed top-level shapes: function has kind, name, async, generator, typeParameters, params, and returnType; interface has kind, name, typeParameters, extends, and body; type alias has kind `type`, name, typeParameters, and typeAnnotation; variable has kind `const`, `let`, or `var`, name, and typeAnnotation. Never derive an expected shape by reading actual output during the test.",
+        "Independently reproduce sha256Json, not raw SHA-256: canonicalize the JSON value first, then hash those UTF-8 canonical JSON bytes. declarationDigest hashes the declaration string as a JSON value, shapeDigest hashes the parsed literal normalized shape value, and contentDigest hashes the complete literal bundle object without contentDigest.",
+        "Expected declarations are sorted lexicographically by ownerPath, name, and namespace, regardless of root or traversal order. Expected roots are owned before consumed and then sorted by ownerPath, name, and namespace. Expected reference entries use the stable detected-reference order produced by the reviewed contract.",
+        "Build one authored greenfield create-to-create graph, one inspected existing graph, and one mixed authored and inspected graph. Include an explicit typescript_global route when a fixture uses a TypeScript library type.",
+        "Give every root the actual ownerPath of its declaration. Include a cycle whose declarations appear once, and a same-name type and value pair whose roots and `typeof` reference select the correct namespaces. Make the function declaration an explicit root so its literal function shape is genuinely exercised.",
+        "Assert exact finding codes and the reviewed JSON Pointer locations `/declarations/<input index>` or `/roots/<input index>` for duplicate input, missing root, missing route, ambiguous route, missing route target, mismatched declaration identity, unsupported syntax, incomplete annotations, and each bound. Also assert every invalid result has no bundle property.",
+        "Exercise the 64 reached-declaration limit with a routed chain that attempts to reach a 65th declaration. Exercise the 256 KiB single-declaration limit with a syntactically relevant declaration whose UTF-8 bytes actually exceed that bound. Exercise the 1 MiB total reached-byte limit with several individually valid declarations linked into one closure. Do not expect unused declarations or missing roots to trigger evidence-size limits.",
+        "Place a malformed irrelevant declaration beside a valid reachable graph and prove it is not parsed or rejected.",
+        "Prepare the same request twice and compare the complete results with deep equality and JSON byte equality. Independently recompute contentDigest from the literal expected bundle without contentDigest.",
+        "Deep-freeze a request fixture before calling the module and assert its serialized bytes remain unchanged. Do not use snapshots generated from implementation output.",
+        "Do not call Plan Intake, inspect-module, project commands, paid Agents, the filesystem, or implementation-private helpers from these tests."
+      ]
+    }
+  ]
+}

@@ -2,7 +2,8 @@
   "slice_id": "single-target-runtime-workspace",
   "after": [
     "runtime-adapter-foundation",
-    "execution-flow-contracts"
+    "execution-flow-contracts",
+    "declaration-evidence-preparation"
   ],
   "title": "Disposable Agent workspace and lean context delivery",
   "objective": "Give every Agent exact frozen source through a disposable editable workspace while keeping full source bodies out of the initial Agent Input and preserving SCORE's deterministic review and atomic candidate boundary.",

@@ -1,0 +1,1455 @@
+{
+  "slice_id": "execution-flow-contracts",
+  "title": "Plan and share Execution Flows",
+  "objective": "Let people describe how a change should work, show that plan clearly in the review, and send it only to the Agents that need it.",
+  "requirements": [
+    "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+    "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+    "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional.",
+    "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result.",
+    "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+    "SCORE stores each flow once and shares that same frozen item only with the Agent Briefs named as recipients. Each Agent receives its flows in the order they were written.",
+    "SCORE rejects a compiled plan when its flows, stored items, recipients, or delivery order differ from the Accepted Specification.",
+    "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+    "The Agent Input and HTML review show only the stored flow data. The HTML places Execution Flow after Context and before Technical record.",
+    "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten.",
+    "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+  ],
+  "files": [
+    {
+      "path": "src/execution-flow.ts",
+      "operation": "create",
+      "task": "Create the shared module that reads Execution Flow data, checks that every flow is valid, and decides which Agent Briefs should receive it.",
+      "requirements": [
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional.",
+        "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result.",
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "declaration": "export interface ExecutionFlowStepDraft { readonly text: string; readonly declaration?: { readonly name: string; readonly from: string }; readonly children?: ExecutionFlowGroupDraft; }",
+          "description": "Describes one written step, an optional declaration link, and any nested steps beneath it."
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "declaration": "export interface ExecutionFlowGroupDraft { readonly ordering: \"in_order\" | \"any_order\"; readonly steps: ReadonlyArray<ExecutionFlowStepDraft>; }",
+          "description": "Groups one or more steps and says whether they must happen in order or may happen in any order."
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "declaration": "export interface ExecutionFlowDraft { readonly name: string; readonly recipients: ReadonlyArray<string>; readonly root: ExecutionFlowGroupDraft; }",
+          "description": "Describes one named flow, the Agent Briefs that receive it, and its complete nested steps."
+        },
+        {
+          "name": "ExecutionFlowFileInventory",
+          "declaration": "export interface ExecutionFlowFileInventory { readonly path: string; readonly declarations: ReadonlyArray<string>; }",
+          "description": "Lists the target files and declaration names that a flow is allowed to reference."
+        },
+        {
+          "name": "ExecutionFlowFinding",
+          "declaration": "export interface ExecutionFlowFinding { readonly code: ExecutionFlowFindingCode; readonly location: string; readonly message: string; readonly detail: Readonly<Record<string, unknown>>; }",
+          "description": "Describes one problem with the flow data and where it occurred."
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "declaration": "export const EXECUTION_FLOW_FINDING_CODES: Readonly<{ CONTENT_INVALID: \"EXECUTION_FLOW_CONTENT_INVALID\"; FLOW_INVALID: \"EXECUTION_FLOW_ENTRY_INVALID\"; FLOW_NAME_DUPLICATE: \"EXECUTION_FLOW_NAME_DUPLICATE\"; RECIPIENT_INVALID: \"EXECUTION_FLOW_RECIPIENT_INVALID\"; RECIPIENT_DUPLICATE: \"EXECUTION_FLOW_RECIPIENT_DUPLICATE\"; RECIPIENT_UNKNOWN: \"EXECUTION_FLOW_RECIPIENT_UNKNOWN\"; GROUP_INVALID: \"EXECUTION_FLOW_GROUP_INVALID\"; STEP_INVALID: \"EXECUTION_FLOW_STEP_INVALID\"; DECLARATION_LINK_INVALID: \"EXECUTION_FLOW_DECLARATION_LINK_INVALID\"; DECLARATION_UNRESOLVED: \"EXECUTION_FLOW_DECLARATION_UNRESOLVED\"; DECLARATION_AMBIGUOUS: \"EXECUTION_FLOW_DECLARATION_AMBIGUOUS\" }>;",
+          "description": "Lists the stable error codes shared by the flow checker and its tests."
+        },
+        {
+          "name": "ExecutionFlowFindingCode",
+          "declaration": "export type ExecutionFlowFindingCode = typeof EXECUTION_FLOW_FINDING_CODES[keyof typeof EXECUTION_FLOW_FINDING_CODES];",
+          "description": "Limits flow-checking errors to the documented code list."
+        },
+        {
+          "name": "ExecutionFlowDecode",
+          "declaration": "export type ExecutionFlowDecode = { readonly valid: false; readonly findings: readonly [ExecutionFlowFinding, ...ExecutionFlowFinding[]] } | { readonly valid: true; readonly present: false; readonly findings: readonly []; readonly flows: readonly [] } | { readonly valid: true; readonly present: true; readonly findings: readonly []; readonly flows: ReadonlyArray<ExecutionFlowDraft> };",
+          "description": "Distinguishes a missing execution_flows field from a present list and returns either checked flows or errors."
+        },
+        {
+          "name": "ExecutionFlowAnalysis",
+          "declaration": "export type ExecutionFlowAnalysis = { readonly valid: false; readonly findings: readonly [ExecutionFlowFinding, ...ExecutionFlowFinding[]] } | { readonly valid: true; readonly present: false; readonly findings: readonly []; readonly flows: readonly []; readonly flowsByRecipient: ReadonlyMap<string, ReadonlyArray<ExecutionFlowDraft>> } | { readonly valid: true; readonly present: true; readonly findings: readonly []; readonly flows: ReadonlyArray<ExecutionFlowDraft>; readonly flowsByRecipient: ReadonlyMap<string, ReadonlyArray<ExecutionFlowDraft>> };",
+          "description": "Returns either errors or the checked flows grouped by the Agent Briefs that should receive them."
+        },
+        {
+          "name": "EXECUTION_FLOW_DRAFT_SCHEMA",
+          "declaration": "export const EXECUTION_FLOW_DRAFT_SCHEMA: Readonly<Record<string, unknown>>;",
+          "description": "Defines the nested JSON format for one Execution Flow."
+        },
+        {
+          "name": "decodeExecutionFlows",
+          "declaration": "export function decodeExecutionFlows(value: unknown): ExecutionFlowDecode;",
+          "description": "Reads unknown data and returns checked Execution Flows or clear errors."
+        },
+        {
+          "name": "analyzeExecutionFlows",
+          "declaration": "export function analyzeExecutionFlows(value: unknown, files: ReadonlyArray<ExecutionFlowFileInventory>): ExecutionFlowAnalysis;",
+          "description": "Checks flow data, declaration links, and recipients, then groups valid flows by Agent Brief."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/project-path.ts",
+          "purpose": "Provides the existing rule for safe project-relative paths. Recipients and declaration links must follow it."
+        },
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Shows how Slice authoring reports invalid input and includes shared schemas."
+        },
+        {
+          "path": "src/validation.ts",
+          "purpose": "Shows where compiled plans are checked before SCORE accepts them."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Keep flow checking in one place",
+          "content": "Use decodeExecutionFlows to read and check the data shape. Use analyzeExecutionFlows to check recipients and declaration links and to group valid flows by Agent Brief. Both functions must preserve the written text and list order. Invalid input returns errors only, never a partial flow list. The module must use only the files and declarations passed to it."
+        }
+      ],
+      "constraints": [
+        "Import normalizeProjectRelativePath exactly from ./project-path.js and reject any recipient or declaration-owner path whose normalized value differs from its authored value; never rewrite it.",
+        "Use ordering values exactly in_order and any_order.",
+        "Require exact object keys, nonempty names, recipients, step text, and sibling groups in both the schema fragment and decoder.",
+        "Set EXECUTION_FLOW_DRAFT_SCHEMA.$id exactly to https://score-protocol.local/schema/execution-flow-draft-v1.json and implement recursion with local $defs and $ref inside that nested schema resource so it can be embedded as array items by both root schemas without external registration.",
+        "Treat a declaration link as the pair of exact owner path and exact declaration name and require exactly one owner in the supplied inventory.",
+        "Use only the exact codes exposed by EXECUTION_FLOW_FINDING_CODES: content invalid, entry invalid, duplicate name, invalid or duplicate or unknown recipient, invalid group, invalid step, invalid declaration link, unresolved declaration, and ambiguous declaration.",
+        "decodeExecutionFlows(undefined) must return valid true, present false, and an empty tuple; decodeExecutionFlows([]) must return valid true, present true, and an empty array. Any other non-array input is invalid.",
+        "analyzeExecutionFlows must call decodeExecutionFlows and carry its present discriminator unchanged into successful analysis.",
+        "Emit findings in deterministic authored traversal order with stable codes and locations rooted at /execution_flows.",
+        "Keep the module free of filesystem, SQLite, Runner, Adapter, renderer, clock, random, locale, and LLM dependencies.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/slice-draft.ts",
+      "operation": "modify",
+      "task": "Allow Slice authors to add optional Execution Flows without changing older Slices that do not use them.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [
+        {
+          "name": "SliceDraft",
+          "declaration": "export interface SliceDraft { readonly slice_id: string; readonly after?: ReadonlyArray<string>; readonly title: string; readonly objective: string; readonly requirements: ReadonlyArray<string>; readonly execution_flows?: ReadonlyArray<ExecutionFlowDraft>; readonly files: ReadonlyArray<SliceFileDraft>; }",
+          "description": "Adds optional Execution Flows to an editable Slice."
+        },
+        {
+          "name": "SLICE_DRAFT_SCHEMA",
+          "declaration": "export const SLICE_DRAFT_SCHEMA: Readonly<Record<string, unknown>>;",
+          "description": "Updates the Slice schema to include the optional nested flow field."
+        },
+        {
+          "name": "validateSliceDraftShape",
+          "declaration": "export function validateSliceDraftShape(value: unknown): SliceFinding[];",
+          "description": "Checks the updated Slice format while keeping Execution Flow optional."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_DRAFT_SCHEMA",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Explains how SCORE creates stable JSON identities and preserves list order."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Add the field without breaking older drafts",
+          "content": "Import the shared flow schema and type. Add execution_flows as an optional field and leave every existing field unchanged. An empty flow list is allowed, but every individual flow must have recipients and steps. Leave duplicate names and declaration-link checks to analyzeExecutionFlows."
+        }
+      ],
+      "constraints": [
+        "Set the Slice schema id exactly to https://score-protocol.local/schema/slice-draft-v4.json.",
+        "Import EXECUTION_FLOW_DRAFT_SCHEMA plus the recursive flow types from ./execution-flow.js and assign the schema constant as the items schema of the optional execution_flows array.",
+        "Do not add execution_flows to the required array.",
+        "Do not sort flow, recipient, group, or step arrays.",
+        "Do not add status, proof, warning, blocker, inferred relationship, or test-specific fields.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/change-draft.ts",
+      "operation": "modify",
+      "task": "Allow Change authors to use the same optional Execution Flow field as Slice authors, under the correct Change schema version.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional."
+      ],
+      "owns": [
+        {
+          "name": "ChangeDraft",
+          "declaration": "export interface ChangeDraft extends Omit<SliceDraft, \"slice_id\" | \"after\"> { readonly change_id?: string; }",
+          "description": "Adds the same optional Execution Flow field to a Change."
+        },
+        {
+          "name": "CHANGE_DRAFT_SCHEMA",
+          "declaration": "export const CHANGE_DRAFT_SCHEMA: Readonly<Record<string, unknown>>;",
+          "description": "Updates the public Change schema to include the optional flow field."
+        },
+        {
+          "name": "validateChangeDraftShape",
+          "declaration": "export function validateChangeDraftShape(value: unknown): SliceFinding[];",
+          "description": "Checks the updated Change format without changing its existing rules."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "SLICE_DRAFT_SCHEMA",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/change-authoring.ts",
+          "purpose": "Uses the Change type, schema, and validation result and must receive the new optional field unchanged."
+        },
+        {
+          "path": "test/change-authoring-cli.test.ts",
+          "purpose": "Checks the public schema returned by score change --schema."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Keep Change and Slice fields aligned",
+          "content": "Continue building Change fields from the shared Slice schema instead of copying the flow schema. Update the Change schema version, but leave change_id and all existing required fields and validation behavior unchanged."
+        }
+      ],
+      "constraints": [
+        "Set the Change schema id exactly to https://score-protocol.local/schema/change-draft-v2.json.",
+        "Do not make execution_flows required.",
+        "Do not change CHANGE_ID_PATTERN, validation finding translation, or Change identity syntax.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/plan-intake.ts",
+      "operation": "modify",
+      "task": "Store valid Execution Flows once and add each flow to the inputs of only the Agents named as recipients.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result.",
+        "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+        "SCORE stores each flow once and shares that same frozen item only with the Agent Briefs named as recipients. Each Agent receives its flows in the order they were written.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [
+        {
+          "name": "sliceDraftDigest",
+          "declaration": "export function sliceDraftDigest(draft: SliceDraft): string;",
+          "description": "Keeps the old Slice identity when the flow field is missing and uses the new identity when it is present."
+        },
+        {
+          "name": "prepareSlice",
+          "declaration": "export function prepareSlice(input: { readonly projectRoot: string; readonly sliceDraft: unknown; readonly resolvedDependencies?: ReadonlyArray<ResolvedSliceDependency>; readonly sourcePath?: string }): PrepareSliceResult;",
+          "description": "Checks Slice input and returns either a ready review or clear errors."
+        },
+        {
+          "name": "prepareValidatedSliceDraft",
+          "declaration": "export function prepareValidatedSliceDraft(input: { readonly projectRoot: string; readonly sliceDraft: SliceDraft; readonly resolvedDependencies?: ReadonlyArray<ResolvedSliceDependency>; readonly sourcePath?: string; readonly reviewKind?: \"change\" | \"slice\" }): PrepareSliceResult;",
+          "description": "Prepares a checked Change or Slice through the same storage and review path."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "validateSliceDraftShape",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFileInventory",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFindingCode",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFinding",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowAnalysis",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "analyzeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/types.ts",
+          "purpose": "Defines the existing SCORE records used to store and deliver flows without changing the database schema."
+        },
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Explains how SCORE creates stable JSON and digests, including the difference between a missing field and an empty list."
+        },
+        {
+          "path": "src/change-authoring.ts",
+          "purpose": "Passes Change data through the shared preparation code and must keep the flow field exactly as written."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Use the accepted flow as the source of truth",
+          "content": "Build the file and declaration list first, then call analyzeExecutionFlows with draft.execution_flows. Do not turn a missing field into an empty list. If the flow is invalid, return its errors before creating a review. If it is valid, use the checked data for every stored copy and Agent Input. Reuse SCORE's existing records; do not add new storage or Runner behavior."
+        }
+      ],
+      "constraints": [
+        "If execution_flows is omitted, omit it from Accepted Specification and Contract content and compute the exact legacy score.slice-draft@3.0.0 and score.slice-preparation@3.0.0 envelopes.",
+        "If execution_flows is present, including an empty array, include it unchanged in Accepted Specification and Contract content and use score.slice-draft@4.0.0 and score.slice-preparation@4.0.0 envelopes.",
+        "Import analyzeExecutionFlows and its supporting types from ./execution-flow.js, call analyzeExecutionFlows(draft.execution_flows, inventory) exactly once after inventory construction, and use flowAnalysis.present rather than defaulting undefined to an empty array.",
+        "Map invalid analysis findings to SliceFinding with code, /execution_flows-relative location, message, and detail unchanged and machineRepairable true; Change preparation preserves the same EXECUTION_FLOW_* code and location.",
+        "Continue sorting only after dependencies; never sort flows, recipients, groups, or steps.",
+        "Advance score-plan-intake to version 3.0.0 with protocol id 2877a361-9328-4469-a12e-64a853442932 and procedure text that explicitly covers optional flow validation, exact projection, sharing, and recipient routing.",
+        "For each authored flow create exactly one Context Item whose handle is execution_flow_ followed by its one-based authored position, kind is execution_flow, version is 1.0.0, purpose is Preserve authored Execution Flow <name> for its named recipients., resolution is inline, content is the exact flow, and source is kind accepted_specification with the exact Accepted Specification protocol id and digest.",
+        "When at least one flow exists, insert one Contract Input after documented-declarations and before project-context with handle input_execution_flows, logical name execution-flows, required false, expected kind execution_flow, version rule =1.0.0, minimum zero, maximum equal to the total authored flow count, and purpose Supply authored Execution Flow expectations assigned to this Agent Brief.; when no flow exists, create no flow input.",
+        "For every Agent Brief order Context Set members and bindings as target state, allocated requirements, documented declarations, recipient execution flows in filtered authored order, project context, then skills; use contiguous zero-based positions within input_execution_flows.",
+        "Do not add a SQLite migration, Compilation Bundle top-level field, Runner field, Adapter field, repository read, candidate inspection, runtime check, or LLM step.",
+        "Do not rewrite or rerender any stored historical object.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/plan-intake-set.ts",
+      "operation": "modify",
+      "task": "Reuse an older flow-free Slice only when the new draft is also flow-free.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [
+        {
+          "name": "prepareSliceSet",
+          "declaration": "export function prepareSliceSet(input: { readonly projectRoot: string; readonly slicesDirectory: string; readonly runnerDatabasePath: string; readonly tightenRunnerDatabaseParent?: boolean }): PrepareSliceSetResult;",
+          "description": "Prepares Slices in dependency order and safely reuses only matching older revisions."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "validateSliceDraftShape",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "sliceDraftDigest",
+          "from": "src/plan-intake.ts"
+        },
+        {
+          "name": "prepareSlice",
+          "from": "src/plan-intake.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/plan-intake-set.test.ts",
+          "purpose": "Contains the existing tests for reusing old Slice revisions and must cover the new optional field."
+        },
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Defines the stored information used to compare a new draft with an older prepared Slice."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Do not guess when comparing old revisions",
+          "content": "Keep the current digest comparison for modern revisions. For an older revision with no stored draft digest, use the old comparison only when execution_flows is missing. A present field, even an empty list, cannot match that older revision. Never add flow data to an older Accepted Specification."
+        }
+      ],
+      "constraints": [
+        "Do not change dependency ordering, applied-run detection, review path naming, or waiting behavior.",
+        "Do not mutate or backfill legacy heads.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/change-authoring.ts",
+      "operation": "modify",
+      "task": "Keep Execution Flows unchanged when a Change is compared, reused, or passed into the shared Slice preparation code.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [
+        {
+          "name": "prepareChange",
+          "declaration": "export function prepareChange(input: { readonly projectRoot: string; readonly changeDraft: unknown }): PrepareChangeResult;",
+          "description": "Prepares a Change while preserving its optional flow data and revision history."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "ChangeDraft",
+          "from": "src/change-draft.ts"
+        },
+        {
+          "name": "CHANGE_DRAFT_SCHEMA",
+          "from": "src/change-draft.ts"
+        },
+        {
+          "name": "validateChangeDraftShape",
+          "from": "src/change-draft.ts"
+        },
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "prepareValidatedSliceDraft",
+          "from": "src/plan-intake.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/change-authoring.test.ts",
+          "purpose": "Contains the existing Change identity, revision, review, and shared preparation behavior."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Copy the field without changing it",
+          "content": "Include execution_flows wherever Change data is mapped or compared. Keep a missing field missing, keep an empty list empty, and preserve every list position. Do not summarize, sort, duplicate, or fill in flow data."
+        }
+      ],
+      "constraints": [
+        "Do not change Change id syntax, revision semantics, preparation side effects, or human approval behavior.",
+        "Do not make Execution Flow mandatory.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/validation.ts",
+      "operation": "modify",
+      "task": "Reject directly submitted compiled plans that change, lose, duplicate, or send Execution Flows to the wrong Agents.",
+      "requirements": [
+        "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result.",
+        "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+        "SCORE stores each flow once and shares that same frozen item only with the Agent Briefs named as recipients. Each Agent receives its flows in the order they were written.",
+        "SCORE rejects a compiled plan when its flows, stored items, recipients, or delivery order differ from the Accepted Specification."
+      ],
+      "owns": [
+        {
+          "name": "EXECUTION_FLOW_PROJECTION_FINDING_CODES",
+          "declaration": "export const EXECUTION_FLOW_PROJECTION_FINDING_CODES: Readonly<{ AUTHORITY_INVALID: \"EXECUTION_FLOW_AUTHORITY_INVALID\"; CONTRACT_MISMATCH: \"EXECUTION_FLOW_CONTRACT_MISMATCH\"; ARTIFACT_UNEXPECTED: \"EXECUTION_FLOW_ARTIFACT_UNEXPECTED\"; CONTEXT_CARDINALITY_INVALID: \"EXECUTION_FLOW_CONTEXT_CARDINALITY_INVALID\"; CONTEXT_INVALID: \"EXECUTION_FLOW_CONTEXT_INVALID\"; CONTEXT_SOURCE_MISMATCH: \"EXECUTION_FLOW_CONTEXT_SOURCE_MISMATCH\"; CONTEXT_CONTENT_MISMATCH: \"EXECUTION_FLOW_CONTEXT_CONTENT_MISMATCH\"; BINDING_MISSING: \"EXECUTION_FLOW_BINDING_MISSING\"; BINDING_DUPLICATE: \"EXECUTION_FLOW_BINDING_DUPLICATE\"; BINDING_UNEXPECTED: \"EXECUTION_FLOW_BINDING_UNEXPECTED\"; BINDING_ORDER_INVALID: \"EXECUTION_FLOW_BINDING_ORDER_INVALID\" }>;",
+          "description": "Lists the stable errors used when a compiled plan copies or delivers flow data incorrectly."
+        },
+        {
+          "name": "validateCompilationBundle",
+          "declaration": "export function validateCompilationBundle(bundle: unknown, inputs: AcceptedInputPacket): ValidationFinding[];",
+          "description": "Checks that a compiled plan matches the Accepted Specification, including every flow and recipient."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFileInventory",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFindingCode",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFinding",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowAnalysis",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "analyzeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/compiler-input.ts",
+          "purpose": "Contains the Accepted Specification data that defines the correct flows."
+        },
+        {
+          "path": "src/types.ts",
+          "purpose": "Contains the Contract, stored flow items, and delivery positions supplied by a compiled plan."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Shows the one valid way Plan Intake stores and delivers an Execution Flow."
+        },
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Provides the stable JSON comparison used to check that every copy matches."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Check the source before checking its copies",
+          "content": "Read execution_flows from the Accepted Specification with analyzeExecutionFlows. Use that checked value to compare the Contract, stored items, recipients, and delivery order. Do not cast unknown data or write a second flow parser. Return stable validation errors and do not make claims about generated code."
+        }
+      ],
+      "constraints": [
+        "Require Contract execution_flows to have the same field presence and canonical-JSON-equal value as Accepted Specification content.execution_flows.",
+        "When Accepted Specification includes execution_flows or any flow artifact is present, locate exactly one documented-slice Contract assigned to the Capsules in the Coding Pass; reject absent or ambiguous flow authority before comparing projections.",
+        "Use only the exact projection codes exposed by EXECUTION_FLOW_PROJECTION_FINDING_CODES for authority, Contract equality, unexpected artifacts, Context Item cardinality, shape, source, content, and binding presence, duplication, routing, or order failures; preserve EXECUTION_FLOW_FINDING_CODES from the shared analyzer for malformed or semantically invalid flow data.",
+        "At the direct Compiled Plan boundary prefix analyzer locations with /accepted_specification/content while preserving analyzer code, message, and detail; projection findings use stable locations under /proposed_definition.",
+        "Build the authoritative file and owned-declaration inventory from Accepted Specification content.files after exact unknown-value checks; do not let untrusted Capsules or Context Items invent an owner that makes a declaration link resolve.",
+        "After semantic analysis against the Accepted Specification inventory, separately require each linked owner path and declaration name to resolve in the matching compiled Capsule and its validated owned documented_declarations projection.",
+        "For each authored flow require exactly one inline execution_flow Context Item version 1.0.0 sourced from the exact Accepted Specification id and digest with canonical-JSON-equal content.",
+        "When flows are nonempty require exactly one Contract Input for the shared documented-slice Contract with logical name execution-flows, required false, expected kind execution_flow, version rule =1.0.0, minimum zero, maximum equal to authored flow count, and the exact purpose Supply authored Execution Flow expectations assigned to this Agent Brief.; Bundle-local handles may differ from Plan Intake's handle.",
+        "Require each flow item in exactly the named recipients' Context Sets and exactly one binding per named recipient through the execution-flows Contract Input; reject unrelated, duplicate, missing, noncontiguous, or reordered bindings.",
+        "Reject every surplus or orphan flow artifact: an extra execution-flows Contract Input, execution_flow Context Item, Context Set membership, or Contract Input binding is invalid even when all expected artifacts are also present.",
+        "When Accepted Specification omits execution_flows, require the Contract to omit it and require no execution-flow input, item, membership, or binding. When it contains an empty array, require the Contract's empty array and no flow graph objects.",
+        "Do not duplicate the recursive decoder or cast unknown flow content to ExecutionFlowDraft.",
+        "Import analyzeExecutionFlows and its supporting declarations from ./execution-flow.js and call it exactly once on the Accepted Specification flow field after authoritative file inventory extraction; never analyze a Contract or Context Item as a substitute authority.",
+        "Do not add runtime, repository, candidate, warning, blocker, or LLM validation.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/render.ts",
+      "operation": "modify",
+      "task": "Show each Agent its assigned flows and show the complete flow list once in the HTML review, in the order the author wrote it.",
+      "requirements": [
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "The Agent Input and HTML review show only the stored flow data. The HTML places Execution Flow after Context and before Technical record.",
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [
+        {
+          "name": "AGENT_INPUT_RENDERER",
+          "declaration": "export const AGENT_INPUT_RENDERER: Readonly<{ id: string; version: string; specification: string }>;",
+          "description": "Updates the Agent Input renderer so each Agent sees only its assigned flows."
+        },
+        {
+          "name": "PUBLICATION_REVIEW_RENDERER",
+          "declaration": "export const PUBLICATION_REVIEW_RENDERER: Readonly<{ id: string; version: string; specification: string }>;",
+          "description": "Updates the HTML renderer so the complete written flow appears once in the review."
+        },
+        {
+          "name": "renderAgentInput",
+          "declaration": "export function renderAgentInput(agentInput: RenderableAgentInput): string;",
+          "description": "Shows an Agent's stored inputs, including only the flows assigned to it."
+        },
+        {
+          "name": "renderPublicationReviewHtml",
+          "declaration": "export function renderPublicationReviewHtml(snapshot: RenderableReviewSnapshot, options?: PublicationReviewRenderOptions): string;",
+          "description": "Shows the frozen review and its written flows without guessing from source code or runtime data."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFindingCode",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFinding",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDecode",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "decodeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/render.test.ts",
+          "purpose": "Checks the current renderer behavior, HTML structure, and renderer versions."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines the stored flow items and their order in each Agent Input."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Render stored flows without rebuilding them",
+          "content": "For an Agent Input, decode that Agent's stored flow bindings in their existing order. For the HTML review, decode execution_flows from the single frozen Slice Contract so the full list stays in the author's order. Use stored items and bindings only to link the named Agent Briefs. Reject invalid stored content instead of guessing or writing another parser."
+        }
+      ],
+      "constraints": [
+        "Set AGENT_INPUT_RENDERER.version exactly to 0.1.0-alpha.5 and update its specification.",
+        "Set PUBLICATION_REVIEW_RENDERER.version exactly to 0.1.0-alpha.26 and update its specification.",
+        "Import decodeExecutionFlows and its supporting types from ./execution-flow.js; both renderers must use that shared decoder for unknown stored content and must not implement another recursive parser.",
+        "In Agent Input Markdown add an Execution Flow section only when execution_flow bindings exist and render them in binding-position order.",
+        "For Agent Input Markdown collect only that Agent's execution_flow input-binding content in the existing materialized array order, decode the collected array once, and preserve that per-recipient filtered authored order.",
+        "Use the exact section and navigation label Execution Flow, the exact Agent Input heading ## Execution Flow, and the exact human recipient label Assigned Agent Briefs.",
+        "Use the exact group labels Must happen in order for in_order and Can happen in any order for any_order in both renderers.",
+        "After rendering the dedicated Agent Input section, exclude execution_flow bindings from the generic Resolved Input Bindings section so each flow appears once.",
+        "For canonical review HTML locate exactly one documented-slice Contract in the frozen pass and decode its content.execution_flows field as the sole source of global flow content and authored order; use execution_flow items and bindings only to determine and link each flow's recipient Agent Briefs.",
+        "Render one global Execution Flow section after Context and immediately before Technical record; omit the section and navigation link when the Contract omits execution_flows or contains an empty array.",
+        "Show each shared flow once in the human-facing review projection with named recipient Agent Brief links rather than duplicating it in every brief.",
+        "Exclude execution_flow Context Items from each Agent Brief's generic Context list because the global Execution Flow section is their human review projection.",
+        "Retain the exact collapsed raw Agent Input and technical audit evidence unchanged even though those machine-evidence disclosures necessarily contain recipient flow bytes again; the one-copy rule applies only to the human-facing projection.",
+        "Preserve the deterministic navigation-only sidebar. It links Overview, every dependency-first Agent Brief with Create or Modify and a collapsed owned-declarations list, Requirements when present, Context, Execution Flow only when stored flow data exists, and Technical record. Keep it sticky on desktop, compact on narrower screens, section-only on small screens, hidden in print, and free of status or readiness claims.",
+        "Every sidebar link must resolve to one stable rendered id. Opening a declaration link may reveal its owning Agent Brief with interaction-only JavaScript, but JavaScript must not create, reorder, relabel, or infer review content.",
+        "Do not inspect repository files, candidates, Runner state, mutable approval state, network, clock, locale, or LLM output.",
+        "Do not infer missing calls, collapse repeated authored steps, sort siblings, or turn any_order into a reordered display.",
+        "Preserve deterministic declaration language from the frozen Agent Input: render owned declarations as Defines and consumed declarations as Uses; show a consumed declaration's provider path only when the existing dependency projection resolves exactly one owner.",
+        "Preserve the current deterministic code presentation: TypeScript declarations are formatted across readable display lines, recognized languages receive static syntax coloring in the generated HTML, and the exact stored source remains unchanged in raw machine evidence. Do not add a browser-side formatter, external asset, network dependency, or LLM rewrite.",
+        "Do not restore a global file relationship map or How the files fit together section; Agent Briefs, their local documented interfaces and Context, and the authored Execution Flow section are the only human-facing coordination views.",
+        "Do not add a graph library, external visualization tool, status, readiness, blocker, warning, missing-information, adherence, or proof claim.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "src/score-alpha.ts",
+      "operation": "modify",
+      "task": "Record this validation change under a new validator version without changing SCORE's existing storage or publication behavior.",
+      "requirements": [
+        "SCORE rejects a compiled plan when its flows, stored items, recipients, or delivery order differ from the Accepted Specification.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "validateCompilationBundle",
+          "from": "src/validation.ts"
+        },
+        {
+          "name": "AGENT_INPUT_RENDERER",
+          "from": "src/render.ts"
+        },
+        {
+          "name": "PUBLICATION_REVIEW_RENDERER",
+          "from": "src/render.ts"
+        },
+        {
+          "name": "renderAgentInput",
+          "from": "src/render.ts"
+        },
+        {
+          "name": "renderPublicationReviewHtml",
+          "from": "src/render.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/publication-gate.test.ts",
+          "purpose": "Checks that stored Context Items, Agent Inputs, renderer versions, and approved exports remain frozen."
+        },
+        {
+          "path": "docs/decisions.md",
+          "purpose": "Documents the append-only rules for stored SCORE records."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Version only the validator that changed",
+          "content": "The structural validator now checks Execution Flow copies and recipients, so update only that validator version. SCORE's existing import, storage, Agent Input, review, approval, and export code already carries the needed data and must not change."
+        }
+      ],
+      "constraints": [
+        "Set VALIDATOR_VERSION exactly to 0.1.0-alpha.5.",
+        "Keep VALIDATOR_ID, PUBLICATION_VALIDATOR_ID, PUBLICATION_VALIDATOR_VERSION, PUBLICATION_CHECKS, Compilation Bundle profile versions, Review Snapshot versions, tables, and materialization logic unchanged.",
+        "Do not add flow-specific tables, columns, queries, payload fields, or stored-state reinterpretation.",
+        "Historical submissions retain their recorded validator and renderer versions.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "skills/score-authoring/SKILL.md",
+      "operation": "modify",
+      "task": "Teach the SCORE planning Agent how to write optional Execution Flows in plain language and send them only to the Agents that need them.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Defines the optional execution_flows field and its exact machine format."
+        },
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Defines what Execution Flow means and what SCORE does not claim about it."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Advance the skill version exactly from 0.7.0 to 0.8.0.",
+        "State plainly that the human and planning agent author the tree before preparation and that this authoring judgment is not deterministic.",
+        "Teach optionality, explicit recipients, explicit sibling ordering, and exact declaration owner path plus name.",
+        "Tell the author not to infer a flow from source, require one for every Change or Slice, route one to unrelated Agents, or claim SCORE verifies adherence.",
+        "Preserve the cross-file reverse-dependency closure rules, explicit-user-request test policy, and instruction to stop before approval, Runner execution, candidate generation, or application.",
+        "Use Agent Brief and Agent in new prose; do not introduce new File Brief wording.",
+        "Keep the required plain-language pass. It must cover every human-facing field, protect exact technical text, and forbid the HTML renderer from rewriting the plan.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "CONTEXT.md",
+      "operation": "modify",
+      "task": "Explain what Execution Flow means in SCORE and make clear that it is a plan, not proof of what the code actually does.",
+      "requirements": [
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "docs/terminology.md",
+          "purpose": "Keeps the short terminology entry consistent with the full definition."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Shows that SCORE stores flows with its existing Contracts and Context Items instead of adding a new Core object."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Define Execution Flow as an immutable authored hierarchy describing how implemented behavior is expected to proceed through calls, resources, events, and boundaries.",
+        "State that divergence may become human or agent review feedback but SCORE does not automatically prove it.",
+        "Place the term with Coding Profile work and context, not domain-neutral deferred Core concepts.",
+        "Do not introduce Planned Flow, call stack, implementation status, verification result, or runtime trace as a synonym.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "docs/terminology.md",
+      "operation": "modify",
+      "task": "Add Execution Flow to the terminology guide and clearly separate it from call graphs, runtime traces, and test results.",
+      "requirements": [
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Contains the full product definition that this shorter entry must match."
+        },
+        {
+          "path": "docs/decisions.md",
+          "purpose": "Explains which terms belong to the Coding Profile and which are Core protocol objects."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Add the exact code correspondence Execution Flow | Slice Draft execution_flows, execution_flow Context Item using the table's existing format.",
+        "Say to use Execution Flow for an authored implementation expectation and never as a synonym for inferred call graph, runtime trace, verification result, or proof of adherence.",
+        "Do not introduce a new protocol object or decision record.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/execution-flow.test.ts",
+      "operation": "create",
+      "task": "Test the shared Execution Flow checker by itself, including nested steps, invalid data, and recipient selection.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional.",
+        "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFileInventory",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFindingCode",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowFinding",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDecode",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowAnalysis",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "decodeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "analyzeExecutionFlows",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_DRAFT_SCHEMA",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/plan-intake.test.ts",
+          "purpose": "Shows the repository's node:test style."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test the checker as a table of inputs and results",
+          "content": "Use node:test and strict assertions. Cover valid nested flows, steps with and without declaration links, and a table of malformed inputs. Check complete errors and recipient results rather than private implementation details. Run representative invalid inputs twice to prove the results stay the same."
+        }
+      ],
+      "constraints": [
+        "Prove omitted and empty arrays are valid inputs and preserve the exact decoded representation.",
+        "Compile EXECUTION_FLOW_DRAFT_SCHEMA directly in a fresh strict Ajv2020 instance and prove nested groups validate through its self-contained id and local references.",
+        "Prove valid nested in_order and any_order trees plus exact linked and unlinked steps remain unchanged.",
+        "Prove flowsByRecipient preserves authored flow order.",
+        "Cover wrong types and keys, empty text, recipients, and groups, duplicate flow names and recipients, unknown and noncanonical paths, and missing or ambiguous declaration links.",
+        "Import EXECUTION_FLOW_FINDING_CODES and assert its exact values rather than independently inventing error strings.",
+        "For every invalid case assert valid false, a nonempty deterministic finding list, and absence of partial flows or routing.",
+        "Use no filesystem, database, clock, network, child process, or sleep.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/plan-intake.test.ts",
+      "operation": "modify",
+      "task": "Test the complete preparation path: store flows once, send them only to named Agents, reproduce the same output, and create a new revision when a flow changes.",
+      "requirements": [
+        "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result.",
+        "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+        "SCORE stores each flow once and shares that same frozen item only with the Agent Briefs named as recipients. Each Agent receives its flows in the order they were written.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "prepareSlice",
+          "from": "src/plan-intake.ts"
+        },
+        {
+          "name": "sliceDraftDigest",
+          "from": "src/plan-intake.ts"
+        },
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Contains the preparation, storage, recipient delivery, and revision behavior being tested."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test real preparation from input to review",
+          "content": "Use temporary projects and the real SCORE database setup already used by this test. Inspect the Accepted Specification, stored records, review snapshot, and Agent Inputs instead of mocking preparation. Give each sample flow unique text so the test can prove exactly where it appears."
+        }
+      ],
+      "constraints": [
+        "Prove two overlapping flows create one Context Item each reused across recipients, with no per-recipient copy.",
+        "Prove each named recipient has exactly its filtered authored flow order and an unrelated Agent Input has no execution_flow binding.",
+        "Prove Accepted Specification and Contract preserve exact field presence and arrays.",
+        "Prove invalid recipient and declaration-link drafts stop before review creation.",
+        "Use EXECUTION_FLOW_FINDING_CODES for exact invalid-draft assertions.",
+        "Prove repeated identical preparation reuses exact artifacts and a flow-only edit creates the next immutable revision without changing prior HTML or snapshot bytes.",
+        "Prove omitted flow-free draft digests retain the legacy v3 envelope while present empty and nonempty fields use the v4 envelope.",
+        "Do not weaken existing path, source capture, publication, or review assertions.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/plan-intake-set.test.ts",
+      "operation": "modify",
+      "task": "Test when SCORE reuses a Slice revision and when missing, empty, or changed Execution Flow data must produce a different result.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "prepareSliceSet",
+          "from": "src/plan-intake-set.ts"
+        },
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/plan-intake-set.ts",
+          "purpose": "Contains the fallback used for older revisions and the current revision comparison."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Defines the older and newer Slice identities used in the comparison."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Protect revision history",
+          "content": "Extend the existing revision fixtures. Keep the older sample truly flow-free and without a draft digest. Check the public revision and review result instead of calling private helpers."
+        }
+      ],
+      "constraints": [
+        "Prove a legacy null-digest flow-free head still matches the same draft when execution_flows is omitted.",
+        "Prove present-empty and nonempty execution_flows never reuse a legacy head.",
+        "Prove an unchanged current flow-bearing draft reuses its revision and a flow-only edit creates the next revision.",
+        "Do not mutate historical rows except inside isolated test fixtures.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/change-authoring.test.ts",
+      "operation": "modify",
+      "task": "Test that Changes and Slices accept the same flow data, keep it unchanged, deliver it to the right Agents, and create new revisions only when needed.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "prepareChange",
+          "from": "src/change-authoring.ts"
+        },
+        {
+          "name": "ChangeDraft",
+          "from": "src/change-draft.ts"
+        },
+        {
+          "name": "CHANGE_DRAFT_SCHEMA",
+          "from": "src/change-draft.ts"
+        },
+        {
+          "name": "SLICE_DRAFT_SCHEMA",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "prepareSlice",
+          "from": "src/plan-intake.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/change-authoring.ts",
+          "purpose": "Contains the Change comparison and field-copying behavior being tested."
+        },
+        {
+          "path": "src/change-draft.ts",
+          "purpose": "Defines the updated Change schema and TypeScript type."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Compare the real Change and Slice paths",
+          "content": "Prepare matching Changes and Slices through the real public functions. Inspect the frozen specifications and Agent Inputs. Keep all existing identity and invalid-ID cases."
+        }
+      ],
+      "constraints": [
+        "Assert Change and Slice schemas expose canonically equal optional execution_flows property definitions.",
+        "Compile SLICE_DRAFT_SCHEMA and CHANGE_DRAFT_SCHEMA in separate fresh strict Ajv2020 instances and prove the same valid and invalid nested flow fixtures behave identically.",
+        "Prove Change preparation preserves exact flows and recipient-only delivery through mapped Slice compilation.",
+        "Prove the same flow-bearing Change body reuses identity and artifacts while a flow-only edit creates revision two and leaves revision one bytes unchanged.",
+        "Prove omission remains omission and does not become an empty array.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/change-authoring-cli.test.ts",
+      "operation": "modify",
+      "task": "Test that score change --schema shows the optional nested Execution Flow format without creating SCORE files.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "ChangeDraft",
+          "from": "src/change-draft.ts"
+        },
+        {
+          "name": "SliceDraft",
+          "from": "src/slice-draft.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/change-draft.ts",
+          "purpose": "Defines the public schema printed by the command."
+        },
+        {
+          "path": "src/cli.ts",
+          "purpose": "Contains the command behavior and the existing check that it writes nothing."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test the real public schema command",
+          "content": "Run the real command and parse its JSON output. Check the recursive schema itself instead of copying that schema into the test."
+        }
+      ],
+      "constraints": [
+        "Assert the schema id is exactly https://score-protocol.local/schema/change-draft-v2.json.",
+        "Assert the embedded flow item schema id is exactly https://score-protocol.local/schema/execution-flow-draft-v1.json and its local recursive references survive JSON CLI serialization.",
+        "Assert execution_flows is optional, the array permits empty, recipients and groups are nonempty, ordering is explicit, and declaration links require exactly name and from.",
+        "Preserve the assertion that schema inspection creates no .score state.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/compiler-submission.test.ts",
+      "operation": "modify",
+      "task": "Test that a directly submitted compiled plan cannot change, duplicate, drop, or send Execution Flows to the wrong Agents.",
+      "requirements": [
+        "One shared module checks all Execution Flow data before SCORE uses it. It rejects malformed flows, unsafe paths, duplicate names or recipients, missing declarations, and unknown Agent Briefs. Invalid flows produce no partial result.",
+        "The Accepted Specification is the source of truth for Execution Flows. Every stored copy and every Agent Input must match it exactly, including whether the field was left out and the order of every list.",
+        "SCORE stores each flow once and shares that same frozen item only with the Agent Briefs named as recipients. Each Agent receives its flows in the order they were written.",
+        "SCORE rejects a compiled plan when its flows, stored items, recipients, or delivery order differ from the Accepted Specification."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "validateCompilationBundle",
+          "from": "src/validation.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_PROJECTION_FINDING_CODES",
+          "from": "src/validation.ts"
+        },
+        {
+          "name": "EXECUTION_FLOW_FINDING_CODES",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/validation.ts",
+          "purpose": "Contains compiled-plan validation and its stable error codes."
+        },
+        {
+          "path": "fixtures/account-status.bundle.json",
+          "purpose": "Provides an existing flow-free compiled plan that the tests can copy and extend."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Break one rule per test",
+          "content": "Start with one valid flow-bearing Accepted Specification and compiled plan. Copy it for each case and break exactly one rule. Check the matching stable error code and confirm that SCORE imports nothing from an invalid submission."
+        }
+      ],
+      "constraints": [
+        "Keep the existing flow-free fixture valid unchanged.",
+        "Prove a correctly constructed flow-bearing pair validates.",
+        "Cover Accepted Specification versus Contract field presence and content disagreement, absent or ambiguous documented-slice flow authority, malformed unknown flow content, missing and duplicate items, wrong item source or content, missing and unrelated recipients, duplicate bindings, and reordered or noncontiguous positions.",
+        "Include explicit surplus-artifact cases for a second execution-flows input, orphan execution_flow item, unrelated Context Set membership, and extra binding even when the expected graph remains intact.",
+        "Cover unresolved and ambiguous declaration links using exact Capsule target and documented_declarations data.",
+        "Import the two finding-code constants and assert their exact values rather than independently inventing error strings.",
+        "Do not weaken generic bundle shape, graph, source, or materialization tests.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/publication-gate.test.ts",
+      "operation": "modify",
+      "task": "Test that reviews, Agent Inputs, and approved exports keep the same frozen flow data after the database is closed and reopened.",
+      "requirements": [
+        "SCORE stores each flow once and shares that same frozen item only with the Agent Briefs named as recipients. Each Agent receives its flows in the order they were written.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "Adding, removing, or changing Execution Flow data creates a new frozen revision. Older reviews, approvals, and runs are never rewritten."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/score-alpha.ts",
+          "purpose": "Contains the storage, review, approval, Agent Input, and export behavior being tested."
+        },
+        {
+          "path": "src/plan-intake.ts",
+          "purpose": "Creates the valid stored flow data used by the test."
+        },
+        {
+          "path": "src/render.ts",
+          "purpose": "Defines the renderer versions and the human and Agent Input output."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test the real stored records",
+          "content": "Use the real SQLite publication path and inspect the stored JSON and digests. Prove the behavior through SCORE's existing Context Item and binding records. Do not add or expect flow-specific tables."
+        }
+      ],
+      "constraints": [
+        "Prove recipient JSON and Markdown contain the exact flow and unrelated payloads omit it.",
+        "Prove repeated review preparation is byte-identical and approved export remains identical after closing and reopening SQLite.",
+        "Prove stored validator and renderer versions are the new versions for new flow-bearing work while existing historical fixtures remain readable.",
+        "Preserve all existing publication-gate tamper, pre-approval, and frozen-export assertions.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/render.test.ts",
+      "operation": "modify",
+      "task": "Test that Agent Inputs and HTML reviews show Execution Flows clearly, in the right place and order, without adding or repeating information.",
+      "requirements": [
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "The Agent Input and HTML review show only the stored flow data. The HTML places Execution Flow after Context and before Technical record.",
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "ExecutionFlowStepDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowGroupDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "ExecutionFlowDraft",
+          "from": "src/execution-flow.ts"
+        },
+        {
+          "name": "AGENT_INPUT_RENDERER",
+          "from": "src/render.ts"
+        },
+        {
+          "name": "PUBLICATION_REVIEW_RENDERER",
+          "from": "src/render.ts"
+        },
+        {
+          "name": "renderAgentInput",
+          "from": "src/render.ts"
+        },
+        {
+          "name": "renderPublicationReviewHtml",
+          "from": "src/render.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/render.ts",
+          "purpose": "Defines both renderers and their versioned output rules."
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test what the reviewer can actually read",
+          "content": "Build one frozen review with nested flows, different order rules, declaration links, overlapping recipients, and one unrelated Agent Brief. Check the meaningful HTML structure and relative order without locking the test to incidental whitespace."
+        }
+      ],
+      "constraints": [
+        "Assert AGENT_INPUT_RENDERER.version is exactly 0.1.0-alpha.5 and PUBLICATION_REVIEW_RENDERER.version is exactly 0.1.0-alpha.26.",
+        "Assert Markdown and HTML show exact flow names, recipients, explicit plain-English order meaning, nested authored order, and resolvable declaration links.",
+        "Use at least two flows with disjoint recipient sets and a Capsule order different from authored flow order; assert the global HTML follows Contract execution_flows order while each Agent Input follows only its binding-position order.",
+        "Assert in_order renders exactly Must happen in order and any_order renders exactly Can happen in any order.",
+        "Assert the section and navigation label is exactly Execution Flow, the Markdown heading is exactly ## Execution Flow, and the human recipient label is exactly Assigned Agent Briefs.",
+        "Assert each flow appears once in Agent Input Markdown and once in the human-facing global review projection rather than repeating in generic binding or per-Brief Context sections; scope HTML counting to that semantic projection and do not strip or count collapsed raw machine evidence.",
+        "Assert same input produces byte-identical output and unrelated Agent Input contains no Execution Flow section.",
+        "Assert the HTML Execution Flow section and navigation link occur after Context and immediately before Technical record, and both are absent for a flow-free review.",
+        "Assert the navigation-only sidebar keeps every Agent Brief in dependency-first order, shows Create or Modify, lists only owned declarations under their Agent Brief, resolves every local link to a rendered id, and reveals a linked declaration inside its owning disclosure without generating semantic content in JavaScript.",
+        "Assert the sidebar becomes compact on narrower screens, hides the Agent Brief index on small screens, and is absent from print output.",
+        "Assert owned declarations render the exact label Defines, consumed declarations render the exact label Uses, and legacy Implement here or Use from labels are absent.",
+        "Assert TypeScript declarations render as readable multi-line, statically syntax-colored code while the frozen declaration text remains unchanged; recognized source-file and fenced-code languages receive deterministic language classes without browser-side formatting or network assets.",
+        "Assert the review contains no How the files fit together heading and no file-map markup.",
+        "Assert output contains no inferred status, readiness, blocker, warning, adherence, runtime-trace, or verification claim.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/score-authoring-skill.test.ts",
+      "operation": "modify",
+      "task": "Test that the SCORE authoring skill explains optional Execution Flows in plain language and still stops before approval or execution.",
+      "requirements": [
+        "Execution Flow is optional. Leaving execution_flows out keeps older flow-free Changes and Slices exactly as they are.",
+        "Each Execution Flow names at least one Agent Brief and contains a nested list of steps. Every group says whether its steps must happen in order or may happen in any order. The review always keeps the order in which the steps were written.",
+        "Each step uses plain language. It may point to one documented declaration by its exact file path and declaration name, but the link is optional.",
+        "Each named Agent receives the complete flow unchanged. Unrelated Agents receive nothing, and preparing or exporting the same plan again produces the same bytes.",
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "skills/score-authoring/SKILL.md",
+          "purpose": "Is the versioned SCORE authoring guidance being tested."
+        },
+        {
+          "path": "src/slice-draft.ts",
+          "purpose": "Defines the exact execution_flows field that the skill must explain without copying its full schema."
+        },
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Defines what Execution Flow means and what SCORE does not claim."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Assert the skill version is exactly 0.8.0.",
+        "Assert it says the human and planning agent author flows before preparation and that the field is optional.",
+        "Assert it teaches explicit recipients, explicit order at every group, exact declaration links, and recipient-only delivery.",
+        "Assert it forbids source inference, mandatory flows, unrelated routing, and adherence or status claims.",
+        "Preserve assertions for reverse-dependency closure, explicit-user-request tests, and stopping before approval or Runner execution.",
+        "Assert that the plain-language pass covers every human-facing field, preserves exact technical text, and keeps rewriting out of the HTML renderer.",
+        "Do not change another file."
+      ]
+    },
+    {
+      "path": "test/review-terminology.test.ts",
+      "operation": "modify",
+      "task": "Test that SCORE documentation describes Execution Flow as a written plan rather than a call graph, runtime trace, or proof.",
+      "requirements": [
+        "An Execution Flow is a written plan for how the code should behave. SCORE does not generate it from source code, and it does not claim that the finished code followed the plan."
+      ],
+      "owns": [],
+      "consumes": [],
+      "context": [
+        {
+          "path": "CONTEXT.md",
+          "purpose": "Contains the full Execution Flow definition."
+        },
+        {
+          "path": "docs/terminology.md",
+          "purpose": "Contains the preferred term and its matching code names."
+        },
+        {
+          "path": "docs/decisions.md",
+          "purpose": "Defines the existing protocol objects that Execution Flow must not replace."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Assert Execution Flow is defined under Coding Profile language and maps to Slice Draft execution_flows plus execution_flow Context Item.",
+        "Assert the definition distinguishes authored expectation from inferred call graph, runtime trace, verification result, and proof of adherence.",
+        "Assert it says divergence may become review feedback but SCORE does not automatically prove divergence.",
+        "Assert Planned Flow, call stack, and runtime trace are not introduced as synonyms.",
+        "Do not change another file."
+      ]
+    }
+  ]
+}

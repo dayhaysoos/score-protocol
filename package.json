@@ -39,6 +39,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/**/*.test.ts",
     "test:package": "node scripts/package-smoke.mjs",
+    "experiment:declaration-contracts": "tsx src/prototypes/declaration-contract-experiment.ts",
     "reproduce": "tsx src/cli.ts reproduce",
     "inspect": "tsx src/cli.ts inspect",
     "approve": "tsx src/cli.ts approve",
@@ -56,6 +57,7 @@
     "effect": "4.0.0-beta.104",
     "json-dup-key-validator": "1.0.3",
     "log-update": "8.0.0",
+    "oxc-parser": "0.144.0",
     "string-width": "8.2.2"
   },
   "devDependencies": {

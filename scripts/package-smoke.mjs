@@ -224,6 +224,35 @@ try {
   mkdirSync(join(projectDirectory, "src"));
   const originalTarget = "export interface Account { id: string; }\n";
   writeFileSync(join(projectDirectory, "src", "account.ts"), originalTarget, "utf8");
+  const moduleInspection = run(
+    score,
+    ["inspect-module", "src/account.ts", "--export", "Account"],
+    { cwd: projectDirectory }
+  );
+  const inspectedContract = JSON.parse(moduleInspection.stdout);
+  assert.equal(inspectedContract.status, "ok");
+  assert.equal(inspectedContract.mode, "contract");
+  assert.equal(inspectedContract.module.parser.name, "oxc-parser");
+  assert.equal(
+    inspectedContract.selectedExport.declaration,
+    "export interface Account { id: string; }"
+  );
+  const closureInspection = run(
+    score,
+    ["inspect-module", "src/account.ts", "--export", "Account", "--closure"],
+    { cwd: projectDirectory }
+  );
+  const inspectedClosure = JSON.parse(closureInspection.stdout);
+  assert.equal(inspectedClosure.status, "ok");
+  assert.equal(inspectedClosure.mode, "closure");
+  assert.deepEqual(
+    inspectedClosure.contracts.map((contract) => [
+      contract.module.path,
+      contract.selectedExport.name
+    ]),
+    [["src/account.ts", "Account"]]
+  );
+  assert.equal(existsSync(join(projectDirectory, ".score")), false);
   const change = {
     title: "Account status",
     objective: "Add an account status field.",

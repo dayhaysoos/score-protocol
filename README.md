@@ -105,6 +105,8 @@ so a failed check or Run does not authorize unreviewed source changes.
 
 - [Alpha scope and reproduction](./ALPHA.md)
 - [Coding Profile](./profiles/coding/README.md)
+- [Feature roadmap](./docs/features/README.md)
+- [Experimental assurance case](./docs/assurance/README.md)
 - [Runtime adapters](./docs/runtime-adapters.md)
 - [Canonical glossary](./CONTEXT.md)
 - [Core protocol](./spec/core.md)
@@ -125,6 +127,26 @@ your context.
 Inspect the current project and the plans, specs, issues, or documentation the
 user identified. Choose the complete target and context scope, then submit one
 structured Change on standard input:
+
+When work crosses an existing TypeScript module seam, inspect its current public
+surface before drafting context:
+
+```sh
+score inspect-module src/example.ts
+score inspect-module src/example.ts --export Example
+score inspect-module src/example.ts --export Example --closure
+```
+
+The first command discovers imports and exports. The second returns one
+supported body-free declaration, its referenced-type routing, and a
+`sliceDraftContext` seed. Inspection is read-only; the Agent must intentionally
+place accepted context into a Change or Slice.
+
+The `--closure` form recursively gathers supporting declarations through local
+exports and relative TypeScript imports. It fails without a context seed when a
+route is missing, ambiguous, package-based, or otherwise cannot be proven
+without project configuration. It does not read `tsconfig.json` or
+`package.json`, infer product meaning, or update a Change or Slice.
 
 ```sh
 score change --input -

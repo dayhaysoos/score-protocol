@@ -22,6 +22,7 @@ import { repositoryRevisionContentDigest } from "../src/repository-source-state.
 import { RunId } from "../src/runner/domain.js";
 import { inspectLatestProjectRun } from "../src/runner/runner.js";
 import { RunnerStore, RunnerStoreLive } from "../src/runner/runner-store.js";
+import { formatRunStatus } from "../src/runner/failure-presentation.js";
 import type { ApprovedPassExport } from "../src/score-alpha.js";
 
 const execFileAsync = promisify(execFile);
@@ -261,7 +262,8 @@ describe("Runner observation store", () => {
           join(process.cwd(), "src", "cli.ts"),
           "status",
           "--runner-db",
-          runnerDatabasePath
+          runnerDatabasePath,
+          "--json"
         ],
         { cwd: projectRoot }
       );
@@ -323,7 +325,8 @@ describe("Runner observation store", () => {
           "--runner-db",
           runnerDatabasePath,
           "--run",
-          runs.older.runId
+          runs.older.runId,
+          "--json"
         ],
         { cwd: projectRoot }
       );
@@ -620,6 +623,14 @@ describe("Runner observation store", () => {
       assert.equal(file.failureCategory, "runtime");
       assert.equal(file.failureMessage, "Runtime failure.");
       assert.equal(file.failureStage, null);
+      assert.deepEqual(file.failureEvidence, {
+        category: "runtime",
+        stage: null,
+        name: null,
+        status: null,
+        statusCode: null,
+        reason: null
+      });
       assert.equal(file.runtimeSessionId, "historical-session");
       assert.equal(file.targetOutputState, "not observed");
       assert.equal(historicalReplace.stage, "succeeded");
@@ -642,6 +653,12 @@ describe("Runner observation store", () => {
         .get() as { runtimeSessionId: string | null };
       migrated.close();
       assert.equal(storedSession.runtimeSessionId, null);
+      const historicalStatus = formatRunStatus(run);
+      assert.match(historicalStatus, /^src\/historical\.ts failed$/mu);
+      assert.match(
+        historicalStatus,
+        /^Reason: Unavailable \(not retained for this Run\)$/mu
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -722,6 +739,10 @@ describe("Runner observation store", () => {
         .all() as Array<{ name: string }>;
       migrated.close();
       assert.equal(attemptColumns.some(({ name }) => name === "failure_stage"), true);
+      assert.equal(
+        attemptColumns.some(({ name }) => name === "failure_evidence_json"),
+        true
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -940,17 +961,17 @@ describe("Runner observation store", () => {
             });
             yield* store.completeFailure({
               job: claimed,
-              failureTag: "AdapterInvocationError",
-              failureCategory: "provider",
-              runtimeSessionId: "failed-session",
-              terminalOutcome: {
-                kind: "provider",
-                status: "rate limited; token=private-status-token",
-                statusCode: 429,
+              failureEvidence: {
+                category: "provider",
+                stage: null,
                 name: "RateLimitError",
-                headers: { authorization: "Bearer raw-header-secret" },
-                body: { privateMetadata: "must-not-survive" }
+                status: "error",
+                statusCode: 429,
+                reason:
+                  "Rate limited; token=private-status-token; " +
+                  'raw_metadata={"authorization":"Bearer raw-header-secret","private":"must-not-survive"}'
               },
+              runtimeSessionId: "failed-session",
               targetOutputState: "different",
               targetOutputDigest: rejectedDigest,
               diagnosticContent: rejectedContent
@@ -977,9 +998,18 @@ describe("Runner observation store", () => {
       assert.equal(file.rejectedOutputDigest, rejectedDigest);
       assert.deepEqual(file.terminalOutcome, {
         kind: "provider",
-        status: null,
+        status: "error",
         statusCode: 429,
         name: "RateLimitError"
+      });
+      assert.deepEqual(file.failureEvidence, {
+        category: "provider",
+        stage: "Agent working",
+        name: "RateLimitError",
+        status: "error",
+        statusCode: 429,
+        reason:
+          "Rate limited; [REDACTED CREDENTIAL]; [REDACTED METADATA]"
       });
       assert.equal(file.rejectedOutputPath, null);
       assert.equal(existsSync(`${runnerDatabasePath}.diagnostics`), false);
@@ -992,7 +1022,35 @@ describe("Runner observation store", () => {
         serialized,
         /authorization|bearer|apiKey|raw[-_]metadata|private[-_]metadata|raw-header-secret|must-not-survive|"headers"|"body"/i
       );
-      assert.equal(file.failureMessage, "Provider failure.");
+      assert.match(file.failureMessage ?? "", /^Rate limited;/u);
+
+      const projectRoot = join(directory, "project");
+      mkdirSync(join(projectRoot, ".score"), { recursive: true });
+      const status = await execFileAsync(
+        join(process.cwd(), "node_modules", ".bin", "tsx"),
+        [
+          join(process.cwd(), "src", "cli.ts"),
+          "status",
+          "--runner-db",
+          runnerDatabasePath,
+          "--run",
+          first.runId
+        ],
+        { cwd: projectRoot }
+      );
+      assert.equal(status.stderr, "");
+      assert.match(status.stdout, /^Run .* needs attention$/mu);
+      assert.match(status.stdout, /^src\/rejected\.ts failed$/mu);
+      assert.match(status.stdout, /^Provider: RateLimitError$/mu);
+      assert.match(status.stdout, /^Reason: Rate limited;/mu);
+      assert.match(status.stdout, /^Stage: Agent working$/mu);
+      assert.match(status.stdout, /^Candidate output: Changed, but rejected$/mu);
+      assert.match(status.stdout, /^Next: Address the cause recorded for this Run;/mu);
+      assert.doesNotMatch(status.stdout, /runner -- retry --run/u);
+      assert.doesNotMatch(
+        status.stdout,
+        /private-status-token|raw-header-secret|must-not-survive|authorization|bearer|raw_metadata/iu
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -1029,15 +1087,17 @@ describe("Runner observation store", () => {
             assert.ok(claimed);
             yield* store.completeFailure({
               job: claimed,
-              failureCategory: "workspace integrity",
+              failureEvidence: {
+                category: "workspace integrity",
+                stage: null,
+                name: "ghp_0123456789abcdefghijklmnopqrstuvwxyz",
+                status: "error",
+                statusCode: null,
+                reason: "Workspace inspection rejected raw output"
+              },
               targetOutputState: "different",
               targetOutputDigest: sha256Bytes(sensitiveContent),
               diagnosticContent: sensitiveContent,
-              terminalOutcome: {
-                kind: "provider",
-                status: "error",
-                name: "ghp_0123456789abcdefghijklmnopqrstuvwxyz"
-              }
             });
             return {
               run: yield* store.inspectRun(enqueued.runId),
@@ -1052,10 +1112,10 @@ describe("Runner observation store", () => {
       assert.deepEqual(result.candidates, []);
       assert.equal(file.rejectedOutputDigest, sha256Bytes(sensitiveContent));
       assert.equal(file.rejectedOutputPath, null);
-      assert.equal(file.failureMessage, "Workspace integrity failure.");
+      assert.equal(file.failureMessage, "Workspace inspection rejected raw output");
       assert.equal(file.failureStage, "starting");
       assert.deepEqual(file.terminalOutcome, {
-        kind: "provider",
+        kind: "workspace",
         status: "error",
         statusCode: null,
         name: null
@@ -1069,16 +1129,19 @@ describe("Runner observation store", () => {
       const stored = database
         .prepare(
           `SELECT failure_message AS failureMessage,
-                  terminal_outcome_json AS terminalOutcomeJson
+                  terminal_outcome_json AS terminalOutcomeJson,
+                  failure_evidence_json AS failureEvidenceJson
            FROM runner_attempts WHERE attempt_id = ?`
         )
         .get(file.attemptId) as {
         failureMessage: string;
         terminalOutcomeJson: string;
+        failureEvidenceJson: string;
       };
       database.close();
-      assert.equal(stored.failureMessage, "Workspace integrity failure.");
+      assert.equal(stored.failureMessage, "Workspace inspection rejected raw output");
       assert.doesNotMatch(stored.terminalOutcomeJson, /ghp_/u);
+      assert.doesNotMatch(stored.failureEvidenceJson, /ghp_|AKIA|whsec_/u);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -1200,20 +1263,15 @@ describe("Runner observation store", () => {
               });
               yield* store.completeFailure({
                 job: claimed,
-                failureCategory: entry.category,
-                runtimeSessionId: `session-${entry.category.replaceAll(" ", "-")}`,
-                terminalOutcome: {
-                  kind:
-                    entry.category === "provider" || entry.category === "tool"
-                      ? entry.category
-                      : entry.category === "timeout"
-                        ? "timeout"
-                        : entry.category === "workspace integrity"
-                          ? "workspace"
-                          : "runtime",
+                failureEvidence: {
+                  category: entry.category,
+                  stage: null,
+                  name: null,
                   status: entry.category === "timeout" ? "aborted" : "error",
-                  privateMetadata: "must-not-survive"
+                  statusCode: null,
+                  reason: `${entry.category} fixture failure`
                 },
+                runtimeSessionId: `session-${entry.category.replaceAll(" ", "-")}`,
                 targetOutputState: entry.state,
                 ...(entry.category === "workspace integrity"
                   ? { diagnosticContent: "export const rejected = true;\n" }
@@ -1234,6 +1292,11 @@ describe("Runner observation store", () => {
         assert.ok(file);
         assert.equal(file.stage, "failed");
         assert.equal(file.failureCategory, entry.category);
+        assert.equal(file.failureEvidence?.category, entry.category);
+        assert.equal(
+          file.failureEvidence?.status,
+          entry.category === "timeout" ? "aborted" : "error"
+        );
         assert.equal(file.failureStage, entry.failureStage);
         assert.equal(file.targetOutputState, entry.state);
         assert.equal(

@@ -302,7 +302,7 @@ const completeSession = (session) => {
     session.messages.push(assistant(session, "stop", [{
       type: "tool",
       id: "tool-edit",
-      name: "edit",
+      name: "contract-inspector",
       time: { created: 1, completed: 2 },
       state: {
         status: "error",
@@ -871,13 +871,15 @@ describe("OpenCode V2 Runtime Adapter", () => {
       );
 
       assert.equal(error._tag, "AdapterInvocationError");
-      assert.equal(error.failureCategory, "provider");
+      assert.equal(error.failureEvidence.category, "provider");
       assert.equal(error.runtimeSessionId, "session-v2-1");
-      assert.deepEqual(error.terminalOutcome, {
-        kind: "provider",
+      assert.deepEqual(error.failureEvidence, {
+        category: "provider",
+        stage: null,
         name: "APIError",
         status: "error",
-        statusCode: 429
+        statusCode: 429,
+        reason: "OpenCode provider API failure (APIError, status 429): Rate limit exceeded; [REDACTED CREDENTIAL]; [REDACTED METADATA]"
       });
       assert.equal(error.targetOutputState, "missing");
       assert.equal(error.targetOutputDigest, undefined);
@@ -909,12 +911,15 @@ describe("OpenCode V2 Runtime Adapter", () => {
         Effect.flip(invokeFake(fixture, creationJob()))
       );
 
-      assert.equal(error.failureCategory, "interruption");
+      assert.equal(error.failureEvidence.category, "interruption");
       assert.equal(error.runtimeSessionId, "session-v2-1");
-      assert.deepEqual(error.terminalOutcome, {
-        kind: "provider",
+      assert.deepEqual(error.failureEvidence, {
+        category: "interruption",
+        stage: null,
         name: "AbortError",
-        status: "aborted"
+        status: "aborted",
+        statusCode: null,
+        reason: "OpenCode provider response was aborted: Provider ended the request; [REDACTED CREDENTIAL]"
       });
       assert.equal(error.targetOutputState, "missing");
       assert.match(error.message, /provider response was aborted/i);
@@ -985,12 +990,15 @@ describe("OpenCode V2 Runtime Adapter", () => {
     try {
       const error = await Effect.runPromise(Effect.flip(invokeFake(fixture)));
       assert.match(error.message, /tool failure.*Edit failed/i);
-      assert.equal(error.failureCategory, "tool");
+      assert.equal(error.failureEvidence.category, "tool");
       assert.equal(error.runtimeSessionId, "session-v2-1");
-      assert.deepEqual(error.terminalOutcome, {
-        kind: "tool",
-        name: "edit",
-        status: "error"
+      assert.deepEqual(error.failureEvidence, {
+        category: "tool",
+        stage: null,
+        name: "contract-inspector",
+        status: "error",
+        statusCode: null,
+        reason: "OpenCode tool failure: Edit failed; [REDACTED CREDENTIAL]; [REDACTED METADATA]"
       });
       assert.equal(error.targetOutputState, "present");
       assert.equal(
@@ -1030,11 +1038,14 @@ describe("OpenCode V2 Runtime Adapter", () => {
       const error = await Effect.runPromise(Effect.flip(invokeFake(fixture)));
 
       assert.match(error.message, /tool edit.*status paused.*only completed/i);
-      assert.equal(error.failureCategory, "tool");
-      assert.deepEqual(error.terminalOutcome, {
-        kind: "tool",
+      assert.equal(error.failureEvidence.category, "tool");
+      assert.deepEqual(error.failureEvidence, {
+        category: "tool",
+        stage: null,
         name: "edit",
-        status: "unknown"
+        status: "unknown",
+        statusCode: null,
+        reason: "OpenCode tool edit has status paused; only completed tools are accepted"
       });
       assert.equal(fixture.readCapture().removedSessionIds.length, 1);
       assert.equal(fixture.readCapture().shutdown, true);
@@ -1052,9 +1063,16 @@ describe("OpenCode V2 Runtime Adapter", () => {
       );
 
       assert.match(error.message, /execution deadline.*40ms/i);
-      assert.equal(error.failureCategory, "timeout");
+      assert.equal(error.failureEvidence.category, "timeout");
       assert.equal(error.runtimeSessionId, "session-v2-1");
-      assert.deepEqual(error.terminalOutcome, { kind: "runtime", status: "aborted" });
+      assert.deepEqual(error.failureEvidence, {
+        category: "timeout",
+        stage: null,
+        name: null,
+        status: "aborted",
+        statusCode: null,
+        reason: "OpenCode model execution deadline exceeded after 40ms"
+      });
       assert.equal(error.targetOutputState, "missing");
       const capture = fixture.readCapture();
       assert.equal(capture.interrupted, true);
@@ -1088,7 +1106,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       );
 
       assert.match(error.message, /session startup deadline exceeded after 500ms/i);
-      assert.equal(error.failureCategory, "runtime_startup");
+      assert.equal(error.failureEvidence.category, "runtime");
       assert.equal(error.runtimeSessionId, undefined);
       assert.equal(error.targetOutputState, "not observed");
       assert.equal(fixture.readCapture().shutdown, true);
@@ -1106,7 +1124,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       );
 
       assert.match(error.message, /session deletion failed.*timeout|session deletion failed.*aborted/i);
-      assert.equal(error.failureCategory, "runtime_cleanup");
+      assert.equal(error.failureEvidence.category, "runtime");
       assert.equal(error.runtimeSessionId, "session-v2-1");
       assert.equal(error.targetOutputState, "present");
       assert.equal(
@@ -1169,7 +1187,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
     try {
       const error = await Effect.runPromise(Effect.flip(invokeFake(fixture)));
       assert.equal(error._tag, "AdapterBoundaryError");
-      assert.equal(error.failureCategory, "missing_output");
+      assert.equal(error.failureEvidence.category, "missing output");
       assert.equal(error.runtimeSessionId, "session-v2-1");
       assert.equal(error.targetOutputState, "missing");
       assert.equal(error.targetOutputDigest, undefined);
@@ -1214,7 +1232,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
 
       assert.equal(error._tag, "AdapterBoundaryError");
       assert.match(error.message, /valid UTF-8/i);
-      assert.equal(error.failureCategory, "workspace_integrity");
+      assert.equal(error.failureEvidence.category, "workspace integrity");
       assert.equal(error.runtimeSessionId, "invalid-utf8");
       assert.equal(error.targetOutputState, "present");
       assert.equal(
@@ -1314,7 +1332,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       );
       assert.equal(extraError._tag, "AdapterBoundaryError");
       assert.match(extraError.message, /notes\/extra\.txt/);
-      assert.equal(extraError.failureCategory, "workspace_integrity");
+      assert.equal(extraError.failureEvidence.category, "workspace integrity");
       assert.equal(extraError.runtimeSessionId, "extra");
       assert.equal(extraError.targetOutputState, "present");
       assert.equal(
@@ -1350,7 +1368,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
       );
       assert.equal(linkError._tag, "AdapterBoundaryError");
       assert.match(linkError.message, /symbolic link/i);
-      assert.equal(linkError.failureCategory, "workspace_integrity");
+      assert.equal(linkError.failureEvidence.category, "workspace integrity");
       assert.equal(linkError.runtimeSessionId, "link");
       assert.equal(linkError.targetOutputState, "not observed");
       assert.deepEqual(readdirSync(workspaceParent), []);
@@ -1569,7 +1587,7 @@ describe("OpenCode V2 Runtime Adapter", () => {
 
         assert.ok(error instanceof AdapterInvocationError);
         assert.equal(error._tag, "AdapterInvocationError");
-        assert.equal(error.failureCategory, "runtime_startup");
+        assert.equal(error.failureEvidence.category, "runtime");
         assert.equal(error.targetOutputState, "not observed");
         assert.equal(error.runtimeSessionId, undefined);
         assert.match(error.message, /adapter|OpenCode|version/i);

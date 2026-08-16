@@ -12,6 +12,9 @@ import {
 } from "./open-code-adapter.js";
 import {
   runGuidedOpenCodeStart,
+  createInquirerManualRetryPrompts,
+  ManualRetryCancelled,
+  runManualRetryFlow,
   runWithRunProgress
 } from "./guided-start-cli.js";
 import { GuidedStartCancelled } from "./guided-start.js";
@@ -24,6 +27,7 @@ import {
   inspectRunner,
   prepareRepositoryForPlan,
   recoverRun,
+  retryFailedJobsAndApply,
   runPendingJobsAndApply,
   validateRunnerDatabaseBoundary
 } from "./runner.js";
@@ -37,6 +41,7 @@ import { MAX_RUNNER_CONCURRENCY, RunId } from "./domain.js";
 import { defaultRunnerDatabasePath } from "./runner-paths.js";
 import { formatReviewedSlice, listReviewedSlices } from "./slice-listing.js";
 import { formatRunApplicationSummary } from "./application-summary.js";
+import { formatRunStatus } from "./failure-presentation.js";
 import { resolveNonInteractiveOpenCodeConfiguration } from "./open-code-selection.js";
 import { optionValue } from "./cli-options.js";
 import {
@@ -48,6 +53,7 @@ import { safeRunnerCliErrorMessage } from "./diagnostic-sanitization.js";
 import { prepareRunnerDatabaseState } from "../private-state-filesystem.js";
 import { installRunnerDatabaseGitExclude } from "../plan-intake-filesystem.js";
 import { terminalSafeJson } from "./terminal-safe-json.js";
+import { classifyRunRetry } from "./retry-eligibility.js";
 
 class RunnerInterruptedError extends Error {
   constructor(readonly signalName: "SIGINT" | "SIGTERM", cause: unknown) {
@@ -196,13 +202,13 @@ async function main(): Promise<void> {
 
   if (command === "status") {
     const hasRequestedRunId = process.argv.includes("--run");
-    print(
-      await Effect.runPromise(
-        hasRequestedRunId
-          ? inspectRun(runnerDatabasePath, RunId.make(requiredOption("run")))
-          : inspectLatestProjectRun({ scoreDatabasePath, runnerDatabasePath })
-      )
+    const run = await Effect.runPromise(
+      hasRequestedRunId
+        ? inspectRun(runnerDatabasePath, RunId.make(requiredOption("run")))
+        : inspectLatestProjectRun({ scoreDatabasePath, runnerDatabasePath })
     );
+    if (process.argv.includes("--json")) print(run);
+    else process.stdout.write(formatRunStatus(run));
     return;
   }
 
@@ -214,6 +220,68 @@ async function main(): Promise<void> {
         recoverRun(runnerDatabasePath, runId)
       )
     });
+    return;
+  }
+
+  if (command === "retry") {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error(
+        "Manual retry requires an interactive terminal so SCORE can show the saved work, paid invocation count, and confirmation."
+      );
+    }
+    const runId = RunId.make(requiredOption("run"));
+    const existing = await Effect.runPromise(inspectRun(runnerDatabasePath, runId));
+    const eligibility = classifyRunRetry(existing);
+    if (eligibility.kind === "needs_attention") {
+      throw new Error(
+        `Run ${runId} has ambiguous needs_attention Jobs; explicit recovery is required before retry`
+      );
+    }
+    if (eligibility.kind === "unavailable") {
+      throw new Error(`Run ${runId} has no unambiguous failed Jobs to retry`);
+    }
+    if (eligibility.kind === "unsupported_adapter") {
+      throw new Error(
+        `Run ${runId} uses ${eligibility.adapterKind}; this Runner CLI cannot resume that frozen Runtime Adapter`
+      );
+    }
+    const initialAttemptCount = existing.jobs.reduce(
+      (count, job) => count + (job.attempts?.length ?? 0),
+      0
+    );
+    const adapterLayer = runtimeLayer();
+    const finalRun = await runManualRetryFlow({
+      initialRun: existing,
+      initialDecision: "retry",
+      prompts: createInquirerManualRetryPrompts(),
+      executeRetry: (run, targetPaths) =>
+        runWithRunProgress({
+          header: {
+            modelLabel: run.adapter.modelId,
+            providerLabel: run.adapter.providerId,
+            ...(run.adapter.variantId === null
+              ? {}
+              : { variantLabel: run.adapter.variantId })
+          },
+          execute: (observer) =>
+            runRunnerEffect(
+              retryFailedJobsAndApply(runnerDatabasePath, run.runId, {
+                targetPaths,
+                observer
+              }).pipe(Effect.provide(adapterLayer))
+            )
+        })
+    });
+    const finalAttemptCount = finalRun.jobs.reduce(
+      (count, job) => count + (job.attempts?.length ?? 0),
+      0
+    );
+    if (
+      finalAttemptCount > initialAttemptCount &&
+      finalRun.state === "completed_with_failures"
+    ) {
+      process.exitCode = 2;
+    }
     return;
   }
 
@@ -344,6 +412,12 @@ async function main(): Promise<void> {
 
 function reportRunnerCliFailure(cause: unknown): void {
   const error = cause instanceof Error ? cause : new Error(String(cause));
+  if (error instanceof ManualRetryCancelled) {
+    process.stdout.write(
+      `Retry cancelled. ${error.retainedSuccessCount} saved ${error.retainedSuccessCount === 1 ? "candidate remains" : "candidates remain"} available; nothing was retried or applied by this decision.\n`
+    );
+    return;
+  }
   if (error instanceof GuidedStartCancelled || error.name === "ExitPromptError") {
     process.stdout.write("Nothing was approved or started.\n");
     return;

@@ -199,7 +199,7 @@ describe("publication review renderer", () => {
     assert.equal(JSON.stringify(review), originalSnapshot);
   });
 
-  it("shows a dependency-first file map and complete per-file meaning", () => {
+  it("orders Agent Briefs by dependency and keeps complete per-Agent meaning", () => {
     const review = snapshot();
     const pass = review.passes[0] ?? assert.fail("Expected one reviewed pass.");
     const owner = pass.capsules[0] ?? assert.fail("Expected an owner File Brief.");
@@ -224,9 +224,10 @@ describe("publication review renderer", () => {
     };
     ownerInput.objective = owner.objective;
     ownerInput.intended_outcome = owner.objective;
+    const accountDeclaration = 'export interface Account { status: "active" | "suspended"; }';
     ownerInput.declarations.owned.push({
       name: "Account",
-      declaration: 'export interface Account { status: "active" | "suspended"; }',
+      declaration: accountDeclaration,
       description: "Represents an account with its current status."
     });
     consumerInput.objective = consumer.objective;
@@ -241,22 +242,101 @@ describe("publication review renderer", () => {
     pass.capsules = [consumer, owner];
 
     const html = renderPublicationReviewHtml(review, { reviewKind: "change" });
-    const fileMap = html.slice(
-      html.indexOf('<table class="file-map">'),
-      html.indexOf("</table>", html.indexOf('<table class="file-map">'))
-    );
+    assert.doesNotMatch(html, /How the files fit together|file-map/);
 
-    assert.match(fileMap, /<th scope="col">File<\/th><th scope="col">Action<\/th><th scope="col">Purpose<\/th><th scope="col">Uses<\/th>/);
-    assert.ok(fileMap.indexOf("src/account.ts") < fileMap.indexOf("src/format-account.ts"));
-    assert.match(fileMap, /src\/account\.ts[\s\S]*?>Modify</);
-    assert.match(fileMap, /src\/format-account\.ts[\s\S]*?>Create/);
-    assert.match(fileMap, /<strong>Account<\/strong> from <code>src\/account\.ts<\/code>/);
-    assert.match(fileMap, /docs\/product\.md[\s\S]*Defines the browser-facing acceptance cases\./);
+    assert.ok(
+      html.indexOf('id="slice-1-file-src-account-ts"') <
+        html.indexOf('id="slice-1-file-src-format-account-ts"')
+    );
     assert.equal(html.match(/<span>People can add a task\.<\/span>/g)?.length, 2);
     assert.match(html, /<p>People can add a task\.<\/p>/);
-    assert.match(html, /Use from <code>src\/account\.ts<\/code>/);
+    assert.match(
+      html,
+      /<span>Account<\/span><span class="context-kind">Defines<\/span>/
+    );
+    assert.match(
+      html,
+      /<span>Account<\/span><span class="context-kind">Uses<\/span>/
+    );
+    assert.match(
+      html,
+      /Defined in <code>src\/account\.ts<\/code> and received by this Agent as read-only context\./
+    );
+    assert.match(html, /<pre class="code-block language-typescript" data-language="typescript">/);
+    assert.match(
+      html,
+      /<span class="syntax-keyword">export<\/span> <span class="syntax-keyword">interface<\/span> <span class="syntax-declaration">Account<\/span> <span class="syntax-punctuation">\{<\/span>\n  <span class="syntax-identifier">status<\/span>/
+    );
+    assert.match(
+      html,
+      /<span class="syntax-string">&quot;active&quot;<\/span> <span class="syntax-punctuation">\|<\/span> <span class="syntax-string">&quot;suspended&quot;<\/span><span class="syntax-punctuation">;<\/span>\n<span class="syntax-punctuation">\}<\/span>/
+    );
+    assert.equal(ownerInput.declarations.owned[0]?.declaration, accountDeclaration);
+    assert.doesNotMatch(html, /Implement here|Use from owner|Use from <code>/);
     assert.match(html, /1 new · 1 modified/);
     assert.doesNotMatch(html, />Replace</);
+  });
+
+  it("renders a deterministic navigation-only sidebar with working Agent Brief and declaration links", () => {
+    const review = snapshot();
+    const pass = review.passes[0] ?? assert.fail("Expected one reviewed pass.");
+    const owner = pass.capsules[0] ?? assert.fail("Expected an owner Agent Brief.");
+    const consumer = pass.capsules[1] ?? assert.fail("Expected a consumer Agent Brief.");
+    owner.target_path = "src/account.ts";
+    owner.operation = "replace";
+    consumer.target_path = "src/format-account.ts";
+    consumer.operation = "create";
+    const ownerInput = owner.agent_input as {
+      declarations: { owned: Array<Record<string, unknown>>; consumed: Array<Record<string, unknown>> };
+    };
+    const consumerInput = consumer.agent_input as {
+      declarations: { owned: Array<Record<string, unknown>>; consumed: Array<Record<string, unknown>> };
+    };
+    const accountDeclaration = {
+      name: "Account",
+      declaration: 'export interface Account { status: "active" | "suspended"; }',
+      description: "Represents an account with its current status."
+    };
+    ownerInput.declarations.owned.push(accountDeclaration);
+    consumerInput.declarations.consumed.push(accountDeclaration);
+    pass.dependencies.push({
+      dependent_capsule_id: consumer.capsule_id,
+      prerequisite_kind: "capsule",
+      prerequisite_id: owner.capsule_id,
+      description: "The formatter uses Account."
+    });
+    pass.capsules = [consumer, owner];
+
+    const html = renderPublicationReviewHtml(review, { reviewKind: "slice" });
+    const sidebar = html.slice(
+      html.indexOf('<aside class="review-rail"'),
+      html.indexOf("</aside>") + "</aside>".length
+    );
+
+    assert.match(sidebar, /href="#review-overview">Overview</);
+    assert.match(sidebar, /href="#files-pass:todo">Agent Briefs</);
+    assert.match(sidebar, /href="#slice-1-file-src-account-ts"[\s\S]*?<code>src\/account\.ts<\/code>[\s\S]*?<span class="rail-operation">Modify<\/span>/);
+    assert.match(sidebar, /href="#slice-1-file-src-format-account-ts"[\s\S]*?<code>src\/format-account\.ts<\/code>[\s\S]*?<span class="rail-operation">Create<\/span>/);
+    assert.ok(sidebar.indexOf("src/account.ts") < sidebar.indexOf("src/format-account.ts"));
+    assert.match(sidebar, /<summary>1 declaration<\/summary>/);
+    assert.match(sidebar, /href="#slice-1-file-src-account-ts-declaration-1-account">Account<\/a>/);
+    assert.doesNotMatch(sidebar, /slice-1-file-src-format-account-ts-uses-1-account/);
+    assert.ok(sidebar.indexOf(">Agent Briefs<") < sidebar.indexOf(">Requirements<"));
+    assert.ok(sidebar.indexOf(">Requirements<") < sidebar.indexOf(">Context<"));
+    assert.ok(sidebar.indexOf(">Context<") < sidebar.indexOf(">Technical record<"));
+    assert.doesNotMatch(sidebar, />Execution Flow</);
+
+    const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]));
+    const localTargets = [...html.matchAll(/href="#([^"]+)"/g)].map((match) => match[1]);
+    assert.ok(localTargets.length > 0);
+    for (const target of localTargets) assert.ok(ids.has(target), `Missing local link target: ${target}`);
+
+    assert.doesNotMatch(html, /<details class="file-package"[^>]*\sname=/);
+    assert.match(html, /const revealTarget = \(hash\) =>/);
+    assert.match(html, /ancestor instanceof HTMLDetailsElement/);
+    assert.match(html, /window\.addEventListener\("hashchange"/);
+    assert.match(html, /\.review-rail \{[\s\S]*?position: sticky/);
+    assert.match(html, /\.skip-link, \.topbar, \.review-rail \{ display: none; \}/);
   });
 
   it("projects accepted inputs once as readable, safe, human review content", () => {
@@ -264,7 +344,7 @@ describe("publication review renderer", () => {
     const html = renderPublicationReviewHtml(review);
 
     assert.equal(html, renderPublicationReviewHtml(review));
-    assert.equal(PUBLICATION_REVIEW_RENDERER.version, "0.1.0-alpha.21");
+    assert.equal(PUBLICATION_REVIEW_RENDERER.version, "0.1.0-alpha.25");
     assert.match(html, /2 files will change/);
     assert.match(html, /2 modified/);
     assert.match(html, /2 isolated file-agents/);
@@ -294,7 +374,10 @@ describe("publication review renderer", () => {
     assert.doesNotMatch(html, /href="javascript:/);
     assert.match(html, /<blockquote><p>Review the observable behavior\.<\/p><\/blockquote>/);
     assert.match(html, /<hr>/);
-    assert.match(html, /<code data-language="sh">npm test/);
+    assert.match(
+      html,
+      /<pre class="code-block language-shell" data-language="shell"><code><span class="syntax-identifier">npm<\/span> <span class="syntax-identifier">test<\/span><\/code><\/pre>/
+    );
     assert.doesNotMatch(html, /<script>alert/);
     assert.match(html, /&lt;script&gt;alert\(&quot;never execute&quot;\)&lt;\/script&gt;/);
     assert.doesNotMatch(html, />Project context<\/span>/);
@@ -331,6 +414,30 @@ describe("publication review renderer", () => {
       /<strong>Product brief<\/strong><code>docs\/product\.md<\/code>[\s\S]*?<span class="context-recipient-label">Sent to<\/span><span class="context-recipient-files"><code>src\/App\.tsx<\/code><code>src\/App\.test\.tsx<\/code><\/span>/
     );
     assert.doesNotMatch(html, /<strong>Product brief<\/strong><code>docs\/product\.md<\/code>[\s\S]{0,100}<span>2 files<\/span>/);
+  });
+
+  it("syntax-colors recognized source files without rewriting their frozen text", () => {
+    const review = snapshot();
+    const agentInput = review.passes[0]?.capsules[0]?.agent_input as {
+      input_bindings: Array<Record<string, unknown>>;
+    };
+    const projectFile = agentInput.input_bindings.find(
+      (binding) => binding.kind === "project_context"
+    );
+    assert.ok(projectFile);
+    const source = "export interface Example { value: string; }";
+    projectFile.content = {
+      content: source,
+      media_type: "text/typescript; charset=utf-8",
+      path: "src/example.ts"
+    };
+
+    const html = renderPublicationReviewHtml(review);
+    assert.match(html, /<pre class="code-block language-typescript" data-language="typescript">/);
+    assert.match(html, /<span class="syntax-keyword">interface<\/span>/);
+    assert.match(html, /<span class="syntax-type">string<\/span>/);
+    assert.equal((projectFile.content as { content: string }).content, source);
+    assert.equal(html, renderPublicationReviewHtml(review));
   });
 
   it("keeps non-file project context visible and counts distinct consuming files", () => {

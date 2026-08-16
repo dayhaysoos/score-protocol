@@ -62,6 +62,51 @@ describe("SCORE authoring skill", () => {
     assert.doesNotMatch(skill, /Compilation Bundle/);
     assert.doesNotMatch(skill, /interface SliceDraft\s*\{/);
   });
+
+  it("requires plain language before SCORE freezes the review", () => {
+    const skill = readFileSync(skillPath, "utf8");
+
+    assert.match(skill, /version: 0\.9\.1/);
+    assert.match(skill, /plain-language pass/i);
+    assert.match(skill, /title,\s*objective,\s*requirement.*Agent Brief purpose/is);
+    assert.match(skill, /what will change and why it matters/i);
+    assert.match(skill, /paths, code declarations, signatures, imports.*unchanged/is);
+    assert.match(skill, /Do not ask the HTML renderer to simplify or rewrite/i);
+    assert.match(skill, /render it exactly/i);
+  });
+
+  it("uses inspect-module as a read-only declaration discovery and context-binding aid", () => {
+    const skill = readFileSync(skillPath, "utf8");
+
+    assert.match(skill, /score inspect-module <path>/i);
+    assert.match(skill, /--export <name>/i);
+    assert.match(skill, /discovery.*imports.*exports/is);
+    assert.match(skill, /sliceDraftContext/);
+    assert.match(skill, /description.*consumer path/is);
+    assert.match(skill, /does not.*edit.*Change or Slice/is);
+    assert.match(skill, /current source.*not.*product intent/is);
+    assert.match(skill, /inspect.*referenced declaration/is);
+    assert.match(skill, /determine whether each declaration.*already\s+exists/is);
+    assert.match(skill, /does not exist.*`create` target.*project is\s+new/is);
+    assert.match(skill, /do not run `inspect-module` against the missing path/is);
+    assert.match(skill, /mixed work.*inspect only.*existing.*author.*new/is);
+    assert.match(
+      skill,
+      /complete only when every declaration.*confirmed from existing source.*or explicitly authored/is
+    );
+  });
+
+  it("uses closure mode to gather supporting declarations without mutating preparation", () => {
+    const skill = readFileSync(skillPath, "utf8");
+
+    assert.match(skill, /--export <name> --closure/i);
+    assert.match(skill, /recurs.*relative.*TypeScript/is);
+    assert.match(skill, /root declaration.*supporting declarations/is);
+    assert.match(skill, /missing.*ambiguous.*bare.*fail/is);
+    assert.match(skill, /does not.*tsconfig\.json.*package\.json/is);
+    assert.match(skill, /does not.*write.*Change or Slice/is);
+    assert.match(skill, /description.*consumer path.*import.*behavior/is);
+  });
 });
 
 describe("SCORE human guide", () => {
