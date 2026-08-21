@@ -81,6 +81,16 @@ verification extension.
   how is evaluator trust represented?
 - **Alpha boundary:** The user's normal testing practices remain outside SCORE.
 
+### Q-046: How can SCORE verify candidates in the real project environment?
+
+- **Question:** After declaration verification is established, should named
+  project-owned checks run before application, after guarded application, or
+  through a user-controlled external integration, and how should their results
+  bind to the exact candidate and project state?
+- **Current boundary:** D-079 excludes project verification from the Runner and
+  the rejected synthetic-project approach must not return implicitly.
+- **Research record:** See [Real-project verification](./features/real-project-verification.md).
+
 ### Q-037: May separate Verification Rounds be combined?
 
 - **Question:** Must one unchanged Candidate pass all required checks in one

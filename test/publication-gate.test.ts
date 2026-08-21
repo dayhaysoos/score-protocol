@@ -202,7 +202,7 @@ describe("Publication Review, decision, and harness-facing export", () => {
       const reopened = ScoreAlpha.open(databasePath);
       const exportedAgain = reopened.exportApprovedPass(review.digest_set.pass.protocol_id);
       assert.deepEqual(exportedAgain, exported);
-      assert.equal(exported.version, "0.1.0-alpha.5");
+      assert.equal(exported.version, "0.1.0-alpha.6");
       assert.deepEqual(exported.source_snapshot, {
         revision_id: acceptedInputs.repository_revision.protocol_id,
         content_digest: acceptedInputs.repository_revision.content_digest,

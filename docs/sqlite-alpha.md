@@ -231,8 +231,8 @@ sequence of SQL statements. Its successful import creates the relational and
 JSON rows below atomically.
 
 The alpha Compiled Plan wire schema is the closed JSON Schema 2020-12 document
-`score.compilation-bundle` version `0.1.0-alpha.4`, targeting
-`score.coding` version `0.1.0-alpha.4`. It groups exact source bindings, the
+`score.compilation-bundle` version `0.1.0-alpha.5`, targeting
+`score.coding` version `0.1.0-alpha.5`. It groups exact source bindings, the
 complete proposed SCORE definition, and attributable compiler warnings or
 proposed Compilation Gaps. Proposed objects refer to one another through unique
 plan-local handles; the importer assigns permanent opaque Protocol
@@ -241,7 +241,7 @@ new-object digests, Agent Packages, review records, approvals, or execution
 records. Unknown object fields and unresolved references are rejected.
 
 The companion compiler-input packet, Agent Input, and Plan Review snapshot use
-`0.1.0-alpha.4`. Approved Pass Export uses `0.1.0-alpha.5`; a Runner rejects an
+`0.1.0-alpha.5`. Approved Pass Export uses `0.1.0-alpha.6`; a Runner rejects an
 older export before Run creation, so historical work must be prepared and
 approved again for the documented-interface contract.
 

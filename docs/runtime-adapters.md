@@ -282,7 +282,7 @@ then starts a rolling worker pool. Concurrency is a ceiling, not a batch size or
 file dependency.
 
 The text-only documented-interface boundary is exported as
-`score.approved-pass-export@0.1.0-alpha.5`. An older export is rejected before
+`score.approved-pass-export@0.1.0-alpha.6`. An older export is rejected before
 Run creation rather than being silently reinterpreted; prepare and approve the
 slice again to create a compatible export.
 

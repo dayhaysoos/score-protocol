@@ -1,0 +1,294 @@
+{
+  "slice_id": "production-single-file-candidate-declaration-gate",
+  "title": "Require declaration verification before a File Candidate succeeds",
+  "objective": "Turn the successful one-file declaration experiments into one production admission rule: the OpenCode Adapter may return a File Candidate only after deterministic SCORE code checks its exact final bytes against every relevant owned declaration frozen in that File Job.",
+  "requirements": [
+    "SCORE derives one deterministic declaration verdict from the frozen File Job and the exact final candidate bytes, checks every owned declaration together in approved order, and returns not applicable when the approved owned-declaration list is empty.",
+    "The OpenCode Adapter cannot return a successful File Candidate when declaration input binding fails, the candidate digest does not match the checked bytes, or any relevant declaration finding remains; this final check is independent of optional Agent feedback and repair hooks.",
+    "A failed declaration check retains only bounded sanitized typed findings, the binding digest when binding completed, the exact candidate digest, and the verdict digest when a verdict was produced through existing Failure Evidence and Runner storage.",
+    "Human-readable failure output names each retained declaration finding and available digest without exposing candidate source, prompt content, parser diagnostics, local paths, credentials, or other raw runtime data.",
+    "Regression coverage proves valid and invalid multi-declaration candidates, exact frozen-input binding, post-feedback byte changes, deterministic repeated results, empty declaration lists, durable evidence recovery, sanitization, and human-readable failure output.",
+    "Verification remains bounded to one assigned file and runs entirely in memory after ordinary candidate capture; it performs no repository write, project command, environment loading, dependency installation, TypeScript assignability check, build, test, lint, runtime, or multi-file complete-set verification.",
+    "Production code does not import prototype modules or copy the large declaration-contract experiment wholesale; it extracts only the accepted one-file owned-declaration behavior needed at this gate and leaves prototype feedback and automatic repair policy unchanged."
+  ],
+  "files": [
+    {
+      "path": "src/runner/domain.ts",
+      "operation": "modify",
+      "task": "Add the small adapter-neutral evidence shape used when a final File Candidate fails declaration verification. Keep historical Failure Evidence readable by adding the new field as optional, and make the field available to the existing runtime error, RunnerStore, snapshot, retry, and status paths without adding another storage model.",
+      "requirements": [
+        "A failed declaration check retains only bounded sanitized typed findings, the binding digest when binding completed, the exact candidate digest, and the verdict digest when a verdict was produced through existing Failure Evidence and Runner storage."
+      ],
+      "owns": [
+        {
+          "name": "CandidateDeclarationFinding",
+          "declaration": "export interface CandidateDeclarationFinding { readonly code: string; readonly declaration: string | null; readonly message: string; }",
+          "description": "One safe machine-readable reason that an approved declaration could not be bound to or reproduced by the final candidate bytes."
+        },
+        {
+          "name": "CandidateDeclarationFailureEvidence",
+          "declaration": "export interface CandidateDeclarationFailureEvidence { readonly findings: ReadonlyArray<CandidateDeclarationFinding>; readonly bindingDigest: string | null; readonly candidateDigest: string; readonly verdictDigest: string | null; }",
+          "description": "The bounded declaration-gate facts retained with a failed File Job; it contains typed findings and digests but never source or prompt bytes."
+        }
+      ],
+      "consumes": [],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Show how FailureEvidence is carried unchanged by adapter errors so the new optional field remains adapter-neutral."
+        },
+        {
+          "path": "src/runner/runner-store.ts",
+          "purpose": "Show the existing sanitized FailureEvidence JSON persistence and historical snapshot decoding that must carry the optional field without a parallel table or migration."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Add an optional `declarationVerification` member to the existing `FailureEvidence` schema. Its runtime schema must match `CandidateDeclarationFailureEvidence`, and historical records without the member must continue to decode.",
+        "Keep all existing FailureEvidence fields, names, meanings, and callers compatible. Do not change RuntimeAdapter error declarations or RunnerStore storage columns unless the existing optional JSON path cannot carry the new field.",
+        "The new evidence shape contains only finding code, declaration name or null, safe message, and `sha256:` digests or null. It must not accept candidate source, Agent Input, prompt text, AST nodes, parser diagnostics, environment data, or filesystem paths.",
+        "Make no unrelated domain, schema, Runner state, retry, or persistence changes."
+      ]
+    },
+    {
+      "path": "src/runner/candidate-declaration-gate.ts",
+      "operation": "create",
+      "task": "Build one production pure verifier for a single claimed File Job. Parse the frozen Agent Input in memory, bind the assigned target, base bytes or exact absence, package digest, and complete ordered owned declarations, then compare those declaration contracts with the exact final candidate string and return one digest-bound typed verdict. Extract the minimum accepted behavior from the prototypes, but do not import prototype code or turn this into a project-wide TypeScript checker.",
+      "requirements": [
+        "SCORE derives one deterministic declaration verdict from the frozen File Job and the exact final candidate bytes, checks every owned declaration together in approved order, and returns not applicable when the approved owned-declaration list is empty.",
+        "Verification remains bounded to one assigned file and runs entirely in memory after ordinary candidate capture; it performs no repository write, project command, environment loading, dependency installation, TypeScript assignability check, build, test, lint, runtime, or multi-file complete-set verification.",
+        "Production code does not import prototype modules or copy the large declaration-contract experiment wholesale; it extracts only the accepted one-file owned-declaration behavior needed at this gate and leaves prototype feedback and automatic repair policy unchanged."
+      ],
+      "owns": [
+        {
+          "name": "FileCandidateDeclarationVerdict",
+          "declaration": "export type FileCandidateDeclarationVerdict = { readonly status: \"not_applicable\"; readonly findings: readonly []; readonly bindingDigest: null; readonly candidateDigest: string; readonly verdictDigest: null; } | { readonly status: \"valid\"; readonly findings: readonly []; readonly bindingDigest: string; readonly candidateDigest: string; readonly verdictDigest: string; } | { readonly status: \"invalid\"; readonly findings: readonly [CandidateDeclarationFinding, ...CandidateDeclarationFinding[]]; readonly bindingDigest: string | null; readonly candidateDigest: string; readonly verdictDigest: string | null; };",
+          "description": "The deterministic one-file gate result. A valid result is bound to the approved inputs and exact candidate bytes; an invalid result always has at least one typed finding."
+        },
+        {
+          "name": "verifyFileCandidateDeclarations",
+          "declaration": "export function verifyFileCandidateDeclarations(input: { readonly targetPath: string; readonly operation: \"create\" | \"replace\"; readonly agentInputJson: string; readonly packageDigest: string; readonly candidateSource: string; readonly targetOutputDigest: string; }): FileCandidateDeclarationVerdict;",
+          "description": "Checks every relevant declaration frozen for one File Job against the exact captured candidate and returns a deterministic verdict without reading or changing the repository."
+        }
+      ],
+      "consumes": [
+        {
+          "name": "CandidateDeclarationFinding",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/prototypes/approved-declaration-binding.ts",
+          "purpose": "Feasibility evidence for strict target, baseline, declaration-list, and digest binding. Reuse its accepted meanings, not its approved-export reconstruction or prototype API."
+        },
+        {
+          "path": "src/prototypes/agent-preflight-feedback-model.ts",
+          "purpose": "Feasibility evidence for the exact one-file finding projection and candidate/verdict digests. Do not import this prototype."
+        },
+        {
+          "path": "src/prototypes/declaration-contract-experiment-model.ts",
+          "purpose": "Reference the accepted OXC comparison behavior and stable finding order only where needed for owned declarations and their local supporting declarations. Do not copy its repository-scale evidence compiler wholesale."
+        },
+        {
+          "path": "src/canonical.ts",
+          "purpose": "Use the existing canonical JSON and SHA-256 helpers for byte and verdict binding."
+        },
+        {
+          "path": "docs/features/candidate-declaration-verification.md",
+          "purpose": "Keep the production gate inside the accepted assurance boundary and explicit non-claims."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Import `type CandidateDeclarationFinding` from `./domain.js`. Do not import any module under `src/prototypes/`.",
+        "Treat `agentInputJson` and `packageDigest` as frozen fields of the already integrity-checked ClaimedJob. Parse JSON with the repository's duplicate-key-safe parser, require target path and operation to match the function input, obtain exact create absence or replace baseline bytes from the approved target-state data, and require each non-empty owned declaration entry to have a string name and declaration with no duplicate names.",
+        "If the frozen Agent Input has a valid empty owned-declaration list, return `not_applicable`. Malformed, mismatched, ambiguous, or unsupported relevant declaration input returns `invalid`; never silently drop one entry from a non-empty owned list.",
+        "Compute `candidateDigest` directly from the UTF-8 `candidateSource` and return an invalid candidate-digest finding if it differs from `targetOutputDigest`. Never authorize bytes using an earlier Agent-side or repair-hook verdict.",
+        "For the accepted one-file subset, compare every owned exported declaration and the local supporting declarations needed by its shape. Preserve approved order for checks and stable source order for findings. Report missing, unexpected, rerouted, incomplete, unsupported, syntax-invalid, or structurally mismatched relevant declarations with stable uppercase codes, declaration name or null, and generic source-free messages.",
+        "Bind the normalized target, operation, base digest, package digest, and complete ordered declaration list into `bindingDigest`. Bind the binding digest, candidate digest, normalized contracts, and ordered findings into `verdictDigest`. Repeated byte-identical inputs must return byte-identical objects and digests.",
+        "Return fresh plain data only. Do not return AST nodes, parser-owned mutable objects, raw parser diagnostics, source excerpts, prompts, local paths beyond the approved project-relative target, or thrown parser errors.",
+        "Use the pinned `oxc-parser` directly in memory. Do not call `inspect-module`, read `tsconfig.json`, resolve packages, inspect imports outside the assigned file, run commands, or claim TypeScript semantic assignability."
+      ]
+    },
+    {
+      "path": "src/runner/diagnostic-sanitization.ts",
+      "operation": "modify",
+      "task": "Extend the existing Failure Evidence sanitizer to admit the declaration-gate field only after independently bounding every finding and validating every digest. Invalid or oversized optional declaration evidence must be discarded or reduced to safe nulls without weakening the existing generic failure sanitization.",
+      "requirements": [
+        "A failed declaration check retains only bounded sanitized typed findings, the binding digest when binding completed, the exact candidate digest, and the verdict digest when a verdict was produced through existing Failure Evidence and Runner storage.",
+        "Human-readable failure output names each retained declaration finding and available digest without exposing candidate source, prompt content, parser diagnostics, local paths, credentials, or other raw runtime data."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "CandidateDeclarationFinding",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "CandidateDeclarationFailureEvidence",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/terminal-safe-line.ts",
+          "purpose": "Reuse the existing single-line terminal safety boundary for codes, names, and messages."
+        },
+        {
+          "path": "test/runner-observation-store.test.ts",
+          "purpose": "Show the existing credential, source, path, length, and reopened-database safety expectations for durable failure evidence."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Import `type CandidateDeclarationFinding` and `type CandidateDeclarationFailureEvidence` from `./domain.js`.",
+        "Accept only digest strings matching `sha256:` followed by exactly 64 lowercase hexadecimal characters. Store candidateDigest only when valid; bindingDigest and verdictDigest become null when absent or invalid.",
+        "Keep at most 32 findings. Keep only uppercase underscore-separated finding codes up to 96 characters, declaration names up to 120 terminal-safe characters or null, and messages passed through existing diagnostic redaction and terminal-safe length limits. Never preserve additional input properties.",
+        "Extend `sanitizeFailureEvidence` without changing its existing signature or any existing field behavior. Omit `declarationVerification` when no safe evidence object with a valid candidate digest remains.",
+        "Do not log or persist the rejected source, Agent Input, prompt text, raw diagnostic, AST, environment value, absolute path, or credential while sanitizing."
+      ]
+    },
+    {
+      "path": "src/runner/open-code-adapter.ts",
+      "operation": "modify",
+      "task": "Make the deterministic final declaration check an authoritative production step after ordinary workspace containment captures the candidate and before the adapter returns success. Derive the check only from the current ClaimedJob and captured candidate, attach safe structured evidence to candidate-integrity failures, and keep all prototype feedback and automatic repair hooks optional and non-authoritative.",
+      "requirements": [
+        "SCORE derives one deterministic declaration verdict from the frozen File Job and the exact final candidate bytes, checks every owned declaration together in approved order, and returns not applicable when the approved owned-declaration list is empty.",
+        "The OpenCode Adapter cannot return a successful File Candidate when declaration input binding fails, the candidate digest does not match the checked bytes, or any relevant declaration finding remains; this final check is independent of optional Agent feedback and repair hooks.",
+        "A failed declaration check retains only bounded sanitized typed findings, the binding digest when binding completed, the exact candidate digest, and the verdict digest when a verdict was produced through existing Failure Evidence and Runner storage.",
+        "Verification remains bounded to one assigned file and runs entirely in memory after ordinary candidate capture; it performs no repository write, project command, environment loading, dependency installation, TypeScript assignability check, build, test, lint, runtime, or multi-file complete-set verification.",
+        "Production code does not import prototype modules or copy the large declaration-contract experiment wholesale; it extracts only the accepted one-file owned-declaration behavior needed at this gate and leaves prototype feedback and automatic repair policy unchanged."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "verifyFileCandidateDeclarations",
+          "from": "src/runner/candidate-declaration-gate.ts"
+        },
+        {
+          "name": "FileCandidateDeclarationVerdict",
+          "from": "src/runner/candidate-declaration-gate.ts"
+        },
+        {
+          "name": "CandidateDeclarationFailureEvidence",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/runtime-adapter.ts",
+          "purpose": "Preserve the existing AdapterBoundaryError and successful AdapterCandidate boundary while adding evidence through FailureEvidence."
+        },
+        {
+          "path": "src/runner/runner.ts",
+          "purpose": "Confirm that an adapter failure is persisted before success and that the Runner cannot record candidate-ready or completeSuccess after the new gate fails."
+        },
+        {
+          "path": "test/open-code-final-candidate-check.test.ts",
+          "purpose": "Feasibility evidence for the exact post-capture check and the earlier-valid-then-edited case. Keep this prototype test unchanged."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Import `verifyFileCandidateDeclarations` and `type FileCandidateDeclarationVerdict` from `./candidate-declaration-gate.js`, and import `type CandidateDeclarationFailureEvidence` from `./domain.js`.",
+        "Call `verifyFileCandidateDeclarations({ targetPath: job.targetPath, operation: job.operation, agentInputJson: job.agentInputJson, packageDigest: job.packageDigest, candidateSource: candidate.content, targetOutputDigest: candidate.targetOutputDigest })` immediately after `readCandidate` returns exact contained bytes and before any successful AdapterCandidate return. Delete operations remain rejected by the existing adapter before this call.",
+        "Continue on `not_applicable` or `valid`. On `invalid`, throw one typed internal candidate-declaration failure that carries only the returned findings and digests plus existing target-output evidence; map it to `failureEvidence.category === \"candidate integrity\"` with optional `declarationVerification` after sanitization.",
+        "The human-safe generic reason may summarize the first finding code and declaration name, but it must not interpolate source, Agent Input, raw parser errors, prompts, absolute paths, or credentials. Structured findings remain the authoritative detail.",
+        "Keep the existing `prototypeAgentPreflight`, `prototypeAutomaticRepair`, and `prototypeFinalCandidateCheck` behavior available for experiments, but none may bypass, replace, or supply the production verdict. If a prototype repair changes bytes, the production check evaluates only the newly captured final bytes.",
+        "Do not change gateway process execution, workspace containment, Agent prompting, repair count, paid invocation policy, Runner success timing, retry eligibility, repository application, or any non-OpenCode adapter."
+      ]
+    },
+    {
+      "path": "src/runner/failure-presentation.ts",
+      "operation": "modify",
+      "task": "Show retained declaration-gate evidence in the existing failed-file explanation. Keep the summary compact: list the safe findings and the available binding, candidate, and verdict digests directly under the existing candidate-integrity details.",
+      "requirements": [
+        "Human-readable failure output names each retained declaration finding and available digest without exposing candidate source, prompt content, parser diagnostics, local paths, credentials, or other raw runtime data."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "CandidateDeclarationFinding",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "CandidateDeclarationFailureEvidence",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "src/runner/terminal-safe-line.ts",
+          "purpose": "Use the existing terminal-safe rendering boundary even though the stored evidence was already sanitized."
+        },
+        {
+          "path": "test/runner-retry.test.ts",
+          "purpose": "Preserve the current failure, retry, and unavailable-evidence wording and layout."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Import `type CandidateDeclarationFinding` and `type CandidateDeclarationFailureEvidence` from `./domain.js` only if explicit type names improve the small formatter helpers; do not add another public formatter.",
+        "When declarationVerification exists, append a `Declaration findings` section with one terminal-safe line per finding in retained order. Show the code, declaration name or `file`, and message. Then show each non-null binding, candidate, and verdict digest with an unambiguous label.",
+        "Do not render raw candidate content, Agent Input, prompts, diagnostics, AST data, environment data, absolute paths, or credentials. Preserve every existing line and fallback for failures without declarationVerification.",
+        "Keep existing retry classification and next-action behavior unchanged."
+      ]
+    },
+    {
+      "path": "test/runner-candidate-declaration-gate.test.ts",
+      "operation": "create",
+      "task": "Add one focused production acceptance harness spanning the pure verifier, public RuntimeAdapter boundary, durable Runner evidence, and human failure formatter. Use deterministic fake gateway and temporary-store fixtures only; do not invoke a paid Agent or run a generated project.",
+      "requirements": [
+        "Regression coverage proves valid and invalid multi-declaration candidates, exact frozen-input binding, post-feedback byte changes, deterministic repeated results, empty declaration lists, durable evidence recovery, sanitization, and human-readable failure output."
+      ],
+      "owns": [],
+      "consumes": [
+        {
+          "name": "verifyFileCandidateDeclarations",
+          "from": "src/runner/candidate-declaration-gate.ts"
+        },
+        {
+          "name": "FileCandidateDeclarationVerdict",
+          "from": "src/runner/candidate-declaration-gate.ts"
+        },
+        {
+          "name": "CandidateDeclarationFinding",
+          "from": "src/runner/domain.ts"
+        },
+        {
+          "name": "CandidateDeclarationFailureEvidence",
+          "from": "src/runner/domain.ts"
+        }
+      ],
+      "context": [
+        {
+          "path": "test/open-code-final-candidate-check.test.ts",
+          "purpose": "Reuse the deterministic fake-gateway pattern for exact final bytes and post-feedback edits without retaining the prototype option as production authority."
+        },
+        {
+          "path": "test/approved-declaration-binding.test.ts",
+          "purpose": "Reuse the approved target, declaration-order, duplicate-name, substitution, and repeated-digest fixture meanings."
+        },
+        {
+          "path": "test/runner-observation-store.test.ts",
+          "purpose": "Reuse the temporary database, completeFailure, reopen, credential redaction, path redaction, and raw-source exclusion patterns."
+        },
+        {
+          "path": "test/runner-retry.test.ts",
+          "purpose": "Reuse RunSnapshot construction and exact human-readable failed-file assertions."
+        }
+      ],
+      "skills": [],
+      "constraints": [
+        "Cover one valid two-declaration candidate and one candidate where only the second declaration fails; assert that only that declaration is named and that the candidate, binding, and verdict digests have the exact SHA-256 form.",
+        "Cover malformed or mismatched frozen target input, duplicate owned names, and a target-output digest that does not match the supplied candidate bytes. Each case must fail with one or more exact typed findings before adapter success.",
+        "Cover a valid empty owned list returning `not_applicable`, and prove repeated byte-identical calls return deep-equal results and digests.",
+        "At the public RuntimeAdapter seam, prove a valid final candidate succeeds without Agent feedback, an invalid final candidate fails as candidate integrity, and bytes edited after any earlier valid prototype feedback are independently rejected by the production gate.",
+        "Persist a declaration failure through the existing RunnerStore failure path, close and reopen the database, and assert the safe finding list and digests survive while rejected source, prompt text, credentials, raw diagnostics, and absolute temporary paths are absent from stored and formatted evidence.",
+        "Assert the human failure text names the failing declaration, finding code, and available digests while preserving existing rejected-output and retry wording.",
+        "Use only local deterministic fixtures, temporary directories, fake gateways, and in-memory candidate strings. Do not invoke OpenCode, a paid Agent, project commands, repository application, or network access."
+      ]
+    }
+  ]
+}

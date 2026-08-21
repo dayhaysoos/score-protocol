@@ -38,9 +38,9 @@ describe("compiler-facing Compilation Bundle submission", () => {
   it("rejects unknown fields under the closed alpha schema", () => {
     const findings = validateBundleShape({
       schema: "score.compilation-bundle",
-      schema_version: "0.1.0-alpha.4",
+      schema_version: "0.1.0-alpha.5",
       profile: "score.coding",
-      profile_version: "0.1.0-alpha.4",
+      profile_version: "0.1.0-alpha.5",
       source_bindings: {},
       proposed_definition: {},
       compiler_findings: { warnings: [], compilation_gaps: [] },

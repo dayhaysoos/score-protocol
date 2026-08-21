@@ -313,6 +313,15 @@ specifier, imported symbol, import kind, and dependency-lock provenance. It
 provides enough interface routing without copying the package's declaration graph.
 _Avoid_: vendored package types, package documentation, project-local declaration
 
+**External Declaration Evidence**:
+An immutable, digest-bound projection prepared for explicitly reviewed public
+members of one locked installed package. It contains only the selected public
+declarations and one bounded layer of directly required supporting types. The
+package remains a Declaration Closure boundary; this evidence is context for an
+Agent Brief, not authority for product meaning and not a copy of the package's
+recursive type graph.
+_Avoid_: dependency environment, package dump, Documented Declaration
+
 **Inspected Declaration**:
 A deterministic, source-backed projection of one declaration parsed from an
 identified frozen Source Snapshot or candidate, with its provenance and digest.

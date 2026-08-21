@@ -29,9 +29,9 @@ import type { CompilationBundle, ProposedDefinition } from "./types.js";
 import { hasBlockingFindings, validateCompilationBundle } from "./validation.js";
 
 const VALIDATOR_ID = "score-alpha.structural-validator";
-const VALIDATOR_VERSION = "0.1.0-alpha.4";
+const VALIDATOR_VERSION = "0.1.0-alpha.5";
 const PUBLICATION_VALIDATOR_ID = "score-alpha.persisted-definition-validator";
-const PUBLICATION_VALIDATOR_VERSION = "0.1.0-alpha.4";
+const PUBLICATION_VALIDATOR_VERSION = "0.1.0-alpha.5";
 const PUBLICATION_CHECKS = [
   "one reviewed work revision with exactly its declared file scope",
   "file operations match the Source Snapshot",
@@ -179,7 +179,7 @@ export interface ReviewDigestSet {
 
 export interface ReviewSnapshot extends RenderableReviewSnapshot {
   schema: "score.publication-review";
-  version: "0.1.0-alpha.4";
+  version: "0.1.0-alpha.5";
   digest_set: ReviewDigestSet;
 }
 
@@ -278,7 +278,7 @@ export interface PublicationDecisionInput {
 
 export interface ApprovedPassExport {
   schema: "score.approved-pass-export";
-  version: "0.1.0-alpha.5";
+  version: "0.1.0-alpha.6";
   pass_id: string;
   publication: {
     review_id: string;
@@ -2613,7 +2613,13 @@ export class ScoreAlpha {
             purpose: item.purpose,
             kind: item.kind,
             version: item.version,
-            content: item.content
+            content:
+              item.kind === "external_declaration_evidence" &&
+              typeof item.content === "object" &&
+              item.content !== null &&
+              "agentContext" in item.content
+                ? (item.content as { readonly agentContext: unknown }).agentContext
+                : item.content
             })),
           required_capabilities: capabilities,
           constraints,
@@ -2621,8 +2627,8 @@ export class ScoreAlpha {
         };
         const control = {
           protocol: {
-            bundle_schema: "score.compilation-bundle@0.1.0-alpha.4",
-            profile: "score.coding@0.1.0-alpha.4",
+            bundle_schema: "score.compilation-bundle@0.1.0-alpha.5",
+            profile: "score.coding@0.1.0-alpha.5",
             canonicalization: "RFC 8785",
             digest_algorithm: "SHA-256"
           },
@@ -2730,7 +2736,7 @@ export class ScoreAlpha {
       };
       const snapshot: ReviewSnapshot = {
         schema: "score.publication-review",
-        version: "0.1.0-alpha.4",
+        version: "0.1.0-alpha.5",
         review_id: reviewId,
         created_at: createdAt,
         manifest: {
@@ -2964,7 +2970,7 @@ export class ScoreAlpha {
     const sourceSnapshot = readRepositorySourceSnapshot(this.db, passId);
     return {
       schema: "score.approved-pass-export",
-      version: "0.1.0-alpha.5",
+      version: "0.1.0-alpha.6",
       pass_id: passId,
       publication: {
         review_id: first.review_id,

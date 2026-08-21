@@ -170,6 +170,40 @@ export const FailureEvidenceStatus = Schema.Literals([
 ]);
 export type FailureEvidenceStatus = typeof FailureEvidenceStatus.Type;
 
+const Sha256Digest = Schema.String.pipe(
+  Schema.check(Schema.isPattern(/^sha256:[0-9a-f]{64}$/))
+);
+
+export interface CandidateDeclarationFinding {
+  readonly code: string;
+  readonly declaration: string | null;
+  readonly message: string;
+}
+
+const CandidateDeclarationFindingSchema = Schema.Struct({
+  code: Schema.String,
+  declaration: Schema.NullOr(Schema.String),
+  message: Schema.String
+});
+
+export interface CandidateDeclarationFailureEvidence {
+  readonly findings: ReadonlyArray<CandidateDeclarationFinding>;
+  readonly bindingDigest: string | null;
+  readonly candidateDigest: string;
+  readonly verdictDigest: string | null;
+}
+
+/**
+ * Bounded declaration-gate facts for a rejected final candidate. This records
+ * only safe findings and content digests, never candidate or prompt bytes.
+ */
+const CandidateDeclarationFailureEvidenceSchema = Schema.Struct({
+  findings: Schema.Array(CandidateDeclarationFindingSchema),
+  bindingDigest: Schema.NullOr(Sha256Digest),
+  candidateDigest: Sha256Digest,
+  verdictDigest: Schema.NullOr(Sha256Digest)
+});
+
 /**
  * Adapter-neutral, bounded evidence explaining one failed File Job.
  * Runtime adapters populate every field they can know and use null for the rest;
@@ -181,7 +215,8 @@ export const FailureEvidence = Schema.Struct({
   name: Schema.NullOr(Schema.String),
   status: Schema.NullOr(FailureEvidenceStatus),
   statusCode: Schema.NullOr(Schema.Number),
-  reason: Schema.NullOr(Schema.String)
+  reason: Schema.NullOr(Schema.String),
+  declarationVerification: Schema.optionalKey(CandidateDeclarationFailureEvidenceSchema)
 });
 export type FailureEvidence = typeof FailureEvidence.Type;
 

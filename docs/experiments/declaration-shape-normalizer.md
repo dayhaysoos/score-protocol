@@ -160,6 +160,59 @@ git diff --check   PASS
 The worktree remained dirty with unrelated work. The Run status reported
 `Applied`, one successful Attempt, and no pending manual action.
 
+## Revision 4: interface behavior passed, declaration contract failed
+
+Revision 4 added one named exported nongeneric interface with no heritage and
+only ordered identifier-named property signatures using the annotation shapes
+already exercised by revision 3.
+
+- Pass: `10639ea5-fba3-4dc9-8a1e-94f5f919f53b`
+- Approval decision: `4926863f-5b46-41f7-952d-c049a74a9077`
+- Run: `f3cb3887-418f-41e0-a268-97abc4c1715b`
+- Runtime: `opencode/gpt-5.6-terra`, medium reasoning
+- Attempts: 1
+- Candidate digest:
+  `sha256:95ea771f661edbc054c1607b343c22c6f1818f6251e71babe00569da37747f94`
+
+SCORE generated and atomically applied the one candidate in about 22 seconds.
+The candidate implemented the reviewed interface behavior, including member
+order, `optional` and `readonly` flags, primitive, reference, and flat-union
+annotations, empty interfaces, exact incomplete findings, and rejection of the
+reviewed unsupported interface forms.
+
+The private harness initially stopped on a stale revision 2 assertion that a
+simple interface must be unsupported. That assertion contradicted revision 4
+and was corrected without changing production code. The completed behavioral
+harness then passed. This was an acceptance-harness maintenance error, not an
+Agent behavior defect.
+
+The candidate still failed the separate public-contract check. It changed the
+reviewed inline return declaration to a private `Result` type alias:
+
+```text
+npx tsx src/cli.ts inspect-module src/declaration-shape.ts \
+  --export normalizeDeclarationShape \
+  --closure
+  FAIL MODULE_REFERENCE_ROUTING_UNAVAILABLE
+  unresolvedReferences=["Result"]
+```
+
+The frozen Agent Brief explicitly required the complete return contract to
+remain on the exported function and required closure inspection to finish with
+no unresolved private names. Therefore revision 4 is an applied delivery whose
+behavioral checks passed, but it is not an accepted experiment result.
+
+Other checks against the applied candidate:
+
+```text
+npx tsx .score/experiments/declaration-shape-harness.ts  PASS
+npm run typecheck                                      PASS
+npm run build                                          PASS
+npm test                                               PASS (316/316)
+```
+
+No manual production repair was made.
+
 ## What the experiment establishes
 
 - One isolated Agent can implement and correct this exact bounded AST-backed
@@ -174,6 +227,9 @@ The worktree remained dirty with unrelated work. The Run status reported
   reviewed corrective revision without manual production repair.
 - `inspect-module --closure` can reproduce the final complete public contract
   without exposing implementation bodies or unresolved private declarations.
+- Closure inspection can independently reject an applied, compiling,
+  behaviorally green candidate that replaced its frozen public declaration with
+  an unresolved private alias.
 
 ## What the experiment does not establish
 
@@ -195,6 +251,8 @@ Every promised AST case must have both:
 1. a parser-derived fixture confirming the actual OXC node shape; and
 2. an independent public-interface assertion that is red before Agent work.
 
-Revision 3 followed this rule successfully. The next experiment should still
-increase only one dimension, retain parser-derived fixtures and independent red
-assertions, and keep the same post-application project verification boundary.
+Revision 3 followed this rule successfully. Revision 4 showed that behavioral
+coverage alone is insufficient: the frozen public declaration itself must also
+be an acceptance input. The next corrective revision should keep the same
+interface behavior, require the exact inline public return declaration, and
+make successful `inspect-module --closure` a first-class acceptance assertion.

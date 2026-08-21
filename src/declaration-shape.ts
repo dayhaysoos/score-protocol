@@ -13,26 +13,70 @@ type TypeLeaf =
   | { readonly kind: "primitive"; readonly name: PrimitiveType }
   | { readonly kind: "reference"; readonly name: string };
 
+type TypeAnnotation =
+  | TypeLeaf
+  | { readonly kind: "union"; readonly types: ReadonlyArray<TypeLeaf> };
+
+type Result =
+  | {
+      readonly status: "ok";
+      readonly shape:
+        | {
+            readonly kind: "function";
+            readonly name: string;
+            readonly async: false;
+            readonly generator: false;
+            readonly typeParameters: readonly [];
+            readonly params: ReadonlyArray<{
+              readonly name: string;
+              readonly optional: boolean;
+              readonly rest: boolean;
+              readonly typeAnnotation: PrimitiveType;
+            }>;
+            readonly returnType: PrimitiveType;
+          }
+        | {
+            readonly kind: "type";
+            readonly name: string;
+            readonly typeParameters: readonly [];
+            readonly typeAnnotation: TypeAnnotation;
+          }
+        | {
+            readonly kind: "interface";
+            readonly name: string;
+            readonly typeParameters: readonly [];
+            readonly extends: readonly [];
+            readonly members: ReadonlyArray<{
+              readonly kind: "property";
+              readonly name: string;
+              readonly optional: boolean;
+              readonly readonly: boolean;
+              readonly typeAnnotation: TypeAnnotation;
+            }>;
+          };
+    }
+  | {
+      readonly status: "invalid";
+      readonly finding: {
+        readonly code:
+          | "DECLARATION_SYNTAX_INVALID"
+          | "DECLARATION_SHAPE_UNSUPPORTED"
+          | "DECLARATION_CONTRACT_INCOMPLETE";
+        readonly message: string;
+      };
+    };
+
 function invalid(
   code:
     | "DECLARATION_SYNTAX_INVALID"
     | "DECLARATION_SHAPE_UNSUPPORTED"
     | "DECLARATION_CONTRACT_INCOMPLETE",
   message: string
-): {
-  readonly status: "invalid";
-  readonly finding: {
-    readonly code:
-      | "DECLARATION_SYNTAX_INVALID"
-      | "DECLARATION_SHAPE_UNSUPPORTED"
-      | "DECLARATION_CONTRACT_INCOMPLETE";
-    readonly message: string;
-  };
-} {
+): Result {
   return { status: "invalid", finding: { code, message } };
 }
 
-function unsupported() {
+function unsupported(): Result {
   return invalid(
     "DECLARATION_SHAPE_UNSUPPORTED",
     "Expected exactly one supported exported declaration."
@@ -117,49 +161,24 @@ function aliasLeaf(annotation: unknown): TypeLeaf | undefined {
   }
 }
 
-export function normalizeDeclarationShape(declaration: string): {
-  readonly status: "ok";
-  readonly shape: {
-    readonly kind: "function";
-    readonly name: string;
-    readonly async: false;
-    readonly generator: false;
-    readonly typeParameters: readonly [];
-    readonly params: ReadonlyArray<{
-      readonly name: string;
-      readonly optional: boolean;
-      readonly rest: boolean;
-      readonly typeAnnotation: "string" | "number" | "boolean" | "void";
-    }>;
-    readonly returnType: "string" | "number" | "boolean" | "void";
-  } | {
-    readonly kind: "type";
-    readonly name: string;
-    readonly typeParameters: readonly [];
-    readonly typeAnnotation: {
-      readonly kind: "primitive";
-      readonly name: "string" | "number" | "boolean" | "void";
-    } | {
-      readonly kind: "reference";
-      readonly name: string;
-    } | {
-      readonly kind: "union";
-      readonly types: ReadonlyArray<{
-        readonly kind: "primitive";
-        readonly name: "string" | "number" | "boolean" | "void";
-      } | {
-        readonly kind: "reference";
-        readonly name: string;
-      }>;
-    };
-  };
-} | {
-  readonly status: "invalid";
-  readonly finding: {
-    readonly code: "DECLARATION_SYNTAX_INVALID" | "DECLARATION_SHAPE_UNSUPPORTED" | "DECLARATION_CONTRACT_INCOMPLETE";
-    readonly message: string;
-  };
-} {
+function normalizedTypeAnnotation(annotation: unknown): TypeAnnotation | undefined {
+  const directLeaf = aliasLeaf(annotation);
+  if (directLeaf !== undefined) return directLeaf;
+
+  const type = asRecord(annotation);
+  if (type?.type !== "TSUnionType" || !Array.isArray(type.types)) {
+    return undefined;
+  }
+  const types: TypeLeaf[] = [];
+  for (const member of type.types) {
+    const leaf = aliasLeaf(member);
+    if (leaf === undefined) return undefined;
+    types.push(leaf);
+  }
+  return { kind: "union", types };
+}
+
+export function normalizeDeclarationShape(declaration: string): Result {
   let parsed: ReturnType<typeof parseSync>;
   try {
     parsed = parseSync("declaration.ts", declaration, {
@@ -272,49 +291,89 @@ export function normalizeDeclarationShape(declaration: string): {
     };
   }
 
-  if (exportedDeclaration.type !== "TSTypeAliasDeclaration") return unsupported();
+  if (exportedDeclaration.type === "TSTypeAliasDeclaration") {
+    const id = asRecord(exportedDeclaration.id);
+    if (
+      id?.type !== "Identifier" ||
+      typeof id.name !== "string" ||
+      (exportedDeclaration.typeParameters !== null &&
+        exportedDeclaration.typeParameters !== undefined)
+    ) {
+      return unsupported();
+    }
+
+    const typeAnnotation = normalizedTypeAnnotation(exportedDeclaration.typeAnnotation);
+    if (typeAnnotation === undefined) return unsupported();
+    return {
+      status: "ok",
+      shape: { kind: "type", name: id.name, typeParameters: [], typeAnnotation }
+    };
+  }
+
+  if (exportedDeclaration.type !== "TSInterfaceDeclaration") return unsupported();
 
   const id = asRecord(exportedDeclaration.id);
+  const interfaceBody = asRecord(exportedDeclaration.body);
   if (
     id?.type !== "Identifier" ||
     typeof id.name !== "string" ||
     (exportedDeclaration.typeParameters !== null &&
-      exportedDeclaration.typeParameters !== undefined)
+      exportedDeclaration.typeParameters !== undefined) ||
+    !Array.isArray(exportedDeclaration.extends) ||
+    exportedDeclaration.extends.length !== 0 ||
+    interfaceBody?.type !== "TSInterfaceBody" ||
+    !Array.isArray(interfaceBody.body)
   ) {
     return unsupported();
   }
 
-  const directLeaf = aliasLeaf(exportedDeclaration.typeAnnotation);
-  if (directLeaf !== undefined) {
-    return {
-      status: "ok",
-      shape: {
-        kind: "type",
-        name: id.name,
-        typeParameters: [],
-        typeAnnotation: directLeaf
-      }
-    };
-  }
-
-  const annotation = asRecord(exportedDeclaration.typeAnnotation);
-  if (annotation?.type !== "TSUnionType" || !Array.isArray(annotation.types)) {
-    return unsupported();
-  }
-  const types: TypeLeaf[] = [];
-  for (const member of annotation.types) {
-    const leaf = aliasLeaf(member);
-    if (leaf === undefined) return unsupported();
-    types.push(leaf);
+  const members: Array<{
+    readonly kind: "property";
+    readonly name: string;
+    readonly optional: boolean;
+    readonly readonly: boolean;
+    readonly typeAnnotation: TypeAnnotation;
+  }> = [];
+  for (const value of interfaceBody.body) {
+    const member = asRecord(value);
+    const key = asRecord(member?.key);
+    if (
+      member?.type !== "TSPropertySignature" ||
+      member.computed !== false ||
+      key?.type !== "Identifier" ||
+      typeof key.name !== "string" ||
+      member.static !== false ||
+      member.accessibility !== null
+    ) {
+      return unsupported();
+    }
+    if (member.typeAnnotation === null || member.typeAnnotation === undefined) {
+      return invalid(
+        "DECLARATION_CONTRACT_INCOMPLETE",
+        "Every interface property must have an explicit supported type."
+      );
+    }
+    const typeAnnotation = normalizedTypeAnnotation(
+      asRecord(member.typeAnnotation)?.typeAnnotation
+    );
+    if (typeAnnotation === undefined) return unsupported();
+    members.push({
+      kind: "property",
+      name: key.name,
+      optional: member.optional === true,
+      readonly: member.readonly === true,
+      typeAnnotation
+    });
   }
 
   return {
     status: "ok",
     shape: {
-      kind: "type",
+      kind: "interface",
       name: id.name,
       typeParameters: [],
-      typeAnnotation: { kind: "union", types }
+      extends: [],
+      members
     }
   };
 }

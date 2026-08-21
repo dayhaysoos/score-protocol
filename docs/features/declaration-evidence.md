@@ -1,6 +1,8 @@
 # Declaration evidence
 
-**Status:** Planned. No active Slice.
+**Status:** Project-local preparation remains planned. Bounded selected external
+package evidence is implemented separately in the current dirty worktree. No
+active Slice.
 
 ## Outcome
 
@@ -31,7 +33,8 @@ product meaning.
 
 This feature does not prove TypeScript assignability, runtime correctness, or
 candidate correctness. It does not run builds, tests, package installation, or
-paid Agents. Candidate verification and retry behavior are separate features.
+paid Agents. [Candidate declaration verification](candidate-declaration-verification.md)
+and retry behavior are separate features.
 
 ## Smallest useful experiment
 
@@ -46,3 +49,10 @@ Slice connect it to shared preparation.
 - [Retired declaration-evidence preparation Slice](../../score/retired-slices/declaration-evidence-preparation.json)
 - [Declaration-contract experiment](../experiments/declaration-contract-verification.md)
 - [Authored declarations remain authoritative](../adr/0001-authored-declarations-remain-authoritative.md)
+
+## Implemented neighboring subset
+
+[External declaration evidence](external-declaration-evidence.md) handles only
+explicitly selected public contracts from one locked installed package. It does
+not implement the project-local existing, greenfield, and mixed Declaration
+Evidence preparation described above.

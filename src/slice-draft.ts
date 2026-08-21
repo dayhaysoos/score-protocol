@@ -12,6 +12,12 @@ export interface DeclarationDraft {
   readonly description: string;
 }
 
+export interface ExternalDeclarationDraft {
+  readonly from: string;
+  readonly names: ReadonlyArray<string>;
+  readonly purpose: string;
+}
+
 export interface SliceFileDraft {
   readonly path: string;
   readonly operation: "create" | "modify";
@@ -19,6 +25,7 @@ export interface SliceFileDraft {
   readonly requirements: ReadonlyArray<string>;
   readonly owns: ReadonlyArray<DeclarationDraft>;
   readonly consumes: ReadonlyArray<{ readonly name: string; readonly from: string }>;
+  readonly external_declarations?: ReadonlyArray<ExternalDeclarationDraft>;
   readonly context: ReadonlyArray<{ readonly path: string; readonly purpose: string }>;
   readonly skills: ReadonlyArray<SliceSkillDraft>;
   readonly constraints: ReadonlyArray<string>;
@@ -114,6 +121,27 @@ export const SLICE_DRAFT_SCHEMA = {
               additionalProperties: false,
               required: ["name", "from"],
               properties: { name: nonEmptyString, from: nonEmptyString }
+            }
+          },
+          external_declarations: {
+            type: "array",
+            minItems: 1,
+            maxItems: 8,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["from", "names", "purpose"],
+              properties: {
+                from: nonEmptyString,
+                names: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 8,
+                  uniqueItems: true,
+                  items: nonEmptyString
+                },
+                purpose: nonEmptyString
+              }
             }
           },
           context: {

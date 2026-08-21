@@ -344,7 +344,7 @@ describe("publication review renderer", () => {
     const html = renderPublicationReviewHtml(review);
 
     assert.equal(html, renderPublicationReviewHtml(review));
-    assert.equal(PUBLICATION_REVIEW_RENDERER.version, "0.1.0-alpha.25");
+    assert.equal(PUBLICATION_REVIEW_RENDERER.version, "0.1.0-alpha.26");
     assert.match(html, /2 files will change/);
     assert.match(html, /2 modified/);
     assert.match(html, /2 isolated file-agents/);

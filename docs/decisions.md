@@ -1885,6 +1885,11 @@ numbers remain stable so prior discussions and links do not break.
 
 ## D-088: Declarations are immutable documented text, not parsed source contracts
 
+- **Status:** Superseded in part by D-094 and ADR-0014 only for parsing
+  explicitly selected, locked external-package declaration evidence during
+  trusted preparation. Authored Documented Declarations remain opaque and
+  authoritative; the candidate, project-environment, Agent-isolation, and
+  project-verification boundaries below remain in force.
 - **Supersedes:** D-072's structured declaration kinds and generated-source
   verification; D-073's normalized Project Settings, inferred module paths, and
   per-file compiler checks; D-078's preparation of relevant Project Settings;
@@ -2129,3 +2134,41 @@ numbers remain stable so prior discussions and links do not break.
 - **Reason:** CLI surfaces previously rendered reviewed, provider-supplied, and
   filesystem text directly, allowing control bytes or line breaks to imitate
   trusted UI state even though the durable data remained valid.
+
+## D-094: Selected locked external declarations become bounded preparation evidence
+
+- **Supersedes narrowly:** D-088 only where it prohibited preparation from
+  parsing package metadata or declaration text. It also narrows ADR-0005 only
+  for explicitly selected public members. Authored Documented Declarations
+  remain immutable authority, and external packages remain closure boundaries.
+- **Reviewed input:** Each Agent Brief may name a bounded set of exact package
+  specifiers, public member names, and a human-readable purpose through
+  `external_declarations`. SCORE does not infer package needs or select extra
+  public members.
+- **Trusted reads:** Preparation may read only the root `package-lock.json`, the
+  selected locked package's `package.json`, and selected regular `.d.ts` files
+  inside that same locked package. Symlinks, escapes, another package, missing
+  lock identity, unsupported routing, ambiguity, incomplete declarations, and
+  fixed-limit violations fail with typed findings before review.
+- **Bounded evidence:** The immutable bundle contains the selected public
+  declarations and at most one layer of their directly required supporting
+  declarations. SCORE never recursively dumps a package type graph. Full
+  provenance and content digests stay in prepared evidence; the Agent Brief
+  receives a sanitized projection without `node_modules` paths or internal
+  module routes.
+- **Preserved isolation:** File Agents and Runtime Adapters receive no repository,
+  package metadata, dependency, environment, network, installer, shell, or
+  command access. Preparation does not read `tsconfig.json`, create a TypeScript
+  Program or synthetic project, invoke a compiler, or perform whole-project or
+  complete-candidate-set verification.
+- **Authority and claim:** External evidence explains a frozen dependency API;
+  it does not replace authored product meaning and does not prove that candidate
+  code imports, calls, typechecks against, or behaves correctly with that API.
+- **Forward-only activation:** Coding Profile, compiler input, Compilation
+  Bundle, Plan Review, Agent Input, and Runner control advance to
+  `0.1.0-alpha.5`; Approved Pass Export advances to `0.1.0-alpha.6`. Historical
+  records retain their original versions and are not silently reinterpreted.
+- **Reason:** The controlled Effect experiments showed that SCORE can resolve a
+  selected public contract, conditional exports, and bounded directly required
+  types without exposing the target project's real TypeScript environment or
+  copying dependency internals.

@@ -26,11 +26,21 @@ import {
 
 import { sha256Bytes } from "../canonical.js";
 import {
+  verifyFileCandidateDeclarations,
+  type FileCandidateDeclarationVerdict
+} from "./candidate-declaration-gate.js";
+import {
+  checkAssignedFileDeclaration,
+  checkAssignedFileDeclarations,
+  type AssignedFileDeclarationCheckResult
+} from "../prototypes/agent-preflight-feedback-model.js";
+import {
   sanitizeDiagnosticMessage as sanitizedMessage,
   sanitizeFailureEvidence
 } from "./diagnostic-sanitization.js";
 import {
   JobId,
+  type CandidateDeclarationFailureEvidence,
   type ClaimedJob,
   type FailureCategory,
   type FailureEvidence,
@@ -76,11 +86,18 @@ type AdapterFailureCategory =
   | "interruption"
   | "missing_output"
   | "workspace_integrity"
+  | "candidate_integrity"
   | "runtime_protocol"
   | "runtime_cleanup";
 
 interface SanitizedTerminalOutcome {
-  readonly kind: "provider" | "tool" | "assistant" | "runtime" | "transport";
+  readonly kind:
+    | "provider"
+    | "tool"
+    | "assistant"
+    | "runtime"
+    | "transport"
+    | "workspace";
   readonly name?: string;
   readonly status?: FailureEvidenceStatus;
   readonly statusCode?: number;
@@ -191,6 +208,66 @@ class WorkspaceInspectionFailure extends Error {
   }
 }
 
+class PrototypeFinalCandidateCheckFailure extends Error {
+  readonly evidence: TargetEvidence;
+  readonly result: AssignedFileDeclarationCheckResult;
+
+  constructor(
+    result: AssignedFileDeclarationCheckResult,
+    candidate: {
+      readonly targetOutputState: "present" | "unchanged" | "different";
+      readonly targetOutputDigest: string;
+    },
+    message =
+      result.status === "invalid"
+        ? `Final candidate declaration check failed: ${result.findings
+            .map(({ code }) => code)
+            .join(", ")}`
+        : "Final candidate declaration check digest does not match the inspected candidate"
+  ) {
+    super(message);
+    this.name = "PrototypeFinalCandidateCheckFailure";
+    this.result = result;
+    this.evidence = {
+      targetOutputState: candidate.targetOutputState,
+      targetOutputDigest: candidate.targetOutputDigest
+    };
+  }
+}
+
+/** The production declaration gate retains no candidate source or input bytes. */
+class CandidateDeclarationCheckFailure extends Error {
+  readonly evidence: TargetEvidence;
+  readonly declarationVerification: CandidateDeclarationFailureEvidence;
+
+  constructor(
+    verdict: Extract<FileCandidateDeclarationVerdict, { readonly status: "invalid" }>,
+    candidate: {
+      readonly targetOutputState: "present" | "unchanged" | "different";
+      readonly targetOutputDigest: string;
+    }
+  ) {
+    const firstFinding = verdict.findings[0];
+    super(
+      `Candidate declaration verification failed: ${firstFinding.code}` +
+        (firstFinding.declaration === null
+          ? ""
+          : ` (${firstFinding.declaration})`)
+    );
+    this.name = "CandidateDeclarationCheckFailure";
+    this.evidence = {
+      targetOutputState: candidate.targetOutputState,
+      targetOutputDigest: candidate.targetOutputDigest
+    };
+    this.declarationVerification = {
+      findings: verdict.findings,
+      bindingDigest: verdict.bindingDigest,
+      candidateDigest: verdict.candidateDigest,
+      verdictDigest: verdict.verdictDigest
+    };
+  }
+}
+
 function optionalEvidence(evidence: TargetEvidence) {
   return {
     targetOutputState: evidence.targetOutputState,
@@ -214,6 +291,8 @@ function normalizedFailureCategory(category: AdapterFailureCategory): FailureCat
       return "missing output";
     case "workspace_integrity":
       return "workspace integrity";
+    case "candidate_integrity":
+      return "candidate integrity";
     case "runtime_startup":
     case "runtime_protocol":
     case "runtime_cleanup":
@@ -236,19 +315,49 @@ function adapterFailureEvidence(
   });
 }
 
+function declarationFailureEvidence(
+  reason: string,
+  declarationVerification: CandidateDeclarationFailureEvidence
+): FailureEvidence {
+  return sanitizeFailureEvidence({
+    category: "candidate integrity",
+    stage: null,
+    name: null,
+    status: "error",
+    statusCode: null,
+    reason,
+    declarationVerification
+  });
+}
+
 function boundaryError(
   job: ClaimedJob,
   cause: unknown,
   runtimeSessionId?: string
 ): AdapterBoundaryError {
   const inspection = cause instanceof WorkspaceInspectionFailure ? cause : undefined;
-  const evidence = inspection?.evidence ?? { targetOutputState: "not observed" as const };
-  const message = sanitizedMessage(cause instanceof Error ? cause.message : String(cause));
-  const failureCategory = inspection?.failureCategory ?? "workspace_integrity";
+  const finalCheck =
+    cause instanceof PrototypeFinalCandidateCheckFailure ? cause : undefined;
+  const declarationCheck =
+    cause instanceof CandidateDeclarationCheckFailure ? cause : undefined;
+  const evidence =
+    inspection?.evidence ??
+    declarationCheck?.evidence ??
+    finalCheck?.evidence ?? { targetOutputState: "not observed" as const };
+  const message = declarationCheck === undefined
+    ? sanitizedMessage(cause instanceof Error ? cause.message : String(cause))
+    : sanitizedMessage(declarationCheck.message);
+  const failureCategory =
+    inspection?.failureCategory ??
+    (finalCheck === undefined && declarationCheck === undefined
+      ? "workspace_integrity"
+      : "candidate_integrity");
   return new AdapterBoundaryError({
     jobId: job.jobId,
     message,
-    failureEvidence: adapterFailureEvidence(message, failureCategory),
+    failureEvidence: declarationCheck === undefined
+      ? adapterFailureEvidence(message, failureCategory)
+      : declarationFailureEvidence(message, declarationCheck.declarationVerification),
     ...(runtimeSessionId === undefined ? {} : { runtimeSessionId }),
     ...optionalEvidence(evidence)
   });
@@ -456,8 +565,59 @@ function readCandidate(
   };
 }
 
+function verifyFinalCandidateDeclarations(
+  job: ClaimedJob,
+  candidate: {
+    readonly content: string;
+    readonly targetOutputState: "present" | "unchanged" | "different";
+    readonly targetOutputDigest: string;
+  }
+): void {
+  if (job.operation === "delete") {
+    throw new Error("Delete operations do not produce a candidate to verify");
+  }
+  const verdict: FileCandidateDeclarationVerdict = verifyFileCandidateDeclarations({
+    targetPath: job.targetPath,
+    operation: job.operation,
+    agentInputJson: job.agentInputJson,
+    packageDigest: job.packageDigest,
+    candidateSource: candidate.content,
+    targetOutputDigest: candidate.targetOutputDigest
+  });
+  if (verdict.status === "invalid") {
+    throw new CandidateDeclarationCheckFailure(verdict, candidate);
+  }
+}
+
 export interface OpenCodeAdapterLiveOptions {
   readonly workspaceParent?: string;
+  /** Throwaway experiment hook; not part of the production Runner contract. */
+  readonly prototypeFinalCandidateCheck?: OpenCodeFinalCandidateCheckPrototype;
+  /** Throwaway experiment observer; not persisted or authoritative. */
+  readonly prototypeAgentPreflightAudit?: (
+    records: ReadonlyArray<OpenCodeAgentPreflightAuditRecord>
+  ) => void;
+}
+
+export interface OpenCodeFinalCandidateCheckPrototype {
+  readonly targetPath: string;
+  readonly baselineSource: string;
+  readonly declarations: ReadonlyArray<{
+    readonly name: string;
+    readonly documentedDeclaration: string;
+  }>;
+}
+
+export interface OpenCodeAgentPreflightAuditRecord {
+  readonly sequence: number;
+  readonly status: "valid" | "invalid";
+  readonly candidateDigest: string;
+  readonly verdictDigest: string;
+  readonly findings: ReadonlyArray<{
+    readonly code: string;
+    readonly declaration: string | null;
+    readonly message: string;
+  }>;
 }
 
 function admittedOpenCodeConfiguration(job: ClaimedJob) {
@@ -582,6 +742,51 @@ const makeOpenCodeAdapter = (options: OpenCodeAdapterLiveOptions) =>
                   ),
                 catch: (cause) => boundaryError(job, cause, result.runtimeSessionId)
               });
+              yield* Effect.try({
+                try: () => verifyFinalCandidateDeclarations(job, candidate),
+                catch: (cause) => boundaryError(job, cause, result.runtimeSessionId)
+              });
+              if (options.prototypeFinalCandidateCheck !== undefined) {
+                const finalCheck = options.prototypeFinalCandidateCheck;
+                yield* Effect.try({
+                  try: () => {
+                    if (finalCheck.targetPath !== prepared.targetPath) {
+                      throw new Error(
+                        "Prototype final candidate check target does not match the admitted File Job"
+                      );
+                    }
+                    const checked = checkAssignedFileDeclarations({
+                      targetPath: finalCheck.targetPath,
+                      baselineSource: finalCheck.baselineSource,
+                      candidateSource: candidate.content,
+                      declarations: finalCheck.declarations
+                    });
+                    if (checked.candidateDigest !== candidate.targetOutputDigest) {
+                      throw new PrototypeFinalCandidateCheckFailure(
+                        checked,
+                        candidate
+                      );
+                    }
+                    if (checked.status === "invalid") {
+                      throw new PrototypeFinalCandidateCheckFailure(checked, candidate);
+                    }
+                  },
+                  catch: (cause) => boundaryError(job, cause, result.runtimeSessionId)
+                });
+              }
+              if (options.prototypeAgentPreflightAudit !== undefined) {
+                const auditPath = join(jobDirectory, "preflight-audit.jsonl");
+                const records = existsSync(auditPath)
+                  ? readFileSync(auditPath, "utf8")
+                      .split("\n")
+                      .filter(Boolean)
+                      .map(
+                        (line) =>
+                          JSON.parse(line) as OpenCodeAgentPreflightAuditRecord
+                      )
+                  : [];
+                options.prototypeAgentPreflightAudit(records);
+              }
               return {
                 ...candidate,
                 runtimeSessionId: result.runtimeSessionId
@@ -615,6 +820,23 @@ export interface OpenCodeGatewayLiveOptions {
   readonly authPath?: string;
   readonly providerConfigPath?: string;
   readonly workspaceParent?: string;
+  /** Throwaway experiment hook; not part of the production Runner contract. */
+  readonly prototypeAgentPreflight?: OpenCodeAgentPreflightPrototype;
+  /** Throwaway experiment hook; bounded to one continuation in one session. */
+  readonly prototypeAutomaticRepair?: OpenCodeAutomaticRepairPrototype;
+}
+
+export interface OpenCodeAgentPreflightPrototype {
+  readonly command: readonly [string, ...string[]];
+  readonly targetPath: string;
+  readonly baselineSource: string;
+  readonly declarationName: string;
+  readonly documentedDeclaration: string;
+}
+
+export interface OpenCodeAutomaticRepairPrototype
+  extends OpenCodeFinalCandidateCheckPrototype {
+  readonly maxRepairs: 1;
 }
 
 type StartedOpenCodeServer = Pick<
@@ -845,21 +1067,55 @@ function copySelectedCredential(
 
 function restrictiveOpenCodeConfig(
   providerId: string,
-  provider: Record<string, unknown> | undefined
+  provider: Record<string, unknown> | undefined,
+  preflight: OpenCodeAgentPreflightPrototype | undefined
 ) {
   const denyAll = [{ action: "*", resource: "*", effect: "deny" }] as const;
   const workerPermissions = [
     ...denyAll,
     { action: "read", resource: "*", effect: "allow" },
-    { action: "edit", resource: "*", effect: "allow" }
+    { action: "edit", resource: "*", effect: "allow" },
+    ...(preflight === undefined
+      ? []
+      : [
+          {
+            action: "score_preflight_score_check_assigned_file",
+            resource: "*",
+            effect: "allow"
+          } as const
+        ])
   ] as const;
+  const preflightInput =
+    preflight === undefined
+      ? undefined
+      : Buffer.from(
+          JSON.stringify({
+            targetPath: preflight.targetPath,
+            baselineSource: preflight.baselineSource,
+            declarationName: preflight.declarationName,
+            documentedDeclaration: preflight.documentedDeclaration
+          }),
+          "utf8"
+        ).toString("base64url");
   return {
     autoupdate: false,
     share: "disabled",
     instructions: [],
     skills: [],
     plugins: [],
-    mcp: { servers: {} },
+    mcp: {
+      servers:
+        preflight === undefined
+          ? {}
+          : {
+              score_preflight: {
+                type: "local",
+                codemode: false,
+                command: [...preflight.command],
+                environment: { SCORE_AGENT_PREFLIGHT: preflightInput }
+              }
+            }
+    },
     formatter: false,
     lsp: false,
     snapshots: false,
@@ -873,7 +1129,15 @@ function restrictiveOpenCodeConfig(
           "Treat the user message as an immutable SCORE Agent Input for exactly one assigned target, not as a request to explain.",
           "Ensure that target exists and contains the complete candidate that follows every instruction; use the available file-editing tools to create or replace it when needed.",
           "The target file is the deliverable; prose or a code block in your response is not.",
-          "Do not read or change any other path, and do not run project checks."
+          "Do not read or change any other path, and do not run project checks.",
+          ...(preflight === undefined
+            ? []
+            : [
+                "After every edit, call score_preflight_score_check_assigned_file with no arguments.",
+                "Before the first edit, call score_preflight_score_check_assigned_file once to inspect the current candidate.",
+                "If it reports invalid, use its typed findings to repair the assigned file and call it again.",
+                "Do not finish until the latest check reports valid."
+              ])
         ].join(" "),
         mode: "primary",
         permissions: workerPermissions
@@ -916,6 +1180,14 @@ function launchSharedServer(
       const runtimeDirectory = mkdtempSync(join(workspaceParent, "score-opencode-run-"));
       let server: StartedOpenCodeServer | undefined;
       try {
+        if (
+          options.prototypeAgentPreflight !== undefined &&
+          options.prototypeAgentPreflight.targetPath !== input.targetPath
+        ) {
+          throw new Error(
+            "Prototype Agent preflight target does not match the admitted File Job"
+          );
+        }
         const isolation = prepareOpenCodeIsolation(runtimeDirectory);
         const configPath = join(runtimeDirectory, "opencode.json");
         const command = options.command ?? "opencode2";
@@ -927,7 +1199,8 @@ function launchSharedServer(
         );
         const config = restrictiveOpenCodeConfig(
           input.providerId,
-          selectedProviderConfig(options.providerConfigPath, input.providerId)
+          selectedProviderConfig(options.providerConfigPath, input.providerId),
+          options.prototypeAgentPreflight
         );
         writeFileSync(configPath, `${JSON.stringify(config)}\n`, "utf8");
         server = await startOpenCodeServer({
@@ -1112,7 +1385,8 @@ interface OpenCodeSessionResource {
 
 function acquireOpenCodeSession(
   input: OpenCodeGatewayInput,
-  server: StartedOpenCodeServer
+  server: StartedOpenCodeServer,
+  options: OpenCodeGatewayLiveOptions
 ): Effect.Effect<OpenCodeSessionResource, AdapterInvocationError> {
   return Effect.tryPromise({
     try: async (signal) => {
@@ -1122,6 +1396,38 @@ function acquireOpenCodeSession(
       });
       const health = await client.health(signal);
       if (!health.healthy) throw new Error("OpenCode server health check failed");
+      if (options.prototypeAgentPreflight !== undefined) {
+        const query = new URLSearchParams({ directory: input.workspacePath }).toString();
+        const connected = await fetch(
+          `${server.url}/api/mcp/score_preflight/connect?${query}`,
+          { method: "POST", headers: server.headers, signal }
+        );
+        if (!connected.ok) {
+          throw new Error(
+            `Prototype Agent preflight MCP connection failed with status ${connected.status}`
+          );
+        }
+        const listed = await fetch(`${server.url}/api/mcp?${query}`, {
+          headers: server.headers,
+          signal
+        });
+        if (!listed.ok) {
+          throw new Error(
+            `Prototype Agent preflight MCP status failed with status ${listed.status}`
+          );
+        }
+        const payload = record(await listed.json());
+        const servers = Array.isArray(payload?.data) ? payload.data : [];
+        const preflight = servers
+          .map(record)
+          .find((server) => server?.name === "score_preflight");
+        const status = record(preflight?.status)?.status;
+        if (status !== "connected") {
+          throw new Error(
+            `Prototype Agent preflight MCP did not connect: ${typeof status === "string" ? status : "unknown"}`
+          );
+        }
+      }
       const session = await client.createSession(
         {
           title: `SCORE ${input.targetPath}`,
@@ -1166,10 +1472,142 @@ function assistantTools(
   );
 }
 
+function validateCompletedOpenCodeTurn(
+  messages: ReadonlyArray<OpenCodeV2Message>,
+  previouslyCompleted: ReadonlySet<string> = new Set()
+): ReadonlySet<string> {
+  const assistants = assistantMessages(messages);
+  const providerFailure = assistants.find((message) => message.error !== undefined);
+  if (providerFailure?.error) {
+    const providerError = providerFailure.error;
+    const interrupted = /abort|interrupt/iu.test(providerError.type);
+    throw new ClassifiedRuntimeFailure(
+      providerErrorMessage(providerError),
+      interrupted ? "interruption" : "provider",
+      terminalOutcome({
+        kind: "provider",
+        name: providerError.type,
+        status: interrupted ? "aborted" : "error",
+        ...(providerError.status === undefined ? {} : { statusCode: providerError.status })
+      })
+    );
+  }
+  if (assistants.some((message) => message.finish === "error")) {
+    throw new ClassifiedRuntimeFailure(
+      "OpenCode assistant turn finished with an error",
+      "runtime_protocol",
+      { kind: "assistant", status: "error" }
+    );
+  }
+
+  const tools = assistantTools(assistants);
+  const failedTool = tools.find((tool) => tool.state.status === "error");
+  if (failedTool?.state.status === "error") {
+    throw new ClassifiedRuntimeFailure(
+      `OpenCode tool failure: ${failedTool.state.error.message}`,
+      "tool",
+      terminalOutcome({
+        kind: "tool",
+        name: failedTool.name,
+        status: "error",
+        ...(failedTool.state.error.status === undefined
+          ? {}
+          : { statusCode: failedTool.state.error.status })
+      })
+    );
+  }
+  const incompleteTool = tools.find((tool) => tool.state.status !== "completed");
+  if (incompleteTool) {
+    const status: string = incompleteTool.state.status;
+    if (status === "streaming" || status === "running") {
+      throw new ClassifiedRuntimeFailure(
+        `OpenCode left tool ${incompleteTool.name} unsettled after session wait`,
+        "tool",
+        terminalOutcome({ kind: "tool", name: incompleteTool.name, status })
+      );
+    }
+    throw new ClassifiedRuntimeFailure(
+      `OpenCode tool ${incompleteTool.name} has status ${status}; only completed tools are accepted`,
+      "tool",
+      terminalOutcome({ kind: "tool", name: incompleteTool.name, status: "unknown" })
+    );
+  }
+
+  const completed = assistants.filter(
+    (message) => message.time.completed !== undefined
+  );
+  if (!completed.some(({ id }) => !previouslyCompleted.has(id))) {
+    throw new ClassifiedRuntimeFailure(
+      previouslyCompleted.size === 0
+        ? "OpenCode became idle without a completed assistant turn"
+        : "OpenCode became idle without a new completed assistant turn",
+      "runtime_protocol",
+      { kind: "assistant", status: "unknown" }
+    );
+  }
+  return new Set(completed.map(({ id }) => id));
+}
+
+function prototypeRepairPrompt(
+  attempt: 1,
+  result: AssignedFileDeclarationCheckResult & { readonly status: "invalid" }
+): string {
+  return JSON.stringify({
+    kind: "score.prototype.declaration-repair",
+    attempt,
+    candidateDigest: result.candidateDigest,
+    verdictDigest: result.verdictDigest,
+    findings: result.findings,
+    instruction:
+      "Repair only the assigned target, then finish. SCORE will independently check the final bytes again."
+  });
+}
+
+function readPrototypeRepairCandidate(input: OpenCodeGatewayInput): string {
+  const segments = input.targetPath.split("/");
+  for (const index of segments.keys()) {
+    const candidatePath = join(
+      input.workspacePath,
+      ...segments.slice(0, index + 1)
+    );
+    let status;
+    try {
+      status = lstatSync(candidatePath);
+    } catch {
+      throw new ClassifiedRuntimeFailure(
+        "Automatic repair candidate is missing or unreadable",
+        "workspace_integrity",
+        { kind: "workspace", status: "error" }
+      );
+    }
+    if (
+      status.isSymbolicLink() ||
+      (index < segments.length - 1 && !status.isDirectory()) ||
+      (index === segments.length - 1 && !status.isFile())
+    ) {
+      throw new ClassifiedRuntimeFailure(
+        "Automatic repair candidate is not a contained regular file",
+        "workspace_integrity",
+        { kind: "workspace", status: "error" }
+      );
+    }
+  }
+  const bytes = readFileSync(join(input.workspacePath, input.targetPath));
+  if (!isUtf8(bytes)) {
+    throw new ClassifiedRuntimeFailure(
+      "Automatic repair candidate is not valid UTF-8",
+      "workspace_integrity",
+      { kind: "workspace", status: "error" }
+    );
+  }
+  return bytes.toString("utf8");
+}
+
 function monitorOpenCodeSession(
   input: OpenCodeGatewayInput,
   resource: OpenCodeSessionResource,
-  server: StartedOpenCodeServer
+  server: StartedOpenCodeServer,
+  options: OpenCodeGatewayLiveOptions
 ): Effect.Effect<{ readonly runtimeSessionId: string }, AdapterInvocationError> {
   const executionRequest = <A>(tryRequest: (signal: AbortSignal) => Promise<A>) =>
     Effect.tryPromise({
@@ -1202,78 +1640,61 @@ function monitorOpenCodeSession(
       runtimeSessionId: resource.sessionId
     });
 
-    return yield* executionRequest(async (signal) => {
+    const completed = yield* executionRequest(async (signal) => {
       await resource.client.wait(resource.sessionId, signal);
-
       const messages = await resource.client.messages(resource.sessionId, signal);
-
-      const assistants = assistantMessages(messages);
-      const providerFailure = assistants.find((message) => message.error !== undefined);
-      if (providerFailure?.error) {
-        const providerError = providerFailure.error;
-        const interrupted = /abort|interrupt/iu.test(providerError.type);
-        throw new ClassifiedRuntimeFailure(
-          providerErrorMessage(providerError),
-          interrupted ? "interruption" : "provider",
-          terminalOutcome({
-            kind: "provider",
-            name: providerError.type,
-            status: interrupted ? "aborted" : "error",
-            ...(providerError.status === undefined ? {} : { statusCode: providerError.status })
-          })
-        );
-      }
-      if (assistants.some((message) => message.finish === "error")) {
-        throw new ClassifiedRuntimeFailure(
-          "OpenCode assistant turn finished with an error",
-          "runtime_protocol",
-          { kind: "assistant", status: "error" }
-        );
-      }
-
-      const tools = assistantTools(assistants);
-      const failedTool = tools.find((tool) => tool.state.status === "error");
-      if (failedTool?.state.status === "error") {
-        throw new ClassifiedRuntimeFailure(
-          `OpenCode tool failure: ${failedTool.state.error.message}`,
-          "tool",
-          terminalOutcome({
-            kind: "tool",
-            name: failedTool.name,
-            status: "error",
-            ...(failedTool.state.error.status === undefined
-              ? {}
-              : { statusCode: failedTool.state.error.status })
-          })
-        );
-      }
-      const incompleteTool = tools.find((tool) => tool.state.status !== "completed");
-      if (incompleteTool) {
-        const status: string = incompleteTool.state.status;
-        if (status === "streaming" || status === "running") {
-          throw new ClassifiedRuntimeFailure(
-            `OpenCode left tool ${incompleteTool.name} unsettled after session wait`,
-            "tool",
-            terminalOutcome({ kind: "tool", name: incompleteTool.name, status })
-          );
-        }
-        throw new ClassifiedRuntimeFailure(
-          `OpenCode tool ${incompleteTool.name} has status ${status}; only completed tools are accepted`,
-          "tool",
-          terminalOutcome({ kind: "tool", name: incompleteTool.name, status: "unknown" })
-        );
-      }
-
-      if (!assistants.some((message) => message.time.completed !== undefined)) {
-        throw new ClassifiedRuntimeFailure(
-          "OpenCode became idle without a completed assistant turn",
-          "runtime_protocol",
-          { kind: "assistant", status: "unknown" }
-        );
-      }
-
-      return { runtimeSessionId: resource.sessionId };
+      return validateCompletedOpenCodeTurn(messages);
     });
+
+    if (options.prototypeAutomaticRepair !== undefined) {
+      const repair = options.prototypeAutomaticRepair;
+      if (repair.targetPath !== input.targetPath) {
+        return yield* Effect.fail(
+          invocationError(input, "Prototype automatic repair target mismatch", {
+            failureCategory: "runtime_protocol",
+            runtimeSessionId: resource.sessionId
+          })
+        );
+      }
+      const result = yield* executionRequest(async () => {
+        const candidateSource = readPrototypeRepairCandidate(input);
+        return checkAssignedFileDeclarations({
+          targetPath: repair.targetPath,
+          baselineSource: repair.baselineSource,
+          candidateSource,
+          declarations: repair.declarations
+        });
+      });
+      if (result.status === "invalid" && repair.maxRepairs === 1) {
+        yield* executionRequest(async (signal) => {
+          const promptInputId = `msg_${randomUUID().replaceAll("-", "")}`;
+          const admitted = await resource.client.prompt(
+            resource.sessionId,
+            {
+              id: promptInputId,
+              text: prototypeRepairPrompt(1, result),
+              resume: true
+            },
+            signal
+          );
+          if (
+            admitted.id !== promptInputId ||
+            admitted.sessionID !== resource.sessionId
+          ) {
+            throw new ClassifiedRuntimeFailure(
+              "OpenCode returned a mismatched repair-prompt admission receipt",
+              "runtime_protocol",
+              { kind: "transport", status: "error" }
+            );
+          }
+          await resource.client.wait(resource.sessionId, signal);
+          const messages = await resource.client.messages(resource.sessionId, signal);
+          validateCompletedOpenCodeTurn(messages, completed);
+        });
+      }
+    }
+
+    return { runtimeSessionId: resource.sessionId };
   });
 }
 
@@ -1328,7 +1749,7 @@ const invokeV2Runtime = (
   options: OpenCodeGatewayLiveOptions
 ): Effect.Effect<{ readonly runtimeSessionId: string }, AdapterInvocationError> =>
   Effect.acquireUseRelease(
-    acquireOpenCodeSession(input, server).pipe(
+    acquireOpenCodeSession(input, server, options).pipe(
       Effect.timeoutOrElse({
         duration: options.startTimeoutMs ?? 10_000,
         orElse: () =>
@@ -1346,7 +1767,7 @@ const invokeV2Runtime = (
       })
     ),
     (resource) =>
-      monitorOpenCodeSession(input, resource, server).pipe(
+      monitorOpenCodeSession(input, resource, server, options).pipe(
         Effect.timeoutOrElse({
           duration: options.executionTimeoutMs ?? DEFAULT_OPENCODE_EXECUTION_TIMEOUT_MS,
           orElse: () => {
@@ -1404,13 +1825,33 @@ const makeOpenCodeGateway = (options: OpenCodeGatewayLiveOptions) => {
 export const OpenCodeGatewayLive = (options: OpenCodeGatewayLiveOptions = {}) =>
   Layer.succeed(OpenCodeGateway, makeOpenCodeGateway(options));
 
-export type OpenCodeRuntimeLiveOptions = OpenCodeGatewayLiveOptions;
+export type OpenCodeRuntimeLiveOptions = OpenCodeGatewayLiveOptions &
+  OpenCodeAdapterLiveOptions;
 
 export const OpenCodeRuntimeLive: (
   options?: OpenCodeRuntimeLiveOptions
-) => Layer.Layer<RuntimeAdapter> = (options = {}) =>
-  OpenCodeAdapterLive(
-    options.workspaceParent === undefined ? {} : { workspaceParent: options.workspaceParent }
+) => Layer.Layer<RuntimeAdapter> = (options = {}) => {
+  const prototypeFinalCandidateCheck =
+    options.prototypeFinalCandidateCheck ?? options.prototypeAutomaticRepair;
+  return OpenCodeAdapterLive(
+    {
+      ...(options.workspaceParent === undefined
+        ? {}
+        : { workspaceParent: options.workspaceParent }),
+      ...(prototypeFinalCandidateCheck === undefined
+        ? {}
+        : {
+            prototypeFinalCandidateCheck:
+              prototypeFinalCandidateCheck
+          }),
+      ...(options.prototypeAgentPreflightAudit === undefined
+        ? {}
+        : {
+            prototypeAgentPreflightAudit:
+              options.prototypeAgentPreflightAudit
+          })
+    }
   ).pipe(
     Layer.provide(OpenCodeGatewayLive(options))
   );
+};

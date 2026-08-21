@@ -28,6 +28,8 @@ survives those revisions; an executable Slice does not.
 | Feature | Product outcome | Retired Slice history |
 | --- | --- | --- |
 | [Declaration evidence](declaration-evidence.md) | Give Agents deterministic interface context derived from approved declarations and relevant source. | `declaration-evidence-preparation.json` |
+| [External declaration evidence](external-declaration-evidence.md) | Freeze only explicitly selected public contracts from one locked installed package for an Agent Brief. | None |
+| [Candidate declaration verification](candidate-declaration-verification.md) | Independently reject final candidate bytes that drift from approved declarations while keeping Agent feedback optional. | None |
 | [Execution Flows](execution-flows.md) | Let authors communicate ordered or parallel behavioral steps to only the relevant Agents. | `execution-flow-contracts.json` |
 | [Runtime Adapter foundation](runtime-adapter-foundation.md) | Keep the Runner independent of any one coding-agent runtime. | `runtime-adapter-foundation.json`, `runtime-adapter-foundation-repair.json` |
 | [Runtime selection](runtime-selection.md) | Select and freeze a supported runtime without changing existing defaults. | `runtime-adapter-selection.json` |
@@ -35,4 +37,15 @@ survives those revisions; an executable Slice does not.
 | [Pi runtime](pi-runtime.md) | Run Pi through SCORE's frozen package, isolation, and candidate boundaries. | `pi-runtime-primitives.json`, `pi-worker-lifecycle.json`, `pi-adapter.json` |
 | [Runtime diagnostics and acceptance](runtime-diagnostics-and-acceptance.md) | Make runtime support understandable, diagnosable, and explicitly proven before release. | `pi-doctor-documentation.json` |
 
-No feature listed here currently has an active Slice.
+This integration prepared no new executable Slice. The two retained files in
+`score/slices/` are experiment-era authoring records, not authorization to run
+the next feature; reconcile or retire them before preparing another Slice.
+
+## Deferred research tracks
+
+These are intentionally documented for later exploration but are not accepted
+Runner capabilities and must not be mixed into the current declaration work.
+
+| Track | Research outcome | Current boundary |
+| --- | --- | --- |
+| [Real-project verification](real-project-verification.md) | Bind exact candidate revisions to named typecheck, build, test, and behavioral Verification Results in the real project environment. | D-079 currently stops after atomic candidate delivery and rejects synthetic-project verification. |

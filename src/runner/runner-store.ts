@@ -180,8 +180,8 @@ const StoredJobProtocolRow = Schema.Struct({
 });
 const SupportedRunRules = Schema.Struct({
   protocol: Schema.Struct({
-    bundle_schema: Schema.Literal("score.compilation-bundle@0.1.0-alpha.4"),
-    profile: Schema.Literal("score.coding@0.1.0-alpha.4"),
+    bundle_schema: Schema.Literal("score.compilation-bundle@0.1.0-alpha.5"),
+    profile: Schema.Literal("score.coding@0.1.0-alpha.5"),
     canonicalization: Schema.Literal("RFC 8785"),
     digest_algorithm: Schema.Literal("SHA-256")
   }),
@@ -267,7 +267,7 @@ function requireSupportedStoredJobProtocol(
         message:
           `Job ${row.targetPath} has an unsupported frozen Agent Package protocol ` +
           `(${frozenJobProtocolDescription(row.controlJson)}); this Runner executes only ` +
-          "score.compilation-bundle@0.1.0-alpha.4 / score.coding@0.1.0-alpha.4 Jobs. " +
+          "score.compilation-bundle@0.1.0-alpha.5 / score.coding@0.1.0-alpha.5 Jobs. " +
           "Prepare and approve a new revision before execution."
       })
   });
@@ -1089,7 +1089,7 @@ const makeRunnerStore = (
     });
     const frozen = yield* Effect.try({
       try: () => {
-        if (input.approvedPlan.version !== "0.1.0-alpha.5") {
+        if (input.approvedPlan.version !== "0.1.0-alpha.6") {
           throw new Error(`Unsupported approved Plan export ${input.approvedPlan.version}`);
         }
         const sourceSnapshot = input.approvedPlan.source_snapshot;

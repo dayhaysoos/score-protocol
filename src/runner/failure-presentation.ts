@@ -1,4 +1,5 @@
 import type {
+  CandidateDeclarationFailureEvidence,
   FailureCategory,
   FailureEvidence,
   RunFileObservation,
@@ -81,6 +82,30 @@ function available(value: string | null, maximumLength = 320): string {
   return terminalSafeLine(value, maximumLength) || "Unavailable (not printable)";
 }
 
+function formatDeclarationVerification(
+  evidence: CandidateDeclarationFailureEvidence
+): string[] {
+  const lines = ["Declaration findings"];
+  for (const finding of evidence.findings) {
+    const declaration = finding.declaration ?? "file";
+    lines.push(
+      terminalSafeLine(
+        `  Code: ${finding.code} · Declaration: ${declaration} · Message: ${finding.message}`
+      ) || "  Unprintable declaration finding"
+    );
+  }
+  if (evidence.bindingDigest !== null) {
+    lines.push(`Binding digest: ${terminalSafeLine(evidence.bindingDigest, 96)}`);
+  }
+  if (evidence.candidateDigest !== null) {
+    lines.push(`Candidate digest: ${terminalSafeLine(evidence.candidateDigest, 96)}`);
+  }
+  if (evidence.verdictDigest !== null) {
+    lines.push(`Verdict digest: ${terminalSafeLine(evidence.verdictDigest, 96)}`);
+  }
+  return lines;
+}
+
 export function formatFailedFile(
   file: RunFileObservation,
   heading?: string
@@ -89,13 +114,14 @@ export function formatFailedFile(
   const target =
     terminalSafeLine(file.targetPath, 240) || `[unprintable target; Job ${file.jobId}]`;
   if (evidence === null) {
-    return [
+    const lines = [
       heading ?? `${target} failed`,
       "What failed: Unavailable (not retained for this Run)",
       "Reason: Unavailable (not retained for this Run)",
       "Stage: Unavailable (not retained for this Run)",
       `Candidate output: ${candidateOutputLabel(file)}`
-    ].join("\n");
+    ];
+    return lines.join("\n");
   }
 
   const identityLabel =
@@ -121,6 +147,9 @@ export function formatFailedFile(
   ];
   if (file.rejectedOutputDigest !== null) {
     lines.push(`Rejected-output digest: ${terminalSafeLine(file.rejectedOutputDigest, 96)}`);
+  }
+  if (evidence.declarationVerification !== undefined) {
+    lines.push(...formatDeclarationVerification(evidence.declarationVerification));
   }
   return lines.join("\n");
 }

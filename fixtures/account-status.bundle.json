@@ -1,8 +1,8 @@
 {
   "schema": "score.compilation-bundle",
-  "schema_version": "0.1.0-alpha.4",
+  "schema_version": "0.1.0-alpha.5",
   "profile": "score.coding",
-  "profile_version": "0.1.0-alpha.4",
+  "profile_version": "0.1.0-alpha.5",
   "source_bindings": {
     "accepted_specification": {
       "protocol_id": "e94cf478-10d1-4c66-8914-2983f6e73c48",
@@ -14,11 +14,11 @@
     },
     "compilation_procedure": {
       "protocol_id": "d6ce0b6a-f30f-4559-9bf2-fa86f84282f8",
-      "content_digest": "sha256:788f79d552d36cc23c25345feab014107f08a53c073e32199dacc8552b2fff24"
+      "content_digest": "sha256:c28a05036b3a2bc2dcd0a24391e76025b04fa42734b25f75d905355e6b49aa89"
     },
     "compiler_input_revision": {
       "protocol_id": "fe0c4e3e-f897-4f34-b5be-634d54cebf65",
-      "content_digest": "sha256:38bfcdcbab177fa081301b9876b5fc687b9bea1c07eedb6ee3c46b8d115b5131"
+      "content_digest": "sha256:96c0b3172e2588e6242d4c19675fc3590dac710e209be76b9b9190357afe1c2d"
     }
   },
   "proposed_definition": {

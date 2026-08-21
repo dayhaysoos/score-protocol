@@ -62,8 +62,8 @@ function readBundle(): unknown {
 function singleCreateApprovedPlan(): ApprovedPassExport {
   const control = {
     protocol: {
-      bundle_schema: "score.compilation-bundle@0.1.0-alpha.4",
-      profile: "score.coding@0.1.0-alpha.4",
+      bundle_schema: "score.compilation-bundle@0.1.0-alpha.5",
+      profile: "score.coding@0.1.0-alpha.5",
       canonicalization: "RFC 8785",
       digest_algorithm: "SHA-256"
     },
@@ -109,7 +109,7 @@ function singleCreateApprovedPlan(): ApprovedPassExport {
   const payload = { control, agent_input: agentInput };
   return {
     schema: "score.approved-pass-export",
-    version: "0.1.0-alpha.5",
+    version: "0.1.0-alpha.6",
     pass_id: "approved-pass",
     publication: {
       review_id: "review",
@@ -476,7 +476,7 @@ describe("Runner worker pool", () => {
     }
   });
 
-  it("refuses preexisting alpha.3 Jobs before claim or agent execution", async () => {
+  it("refuses preexisting alpha.4 Jobs before claim or agent execution", async () => {
     const directory = mkdtempSync(join(tmpdir(), "score-runner-legacy-policy-"));
     const repositoryPath = join(directory, "repository");
     const runnerDatabasePath = join(directory, "runner.db");
@@ -520,8 +520,8 @@ describe("Runner worker pool", () => {
       const control = JSON.parse(frozen.controlJson) as Record<string, unknown> & {
         protocol: Record<string, unknown>;
       };
-      control.protocol.bundle_schema = "score.compilation-bundle@0.1.0-alpha.3";
-      control.protocol.profile = "score.coding@0.1.0-alpha.3";
+      control.protocol.bundle_schema = "score.compilation-bundle@0.1.0-alpha.4";
+      control.protocol.profile = "score.coding@0.1.0-alpha.4";
       control.project_settings_digest = "sha256:legacy-project-settings";
       const agentInput = JSON.parse(frozen.agentInputJson) as Record<string, unknown>;
       agentInput.project_settings = { language: "typescript" };
@@ -560,7 +560,7 @@ describe("Runner worker pool", () => {
       );
       assert.equal(claimError._tag, "RunnerStoreError");
       assert.equal(claimError.operation, "claimNext");
-      assert.match(claimError.message, /unsupported frozen Agent Package protocol.*alpha\.4/i);
+      assert.match(claimError.message, /unsupported frozen Agent Package protocol.*alpha\.5/i);
 
       let invocationCount = 0;
       const adapterLayer = Layer.succeed(
@@ -585,7 +585,7 @@ describe("Runner worker pool", () => {
       );
       assert.equal(runError._tag, "RunnerStoreError");
       assert.equal(runError.operation, "beginWork");
-      assert.match(runError.message, /unsupported frozen Agent Package protocol.*alpha\.4/i);
+      assert.match(runError.message, /unsupported frozen Agent Package protocol.*alpha\.5/i);
       assert.equal(invocationCount, 0);
 
       const inspection = new Database(runnerDatabasePath, { readonly: true });
@@ -1090,7 +1090,7 @@ describe("Runner worker pool", () => {
         assert.equal(claimedJobs.length, 2);
         for (const job of claimedJobs) {
           assert.notEqual(job.attemptId, "");
-          assert.match(job.controlJson, /score\.compilation-bundle@0\.1\.0-alpha\.4/);
+          assert.match(job.controlJson, /score\.compilation-bundle@0\.1\.0-alpha\.5/);
           assert.match(job.agentInputJson, /score\.coding\.filesystem\.single-target/);
           assert.match(job.packageDigest, /^sha256:[a-f0-9]{64}$/u);
           assert.deepEqual(job.adapter, {

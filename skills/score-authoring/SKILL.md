@@ -1,6 +1,6 @@
 ---
 name: score-authoring
-version: 0.9.1
+version: 0.9.2
 description: Author and prepare small reviewed Changes or durable Slices when the person says "use SCORE". Inspect the exact project, declare complete File Brief scope, and stop before approval or execution.
 ---
 
@@ -94,6 +94,18 @@ write a Change or Slice. The author must supply every declaration description,
 consumer path, exact import and usage, and caller-observable behavior before
 placing selected facts into reviewed input.
 
+When an Agent Brief needs a public declaration from an installed package, do
+not copy dependency declarations into authored context and do not ask
+`inspect-module` to cross the package boundary. Add one reviewed
+`external_declarations` request to that File Brief with the exact package
+specifier in `from`, the selected public member names in `names`, and a short
+`purpose`. Trusted preparation resolves those names from the root lockfile and
+the selected installed package, freezes only their public declarations and one
+bounded layer of directly required supporting types, and returns typed findings
+when it cannot prove the route. The package remains a closure boundary: never
+request a package namespace, unrelated members, or a recursive dependency type
+graph.
+
 Discovery is complete only when every declaration the work depends on is either
 confirmed from existing source with closure inspection or explicitly authored
 as a new declaration from the accepted product meaning. When inspection exposes
@@ -163,14 +175,16 @@ before changing product meaning or expanding scope.
      caller may rely on, not the owner's implementation algorithm.
    - Freeze each consumer connection literally in its file task, requirements,
      or constraints: the exact import statement, followed by the exact function
-     arguments or JSX prop names used at the call site. SCORE plan preparation
-     does not parse declarations or infer module paths, binding forms,
-     supporting types, or call-site behavior. If a declaration references another
-     declaration owned in the same slice, list that supporting declaration as
-     another explicit `consumes` entry even when the generated file will not
-     import its name directly. Otherwise include the required supporting
-declaration text in the file's prompt context explicitly. Do not leave an
-unresolved type name or shorthand like "use Foo" as the only guidance.
+     arguments or JSX prop names used at the call site. For project-local
+     declarations, SCORE plan preparation does not parse or infer module paths,
+     binding forms, supporting types, or call-site behavior. If a declaration references
+     another declaration owned in the same slice, list that supporting
+     declaration as another explicit `consumes` entry even when the generated
+     file will not import its name directly. Otherwise include the required
+     project-local supporting declaration text in the file's prompt context
+     explicitly. For installed-package contracts, use the reviewed
+     `external_declarations` field described above. Do not leave an unresolved
+     type name or shorthand like "use Foo" as the only guidance.
    - Give each user-visible empty, loading, error, or success state one
      rendering owner. When other files supply its data, name that boundary
      instead of asking multiple files to render the same state.
@@ -201,9 +215,11 @@ unresolved type name or shorthand like "use Foo" as the only guidance.
    revisions; do not ask the person for database paths, output paths,
    repository identifiers, protocol identifiers, digests, models, or providers.
 10. If the result is `invalid`, repair only the facts identified by its typed
-   structural findings and submit again. SCORE does not reject a draft because
-   declaration text fails source parsing or typechecking. Ask the person when a
-   repair would change product meaning or expand the agreed slice.
+   structural findings and submit again. Authored Documented Declaration text
+   remains opaque and authoritative. SCORE may reject an explicitly selected
+   installed-package declaration when its locked public declaration route is
+   missing, ambiguous, unsupported, incomplete, or over a fixed bound. Ask the
+   person when a repair would change product meaning or expand the agreed slice.
 11. For each result, distinguish `review_ready`, `implemented`, and `waiting`.
     A dependent slice remains `waiting` until every predecessor's exact revision
     was applied by a successful Runner Run. Give the person each named HTML
@@ -214,9 +230,11 @@ unresolved type name or shorthand like "use Foo" as the only guidance.
 Do not approve the review, start a Runner, launch an executor, create candidates,
 or edit source files during preparation. Do not author SCORE storage records or
 internal protocol graphs. Deterministic SCORE derives and stores those behind
-the preparation tool. Preparation does not parse or type-check declaration text
-or generated source, and it does not run project checks. Typechecking, builds,
-tests, and linting remain post-application work in the real project.
+the preparation tool. Preparation does not parse or type-check authored
+Documented Declarations or generated source, and it does not run project
+checks. Its only dependency parsing is the explicitly reviewed, locked, bounded
+external-declaration evidence described above. Typechecking, builds, tests, and
+linting remain post-application work in the real project.
 
 Completion means every currently unblocked draft passed the cross-file seam
 audit and has a named review ready for the person's explicit decision, while

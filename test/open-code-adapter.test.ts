@@ -17,10 +17,16 @@ import { describe, it } from "node:test";
 
 import { Cause, Effect, Exit, Fiber, Layer } from "effect";
 
+import { canonicalJson, sha256Json } from "../src/canonical.js";
+import { bindApprovedDeclarationRepair } from "../src/prototypes/approved-declaration-binding.js";
+import { repositoryRevisionContentDigest } from "../src/repository-source-state.js";
 import {
   OPENCODE_CLI_VERSION,
   OPENCODE_V2_CLIENT_VERSION,
   OpenCodeAdapterLive,
+  type OpenCodeAutomaticRepairPrototype,
+  type OpenCodeFinalCandidateCheckPrototype,
+  type OpenCodeAgentPreflightPrototype,
   OpenCodeGateway,
   OpenCodeRuntimeLive
 } from "../src/runner/open-code-adapter.js";
@@ -33,6 +39,7 @@ import type {
   RuntimeAttemptFact,
   RuntimeAttemptReporter
 } from "../src/runner/runtime-attempt-observation.js";
+import type { ApprovedPassExport } from "../src/score-alpha.js";
 
 function job(input: {
   readonly id: string;
@@ -107,6 +114,93 @@ function replacementJob() {
   return job({ id: "replace", targetPath: "src/schema.ts", operation: "replace" });
 }
 
+function approvedBindingFixture(declarationCount: 1 | 2 = 1) {
+  const targetPath = "src/account-label.ts";
+  const control = {
+    target_path: targetPath,
+    operation: "create"
+  };
+  const agentInput = {
+    objective: "Create the approved account label.",
+    target: {
+      path: targetPath,
+      operation: "create",
+      state_at_base_revision: "absent"
+    },
+    input_bindings: [],
+    declarations: {
+      owned: [
+        ...(declarationCount === 2
+          ? [
+              {
+                name: "prefix",
+                declaration: "export function prefix(): string;",
+                description: "Returns the account-label prefix."
+              }
+            ]
+          : []),
+        {
+          name: "label",
+          declaration: "export function label(): string;",
+          description: "Returns the account label."
+        }
+      ],
+      consumed: []
+    }
+  };
+  const payload = { control, agent_input: agentInput };
+  const sourceSnapshot = {
+    revision_id: "approved-revision-1",
+    content_digest: repositoryRevisionContentDigest({ orderedManifest: [] }),
+    files: []
+  } as const;
+  const payloadDigest = sha256Json(payload);
+  const approvedPlan: ApprovedPassExport = {
+    schema: "score.approved-pass-export",
+    version: "0.1.0-alpha.6",
+    pass_id: "approved-pass-1",
+    publication: {
+      review_id: "approved-review-1",
+      decision_id: "approved-decision-1",
+      authority: "local-cli:binding-experiment",
+      decided_at: "2026-08-20T18:00:00.000Z"
+    },
+    source_snapshot: sourceSnapshot,
+    payloads: [
+      {
+        payload_id: "approved-payload-1",
+        target_path: targetPath,
+        operation: "create",
+        control,
+        agent_input: agentInput,
+        payload,
+        control_digest: sha256Json(control),
+        agent_input_digest: sha256Json(agentInput),
+        payload_digest: payloadDigest
+      }
+    ]
+  };
+  const claimedJob = ClaimedJob.make({
+    jobId: JobId.make("approved-binding-job"),
+    attemptId: AttemptId.make("approved-binding-attempt"),
+    runId: RunId.make("approved-binding-run"),
+    targetPath,
+    operation: "create",
+    controlJson: canonicalJson(control),
+    agentInputJson: canonicalJson(agentInput),
+    packageDigest: payloadDigest,
+    adapter: {
+      kind: "opencode",
+      providerId: "test-provider",
+      modelId: "test-model",
+      variantId: null,
+      sdkVersion: OPENCODE_V2_CLIENT_VERSION,
+      cliVersion: OPENCODE_CLI_VERSION
+    }
+  });
+  return { approvedPlan, claimedJob };
+}
+
 type FakeScenario =
   | "success"
   | "unknown-after-tool"
@@ -126,6 +220,10 @@ type FakeScenario =
   | "health-never-responds"
   | "cleanup-never-responds"
   | "connect-failure"
+  | "automatic-repair"
+  | "automatic-repair-two"
+  | "automatic-repair-valid"
+  | "automatic-repair-fails"
   | "server-exit";
 
 interface FakeCapture {
@@ -249,7 +347,21 @@ const completeSession = (session) => {
     fs.mkdirSync(path.dirname(absoluteTarget), { recursive: true });
     fs.writeFileSync(
       absoluteTarget,
-      "export const generated = " + JSON.stringify(session.targetPath) + ";\\n"
+      scenario === "automatic-repair" ||
+      scenario === "automatic-repair-two" ||
+      scenario === "automatic-repair-valid" ||
+      scenario === "automatic-repair-fails"
+        ? scenario === "automatic-repair-valid" ||
+          ((scenario === "automatic-repair" ||
+            scenario === "automatic-repair-two") &&
+            session.promptCount > 1)
+          ? scenario === "automatic-repair-two"
+            ? "export function prefix(): string { return \\"Account\\"; }\\nexport function label(): string { return \\"Account\\"; }\\n"
+            : "export function label(): string { return \\"Account\\"; }\\n"
+          : scenario === "automatic-repair-two"
+            ? "export function prefix(): string { return \\"Account\\"; }\\nexport function label(): number { return 42; }\\n"
+            : "export function label(): number { return 42; }\\n"
+        : "export const generated = " + JSON.stringify(session.targetPath) + ";\\n"
     );
   }
   session.events.push({
@@ -427,6 +539,20 @@ const server = http.createServer((request, response) => {
     }
     if (
       request.method === "POST" &&
+      url.pathname === "/api/mcp/score_preflight/connect"
+    ) {
+      response.statusCode = 204;
+      response.end();
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/mcp") {
+      json({
+        data: [{ name: "score_preflight", status: { status: "connected" } }]
+      });
+      return;
+    }
+    if (
+      request.method === "POST" &&
       url.pathname === "/api/integration/test-provider/connect/key"
     ) {
       if (scenario === "connect-failure") {
@@ -451,6 +577,7 @@ const server = http.createServer((request, response) => {
         directory: parsedBody.location.directory,
         admitted: false,
         completed: false,
+        promptCount: 0,
         messages: [],
         events: [],
         waiters: []
@@ -466,8 +593,12 @@ const server = http.createServer((request, response) => {
     const session = sessionID && sessions.get(sessionID);
     if (session && request.method === "POST" && action === "prompt") {
       session.admitted = true;
+      session.completed = false;
+      session.promptCount += 1;
       session.inputID = parsedBody.id;
-      session.targetPath = JSON.parse(parsedBody.text).target.path;
+      if (session.promptCount === 1) {
+        session.targetPath = JSON.parse(parsedBody.text).target.path;
+      }
       const active = Array.from(sessions.values()).filter((value) => value.admitted && !value.completed).length;
       capture.maxActive = Math.max(capture.maxActive, active);
       json({
@@ -577,6 +708,9 @@ function runtimeFor(
     readonly cleanupTimeoutMs?: number;
     readonly authPath?: string;
     readonly providerConfigPath?: string;
+    readonly prototypeAgentPreflight?: OpenCodeAgentPreflightPrototype;
+    readonly prototypeFinalCandidateCheck?: OpenCodeFinalCandidateCheckPrototype;
+    readonly prototypeAutomaticRepair?: OpenCodeAutomaticRepairPrototype;
   } = {}
 ) {
   return OpenCodeRuntimeLive({
@@ -588,7 +722,19 @@ function runtimeFor(
     ...(options.authPath === undefined ? {} : { authPath: options.authPath }),
     ...(options.providerConfigPath === undefined
       ? {}
-      : { providerConfigPath: options.providerConfigPath })
+      : { providerConfigPath: options.providerConfigPath }),
+    ...(options.prototypeAgentPreflight === undefined
+      ? {}
+      : { prototypeAgentPreflight: options.prototypeAgentPreflight }),
+    ...(options.prototypeFinalCandidateCheck === undefined
+      ? {}
+      : {
+          prototypeFinalCandidateCheck:
+            options.prototypeFinalCandidateCheck
+        }),
+    ...(options.prototypeAutomaticRepair === undefined
+      ? {}
+      : { prototypeAutomaticRepair: options.prototypeAutomaticRepair })
   });
 }
 
@@ -600,6 +746,9 @@ function invokeFake(
     readonly executionTimeoutMs?: number;
     readonly cleanupTimeoutMs?: number;
     readonly reporter?: RuntimeAttemptReporter;
+    readonly prototypeAgentPreflight?: OpenCodeAgentPreflightPrototype;
+    readonly prototypeFinalCandidateCheck?: OpenCodeFinalCandidateCheckPrototype;
+    readonly prototypeAutomaticRepair?: OpenCodeAutomaticRepairPrototype;
   } = {}
 ) {
   return Effect.scoped(
@@ -1467,6 +1616,308 @@ describe("OpenCode V2 Runtime Adapter", () => {
       for (const key of ["config", "data", "cache", "state", "database"] as const) {
         assert.match(capture.environment[key] ?? "", /score-opencode-run-/);
       }
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("exposes only the pathless assigned-file preflight in prototype mode", async () => {
+    const fixture = createFakeOpenCodeFixture({ scenario: "success" });
+    const preflight = {
+      command: ["/trusted/node", "/trusted/preflight-server.js"] as const,
+      targetPath: "src/account-label.ts",
+      baselineSource: "export function label(): string { return \"old\"; }\n",
+      declarationName: "label",
+      documentedDeclaration: "export function label(): string;"
+    };
+    try {
+      await Effect.runPromise(
+        invokeFake(fixture, creationJob(), { prototypeAgentPreflight: preflight })
+      );
+
+      const capture = fixture.readCapture();
+      const agents = capture.config.agents as Record<
+        string,
+        { readonly system?: string; readonly permissions?: ReadonlyArray<unknown> }
+      >;
+      assert.match(
+        agents["score-file-worker"]?.system ?? "",
+        /Do not finish until the latest check reports valid/u
+      );
+      assert.deepEqual(agents["score-file-worker"]?.permissions?.at(-1), {
+        action: "score_preflight_score_check_assigned_file",
+        resource: "*",
+        effect: "allow"
+      });
+
+      const servers = (capture.config.mcp as {
+        readonly servers: Record<
+          string,
+          {
+            readonly command: ReadonlyArray<string>;
+            readonly codemode: boolean;
+            readonly environment: { readonly SCORE_AGENT_PREFLIGHT: string };
+          }
+        >;
+      }).servers;
+      assert.deepEqual(servers.score_preflight?.command, [...preflight.command]);
+      assert.equal(servers.score_preflight?.codemode, false);
+      assert.ok(
+        capture.requests.some(
+          ({ method, pathname, search }) =>
+            method === "POST" &&
+            pathname === "/api/mcp/score_preflight/connect" &&
+            search.includes("directory=")
+        )
+      );
+      assert.ok(
+        capture.requests.some(
+          ({ method, pathname, search }) =>
+            method === "GET" && pathname === "/api/mcp" && search.includes("directory=")
+        )
+      );
+      assert.deepEqual(
+        JSON.parse(
+          Buffer.from(
+            servers.score_preflight?.environment.SCORE_AGENT_PREFLIGHT ?? "",
+            "base64url"
+          ).toString("utf8")
+        ),
+        {
+          targetPath: preflight.targetPath,
+          baselineSource: preflight.baselineSource,
+          declarationName: preflight.declarationName,
+          documentedDeclaration: preflight.documentedDeclaration
+        }
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("continues one session with typed findings and accepts the repaired final bytes", async () => {
+    const fixture = createFakeOpenCodeFixture({ scenario: "automatic-repair" });
+    const verification = {
+      targetPath: "src/account-label.ts",
+      baselineSource: "",
+      declarations: [
+        {
+          name: "label",
+          documentedDeclaration: "export function label(): string;"
+        }
+      ]
+    } as const;
+    try {
+      const candidate = await Effect.runPromise(
+        invokeFake(fixture, creationJob(), {
+          prototypeAutomaticRepair: { ...verification, maxRepairs: 1 }
+        })
+      );
+
+      assert.equal(
+        candidate.content,
+        'export function label(): string { return "Account"; }\n'
+      );
+      const capture = fixture.readCapture();
+      assert.deepEqual(capture.sessionIds, ["session-v2-1"]);
+      const prompts = capture.requests.filter(
+        ({ method, pathname }) =>
+          method === "POST" && pathname === "/api/session/session-v2-1/prompt"
+      );
+      assert.equal(prompts.length, 2);
+      assert.deepEqual(
+        JSON.parse(
+          (prompts[1]?.body as { readonly text: string }).text
+        ),
+        {
+          kind: "score.prototype.declaration-repair",
+          attempt: 1,
+          candidateDigest:
+            "sha256:8b019277f6a068cbc036793a46b5655c94afa927bf9164f67472aa6f5b53cc47",
+          verdictDigest:
+            "sha256:475d2e71a9d4077ec81ed8d9fbfef99e77db755d453ff71bd76c190aa53ab5c2",
+          findings: [
+            {
+              code: "EXPORT_SHAPE_MISMATCH",
+              declaration: "label",
+              message:
+                'Candidate export value:label differs at /returnType/typeAnnotation/type: expected "TSStringKeyword", observed "TSNumberKeyword"'
+            }
+          ],
+          instruction:
+            "Repair only the assigned target, then finish. SCORE will independently check the final bytes again."
+        }
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("drives the repair loop from an exact approved-revision binding", async () => {
+    const fixture = createFakeOpenCodeFixture({ scenario: "automatic-repair" });
+    const { approvedPlan, claimedJob } = approvedBindingFixture();
+    try {
+      const binding = bindApprovedDeclarationRepair({
+        approvedPlan,
+        job: claimedJob,
+        maxRepairs: 1
+      });
+      assert.equal(binding.status, "bound");
+      if (binding.status !== "bound") throw new Error("Approved binding failed");
+
+      const candidate = await Effect.runPromise(
+        invokeFake(fixture, claimedJob, {
+          prototypeAutomaticRepair: binding.configuration
+        })
+      );
+
+      assert.equal(
+        candidate.content,
+        'export function label(): string { return "Account"; }\n'
+      );
+      assert.deepEqual(fixture.readCapture().sessionIds, ["session-v2-1"]);
+      assert.equal(
+        fixture.readCapture().requests.filter(
+          ({ method, pathname }) =>
+            method === "POST" &&
+            pathname === "/api/session/session-v2-1/prompt"
+        ).length,
+        2
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("repairs one failed declaration from a two-declaration approved binding", async () => {
+    const fixture = createFakeOpenCodeFixture({
+      scenario: "automatic-repair-two"
+    });
+    const { approvedPlan, claimedJob } = approvedBindingFixture(2);
+    try {
+      const binding = bindApprovedDeclarationRepair({
+        approvedPlan,
+        job: claimedJob,
+        maxRepairs: 1
+      });
+      assert.equal(binding.status, "bound");
+      if (binding.status !== "bound") throw new Error("Approved binding failed");
+      assert.deepEqual(
+        binding.configuration.declarations.map(({ name }) => name),
+        ["prefix", "label"]
+      );
+
+      const candidate = await Effect.runPromise(
+        invokeFake(fixture, claimedJob, {
+          prototypeAutomaticRepair: binding.configuration
+        })
+      );
+
+      assert.equal(
+        candidate.content,
+        'export function prefix(): string { return "Account"; }\n' +
+          'export function label(): string { return "Account"; }\n'
+      );
+      const prompts = fixture.readCapture().requests.filter(
+        ({ method, pathname }) =>
+          method === "POST" &&
+          pathname === "/api/session/session-v2-1/prompt"
+      );
+      assert.equal(prompts.length, 2);
+      const repair = JSON.parse(
+        (prompts[1]?.body as { readonly text: string }).text
+      ) as {
+        readonly findings: ReadonlyArray<{
+          readonly code: string;
+          readonly declaration: string | null;
+          readonly message: string;
+        }>;
+      };
+      assert.deepEqual(repair.findings, [
+        {
+          code: "EXPORT_SHAPE_MISMATCH",
+          declaration: "label",
+          message:
+            'Candidate export value:label differs at /returnType/typeAnnotation/type: expected "TSStringKeyword", observed "TSNumberKeyword"'
+        }
+      ]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("does not add a repair model turn when the first candidate is valid", async () => {
+    const fixture = createFakeOpenCodeFixture({
+      scenario: "automatic-repair-valid"
+    });
+    const verification = {
+      targetPath: "src/account-label.ts",
+      baselineSource: "",
+      declarations: [
+        {
+          name: "label",
+          documentedDeclaration: "export function label(): string;"
+        }
+      ]
+    } as const;
+    try {
+      const candidate = await Effect.runPromise(
+        invokeFake(fixture, creationJob(), {
+          prototypeAutomaticRepair: { ...verification, maxRepairs: 1 }
+        })
+      );
+
+      assert.equal(
+        candidate.content,
+        'export function label(): string { return "Account"; }\n'
+      );
+      assert.equal(
+        fixture.readCapture().requests.filter(
+          ({ method, pathname }) =>
+            method === "POST" &&
+            pathname === "/api/session/session-v2-1/prompt"
+        ).length,
+        1
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("fails closed after one unsuccessful automatic repair continuation", async () => {
+    const fixture = createFakeOpenCodeFixture({
+      scenario: "automatic-repair-fails"
+    });
+    const verification = {
+      targetPath: "src/account-label.ts",
+      baselineSource: "",
+      declarations: [
+        {
+          name: "label",
+          documentedDeclaration: "export function label(): string;"
+        }
+      ]
+    } as const;
+    try {
+      const error = await Effect.runPromise(
+        Effect.flip(
+          invokeFake(fixture, creationJob(), {
+            prototypeAutomaticRepair: { ...verification, maxRepairs: 1 }
+          })
+        )
+      );
+
+      assert.equal(error.failureEvidence.category, "candidate integrity");
+      const capture = fixture.readCapture();
+      assert.deepEqual(capture.sessionIds, ["session-v2-1"]);
+      assert.equal(
+        capture.requests.filter(
+          ({ method, pathname }) =>
+            method === "POST" &&
+            pathname === "/api/session/session-v2-1/prompt"
+        ).length,
+        2
+      );
     } finally {
       fixture.cleanup();
     }

@@ -11,6 +11,10 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { sha256Bytes, sha256Json } from "./canonical.js";
 import type { AcceptedInputPacket } from "./compiler-input.js";
 import {
+  prepareExternalDeclarationEvidence,
+  type ExternalDeclarationEvidenceBundle
+} from "./external-declaration-evidence.js";
+import {
   installGitLocalExclude,
   publishReviewArtifacts,
   ReviewArtifactConflictError,
@@ -80,6 +84,7 @@ interface PreparedFile {
   readonly target?: CapturedFile;
   readonly context: ReadonlyArray<{ readonly entry: SliceFileDraft["context"][number]; readonly file: CapturedFile }>;
   readonly skills: ReadonlyArray<ResolvedSkill>;
+  readonly externalEvidence?: ExternalDeclarationEvidenceBundle;
 }
 
 interface CompiledSlice {
@@ -475,7 +480,34 @@ function compileSlice(
       const resolved = resolveSkill(projectRoot, skill, `${baseLocation}/skills/${skillIndex}`, findings);
       return resolved ? [resolved] : [];
     });
-    return { draft: file, ...(target ? { target } : {}), context, skills };
+    const externalRequests = file.external_declarations ?? [];
+    let externalEvidence: ExternalDeclarationEvidenceBundle | undefined;
+    if (externalRequests.length > 0) {
+      const result = prepareExternalDeclarationEvidence({
+        projectRoot,
+        requests: externalRequests
+      });
+      if (result.status === "invalid") {
+        findings.push(
+          ...result.findings.map((externalFinding) => ({
+            ...externalFinding,
+            location: externalFinding.location.replace(
+              /^\/requests/u,
+              `${baseLocation}/external_declarations`
+            )
+          }))
+        );
+      } else {
+        externalEvidence = result.bundle;
+      }
+    }
+    return {
+      draft: file,
+      ...(target ? { target } : {}),
+      context,
+      skills,
+      ...(externalEvidence === undefined ? {} : { externalEvidence })
+    };
   });
 
   for (const requirement of draft.requirements) {
@@ -534,6 +566,9 @@ function compileSlice(
         source: skill.source,
         content_digest: skill.contentDigest
       }))
+    ),
+    external_declaration_evidence: preparedFiles.map((file) =>
+      file.externalEvidence?.contentDigest ?? null
     )
   });
 
@@ -569,7 +604,7 @@ function compileSlice(
   };
   const inputs: AcceptedInputPacket = {
     schema: "score.compiler-input-packet",
-    version: "0.1.0-alpha.4",
+    version: "0.1.0-alpha.5",
     accepted_specification: {
       protocol_id: specificationId,
       authority: "human-and-existing-agent",
@@ -582,7 +617,7 @@ function compileSlice(
       protocol_id: PLAN_INTAKE_PROCEDURE_ID,
       name: "score-plan-intake",
       version: "2.0.0",
-      profile: "score.coding@0.1.0-alpha.4",
+      profile: "score.coding@0.1.0-alpha.5",
       source: "runtime-tool-schema",
       content: PLAN_INTAKE_PROCEDURE,
       content_digest: procedureDigest
@@ -609,7 +644,8 @@ function compileSlice(
     { handle: "input_requirements", logical_name: "allocated-requirements", required: true, expected_kind: "accepted_requirements", min_cardinality: 1, max_cardinality: 1, purpose: "Supply only the requirements allocated to this file." },
     { handle: "input_documented_declarations", logical_name: "documented-declarations", required: true, expected_kind: "documented_declarations", min_cardinality: 1, max_cardinality: 1, purpose: "Supply the exact documented declarations owned or consumed by this file." },
     { handle: "input_project_context", logical_name: "project-context", required: false, expected_kind: "project_context", min_cardinality: 0, max_cardinality: Math.max(1, ...preparedFiles.map((file) => file.context.length)), purpose: "Supply explicitly selected frozen project context." },
-    { handle: "input_skills", logical_name: "selected-skills", required: false, expected_kind: "skill", min_cardinality: 0, max_cardinality: Math.max(1, ...preparedFiles.map((file) => file.skills.length)), purpose: "Supply exact reusable prompt text selected for this file." }
+    { handle: "input_skills", logical_name: "selected-skills", required: false, expected_kind: "skill", min_cardinality: 0, max_cardinality: Math.max(1, ...preparedFiles.map((file) => file.skills.length)), purpose: "Supply exact reusable prompt text selected for this file." },
+    { handle: "input_external_declarations", logical_name: "external-declaration-evidence", required: false, expected_kind: "external_declaration_evidence", min_cardinality: 0, max_cardinality: 1, purpose: "Supply exact selected contracts from locked external packages without dependency access." }
   ].map((input) => ({ ...input, contract_handle: contractHandle, version_rule: "=1.0.0" }));
 
   const contextItems: CompilationBundle["proposed_definition"]["context_items"] = [];
@@ -696,6 +732,32 @@ function compileSlice(
       { capsule_handle: capsuleHandle, contract_input_handle: "input_documented_declarations", context_item_handle: declarationsHandle, actual_kind: "documented_declarations", actual_version: "1.0.0", position: 0 }
     );
 
+    if (file.externalEvidence !== undefined) {
+      const handle = `external_declaration_evidence_${ordinal}`;
+      memberHandles.push(handle);
+      contextItems.push({
+        handle,
+        kind: "external_declaration_evidence",
+        version: "1.0.0",
+        purpose: "Supply exact selected contracts from locked external packages without dependency access.",
+        source: {
+          kind: "locked_external_declarations",
+          locator: file.externalEvidence.requests.map(({ from }) => from).join(","),
+          version: file.externalEvidence.contentDigest
+        },
+        resolution: "inline",
+        content: file.externalEvidence
+      });
+      bindings.push({
+        capsule_handle: capsuleHandle,
+        contract_input_handle: "input_external_declarations",
+        context_item_handle: handle,
+        actual_kind: "external_declaration_evidence",
+        actual_version: "1.0.0",
+        position: 0
+      });
+    }
+
     file.context.forEach(({ entry, file: contextFile }, contextIndex) => {
       const handle = `project_context_${ordinal}_${contextIndex + 1}`;
       memberHandles.push(handle);
@@ -739,8 +801,20 @@ function compileSlice(
       operation: file.draft.operation === "modify" ? "replace" : "create",
       objective: file.draft.task,
       intended_outcome: file.draft.task,
-      constraints: [...file.draft.constraints, `Produce the complete content of ${file.draft.path}.`],
-      prohibited_effects: ["Do not read, create, modify, or delete any other file.", "Do not discover undeclared repository context."]
+      constraints: [
+        ...file.draft.constraints,
+        ...(file.externalEvidence === undefined
+          ? []
+          : ["Use only the selected external declarations supplied in the external-declaration-evidence binding; do not infer unavailable package members."]),
+        `Produce the complete content of ${file.draft.path}.`
+      ],
+      prohibited_effects: [
+        "Do not read, create, modify, or delete any other file.",
+        "Do not discover undeclared repository context.",
+        ...(file.externalEvidence === undefined
+          ? []
+          : ["Do not access node_modules, package metadata, the network, or other dependency files."])
+      ]
     });
     capabilities.push({
       handle: `capability_${ordinal}`,
@@ -801,9 +875,9 @@ function compileSlice(
 
   const bundle: CompilationBundle = {
     schema: "score.compilation-bundle",
-    schema_version: "0.1.0-alpha.4",
+    schema_version: "0.1.0-alpha.5",
     profile: "score.coding",
-    profile_version: "0.1.0-alpha.4",
+    profile_version: "0.1.0-alpha.5",
     source_bindings: {
       accepted_specification: { protocol_id: specificationId, content_digest: specificationDigest },
       repository_revision: { protocol_id: repositoryRevisionId, content_digest: repositoryDigest },

@@ -5,9 +5,9 @@ export interface SourceReference {
 
 export interface CompilationBundle {
   schema: "score.compilation-bundle";
-  schema_version: "0.1.0-alpha.4";
+  schema_version: "0.1.0-alpha.5";
   profile: "score.coding";
-  profile_version: "0.1.0-alpha.4";
+  profile_version: "0.1.0-alpha.5";
   source_bindings: {
     accepted_specification: SourceReference;
     repository_revision: SourceReference;

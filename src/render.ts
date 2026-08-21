@@ -2,16 +2,16 @@ import { sha256Bytes } from "./canonical.js";
 
 export const AGENT_INPUT_RENDERER = {
   id: "score.coding.agent-input-markdown",
-  version: "0.1.0-alpha.4",
+  version: "0.1.0-alpha.5",
   specification:
     "fixed headings: objective,target,intended outcome,documented interfaces to implement,read-only documented interfaces,resolved input bindings,capabilities,constraints,prohibited effects; declaration and description text is preserved exactly; JSON values use two-space indentation; declared array order is preserved"
 } as const;
 
 export const PUBLICATION_REVIEW_RENDERER = {
   id: "score.coding.publication-review-html",
-  version: "0.1.0-alpha.25",
+  version: "0.1.0-alpha.26",
   specification:
-    "single-file semantic HTML using entity-aware Change Review or Slice Review language without changing the canonical snapshot; a navigation-only sidebar links the overview, every dependency-first Agent Brief, each owned declaration, requirements when present, context, and the technical record, then becomes compact section navigation on narrow screens; the review leads with its approval readiness and exact next command, then presents dependency-first file instructions without a separate relationship map; human-facing file operations use Create and Modify while canonical operations remain unchanged; declaration labels render deterministically as Defines for owned declarations and Uses for consumed declarations; TypeScript declarations receive display-only line formatting and recognized code languages receive static syntax coloring while exact stored text remains unchanged in machine evidence; every collapsed Agent Brief names its purpose, and its expanded content shows full requirements, documented declaration owners, selected context with purpose, skills, limits, and current target state; implementation quality is explicitly outside SCORE; exact Agent Input and machine audit evidence remain disclosed on demand; printing temporarily opens every disclosure and restores its prior screen state afterward"
+    "single-file semantic HTML using entity-aware Change Review or Slice Review language without changing the canonical snapshot; a navigation-only sidebar links the overview, every dependency-first Agent Brief, each owned declaration, requirements when present, context, and the technical record, then becomes compact section navigation on narrow screens; the review leads with its approval readiness and exact next command, then presents dependency-first file instructions without a separate relationship map; human-facing file operations use Create and Modify while canonical operations remain unchanged; declaration labels render deterministically as Defines for owned declarations and Uses for consumed declarations; selected external package contracts and their bounded supporting types render as human-readable TypeScript rather than an opaque JSON dump; TypeScript declarations receive display-only line formatting and recognized code languages receive static syntax coloring while exact stored text remains unchanged in machine evidence; every collapsed Agent Brief names its purpose, and its expanded content shows full requirements, documented declaration owners, selected context with purpose, skills, limits, and current target state; implementation quality is explicitly outside SCORE; exact Agent Input and machine audit evidence remain disclosed on demand; printing temporarily opens every disclosure and restores its prior screen state afterward"
 } as const;
 
 export function rendererDigest(renderer: { id: string; version: string; specification: string }): string {
@@ -1025,6 +1025,49 @@ function sliceTitle(pass: RenderableReviewSnapshot["passes"][number]): string {
 }
 
 function renderContextBinding(binding: JsonRecord): string {
+  if (binding.kind === "external_declaration_evidence") {
+    const context = asRecord(binding.content);
+    const requests = asRecords(context.requests);
+    const renderedRequests = requests
+      .map((request) => {
+        const packageIdentity = asRecord(request.package);
+        const contracts = asRecords(request.contracts)
+          .map((contract) => {
+            const supporting = asRecords(contract.supportingDeclarations);
+            const supportingContent = supporting.length === 0
+              ? ""
+              : `<details class="context-item"><summary><span>Supporting types</span><span class="context-kind">${supporting.length}</span></summary><div class="context-content">${supporting
+                  .map(
+                    (declaration) => `<h6><code>${escapeHtml(stringValue(declaration.name))}</code></h6>${renderCodeBlock(
+                      stringValue(declaration.declaration),
+                      "typescript",
+                      { formatTypeScriptDeclaration: true }
+                    )}`
+                  )
+                  .join("")}</div></details>`;
+            return `<div class="external-contract"><h5><code>${escapeHtml(stringValue(contract.name))}</code></h5>${renderCodeBlock(
+              stringValue(contract.declaration),
+              "typescript",
+              { formatTypeScriptDeclaration: true }
+            )}${supportingContent}</div>`;
+          })
+          .join("");
+        return `<div class="external-request"><p><strong><code>${escapeHtml(
+          stringValue(request.from)
+        )}</code></strong> · ${escapeHtml(stringValue(packageIdentity.version))}</p><p>${escapeHtml(
+          stringValue(request.purpose)
+        )}</p>${contracts}</div>`;
+      })
+      .join("");
+    return `
+    <details class="context-item external-declarations">
+      <summary>
+        <span>External package contracts</span>
+        <span class="context-kind">${requests.length} selected module${requests.length === 1 ? "" : "s"}</span>
+      </summary>
+      <div class="context-content">${renderedRequests}</div>
+    </details>`;
+  }
   const label = humanizeIdentifier(binding.contract_input);
   const kind = humanizeIdentifier(binding.kind);
   return `

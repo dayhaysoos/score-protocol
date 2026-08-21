@@ -4,7 +4,9 @@ import type {
   FailureCategory,
   FailureObservationStage,
   SanitizedTerminalOutcome,
-  TerminalOutcomeKind
+  TerminalOutcomeKind,
+  CandidateDeclarationFailureEvidence,
+  CandidateDeclarationFinding
 } from "./domain.js";
 import { terminalSafeLine } from "./terminal-safe-line.js";
 
@@ -52,6 +54,9 @@ const failureObservationStages = new Set<FailureObservationStage>([
 
 export const FAILURE_EVIDENCE_NAME_MAX_LENGTH = 120;
 export const FAILURE_REASON_MAX_LENGTH = 320;
+export const DECLARATION_FINDINGS_MAX_LENGTH = 32;
+export const DECLARATION_FINDING_CODE_MAX_LENGTH = 96;
+export const DECLARATION_NAME_MAX_LENGTH = 120;
 
 const failureMessages = {
   provider: "Provider failure.",
@@ -153,8 +158,77 @@ export function sanitizeFailureEvidence(
     reason:
       typeof input?.reason === "string" || input?.reason instanceof Error
         ? sanitizeFailureReason(input.reason)
-        : null
+        : null,
+    ...declarationVerification(input?.declarationVerification)
   };
+}
+
+function declarationVerification(
+  value: unknown
+): { readonly declarationVerification?: CandidateDeclarationFailureEvidence } {
+  const input = record(value);
+  const candidateDigest = sanitizeDeclarationDigest(input?.candidateDigest);
+  if (input === undefined || candidateDigest === null) return {};
+
+  return {
+    declarationVerification: {
+      findings: sanitizeDeclarationFindings(input.findings),
+      bindingDigest: sanitizeDeclarationDigest(input.bindingDigest),
+      candidateDigest,
+      verdictDigest: sanitizeDeclarationDigest(input.verdictDigest)
+    }
+  };
+}
+
+function sanitizeDeclarationFindings(
+  value: unknown
+): ReadonlyArray<CandidateDeclarationFinding> {
+  if (!Array.isArray(value)) return [];
+  const findings: CandidateDeclarationFinding[] = [];
+  for (const entry of value) {
+    if (findings.length >= DECLARATION_FINDINGS_MAX_LENGTH) break;
+    const finding = sanitizeDeclarationFinding(entry);
+    if (finding !== null) findings.push(finding);
+  }
+  return findings;
+}
+
+function sanitizeDeclarationFinding(value: unknown): CandidateDeclarationFinding | null {
+  const input = record(value);
+  if (input === undefined || !isDeclarationFindingCode(input.code)) return null;
+  const message =
+    typeof input.message === "string" || input.message instanceof Error
+      ? sanitizeFailureReason(input.message)
+      : null;
+  if (message === null) return null;
+  return {
+    code: input.code,
+    declaration: sanitizeDeclarationName(input.declaration),
+    message
+  };
+}
+
+function isDeclarationFindingCode(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= DECLARATION_FINDING_CODE_MAX_LENGTH &&
+    /^[A-Z]+(?:_[A-Z]+)*$/u.test(value)
+  );
+}
+
+function sanitizeDeclarationName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const sanitized = terminalSafeLine(
+    sanitizeFailureReason(value) ?? "",
+    DECLARATION_NAME_MAX_LENGTH
+  );
+  return sanitized.length === 0 ? null : sanitized;
+}
+
+function sanitizeDeclarationDigest(value: unknown): string | null {
+  return typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value)
+    ? value
+    : null;
 }
 
 export function safeRunnerCliErrorMessage(value: unknown): string {

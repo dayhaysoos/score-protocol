@@ -106,6 +106,7 @@ so a failed check or Run does not authorize unreviewed source changes.
 - [Alpha scope and reproduction](./ALPHA.md)
 - [Coding Profile](./profiles/coding/README.md)
 - [Feature roadmap](./docs/features/README.md)
+- [Experimental checkpoints](./docs/experiments/README.md)
 - [Experimental assurance case](./docs/assurance/README.md)
 - [Runtime adapters](./docs/runtime-adapters.md)
 - [Canonical glossary](./CONTEXT.md)

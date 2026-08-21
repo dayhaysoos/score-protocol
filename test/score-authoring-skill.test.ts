@@ -66,7 +66,7 @@ describe("SCORE authoring skill", () => {
   it("requires plain language before SCORE freezes the review", () => {
     const skill = readFileSync(skillPath, "utf8");
 
-    assert.match(skill, /version: 0\.9\.1/);
+    assert.match(skill, /version: 0\.9\.2/);
     assert.match(skill, /plain-language pass/i);
     assert.match(skill, /title,\s*objective,\s*requirement.*Agent Brief purpose/is);
     assert.match(skill, /what will change and why it matters/i);
