@@ -68,6 +68,12 @@ boundary. It does not yet complete the accepted feature boundary:
   module, so the gate cannot prove that an imported project-local declaration
   was routed from the correct module.
 
+The [cross-file route retry experiment](../experiments/cross-file-declaration-route-retry.md)
+shows that once this reviewed route exists, a complete-set failure can identify
+only the consumer, preserve every other candidate, reuse the existing targeted
+retry model, and retain atomic application. That behavior is not yet wired into
+the production Runner.
+
 Until those gaps are addressed and the work is curated into an identified
 source revision, this is experimental enforcement rather than a production
 readiness claim. Selected external-declaration evidence supplies Agent context
@@ -77,6 +83,7 @@ verification and project command execution remain out of scope.
 ## Historical evidence
 
 - [Approved multi-declaration verification experiment](../experiments/approved-multi-declaration-verification.md)
+- [Cross-file declaration route retry experiment](../experiments/cross-file-declaration-route-retry.md)
 - [Approved declaration input binding experiment](../experiments/approved-declaration-input-binding.md)
 - [Automatic declaration repair loop experiment](../experiments/automatic-declaration-repair-loop.md)
 - [Final-candidate declaration check experiment](../experiments/final-candidate-declaration-check.md)

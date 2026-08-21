@@ -46,6 +46,7 @@
     "experiment:automatic-repair": "tsx --test --test-name-pattern='continues one session|repair model turn|automatic repair continuation' test/open-code-adapter.test.ts",
     "experiment:approved-input-binding": "tsx --test --test-name-pattern='approved declaration repair binding|approved-revision binding' test/approved-declaration-binding.test.ts test/open-code-adapter.test.ts",
     "experiment:approved-multi-declaration": "tsx --test --test-name-pattern='binds two approved declarations|aggregates two approved declarations|repairs one failed declaration' test/approved-declaration-binding.test.ts test/agent-preflight-feedback-model.test.ts test/open-code-adapter.test.ts",
+    "experiment:cross-file-route-retry": "tsx --test test/cross-file-declaration-route-retry.test.ts",
     "reproduce": "tsx src/cli.ts reproduce",
     "inspect": "tsx src/cli.ts inspect",
     "approve": "tsx src/cli.ts approve",

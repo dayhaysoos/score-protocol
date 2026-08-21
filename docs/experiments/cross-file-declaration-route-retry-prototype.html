@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-file route retry prototype</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#68738a; --line:#d9dfeb; --paper:#f5f7fb; --accent:#3659d9; --ok:#17734b; --bad:#b23b35; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.5 ui-sans-serif, system-ui, sans-serif; color:var(--ink); background:var(--paper); }
+    main { width:min(960px, calc(100% - 32px)); margin:40px auto; }
+    h1 { margin:0 0 8px; font-size:clamp(28px, 5vw, 44px); letter-spacing:-.03em; }
+    h2 { margin:0 0 16px; font-size:18px; }
+    p { margin:0; }
+    .intro { max-width:780px; color:var(--muted); font-size:17px; }
+    .panel { margin-top:24px; padding:22px; border:1px solid var(--line); border-radius:16px; background:white; box-shadow:0 10px 30px rgba(28,42,75,.06); }
+    .state { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .fact { min-height:96px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fbfcff; }
+    .label { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+    .value { margin-top:7px; font-weight:700; }
+    .detail { margin-top:4px; color:var(--muted); font-size:13px; }
+    .ok { color:var(--ok); } .bad { color:var(--bad); }
+    .buttons { display:flex; flex-wrap:wrap; gap:9px; }
+    button { border:1px solid var(--line); border-radius:10px; padding:10px 13px; color:var(--ink); background:white; font:inherit; font-weight:650; cursor:pointer; }
+    button:hover { border-color:var(--accent); color:var(--accent); }
+    .primary { color:white; border-color:var(--accent); background:var(--accent); }
+    .message { margin-top:14px; min-height:24px; color:var(--muted); }
+    .tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .tab[aria-selected="true"] { color:white; border-color:var(--ink); background:var(--ink); }
+    .walkthrough[hidden] { display:none; }
+    .walkthrough p { margin-bottom:14px; color:var(--muted); }
+    .steps { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+    .arrow { color:var(--muted); }
+    code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.92em; }
+    @media (max-width:640px) { .state { grid-template-columns:1fr; } main { margin:24px auto; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Keep the good file. Retry the bad route.</h1>
+  <p class="intro">Question: when two Agents finish but the consumer imports a declaration from the wrong file, can SCORE preserve the valid owner, retry only the consumer, recheck both, and still apply the set atomically?</p>
+
+  <section class="panel" aria-labelledby="state-title">
+    <h2 id="state-title">Current experiment state</h2>
+    <div class="state">
+      <div class="fact"><div class="label">Owner candidate</div><div class="value" id="owner">Not generated</div><div class="detail"><code>src/account.ts</code></div></div>
+      <div class="fact"><div class="label">Consumer candidate</div><div class="value" id="consumer">Not generated</div><div class="detail"><code>src/format-account.ts</code></div></div>
+      <div class="fact"><div class="label">Repository</div><div class="value" id="repository">Original files</div><div class="detail">No candidate is written before the whole set passes.</div></div>
+      <div class="fact"><div class="label">Paid invocations</div><div class="value" id="invocations">0</div><div class="detail" id="invocation-detail">No Agent has run.</div></div>
+    </div>
+    <p class="message" id="message">Start anywhere, or use a walkthrough below.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="free-title">
+    <h2 id="free-title">Free play</h2>
+    <div class="buttons">
+      <button data-action="owner">Generate owner</button>
+      <button data-action="wrong">Generate wrong consumer</button>
+      <button data-action="check">Check both routes</button>
+      <button data-action="retry">Retry consumer</button>
+      <button data-action="apply" class="primary">Apply complete set</button>
+      <button data-action="reset">Reset</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="walk-title">
+    <h2 id="walk-title">Guided walkthroughs</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="recovery">Targeted recovery</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="atomicity">No partial apply</button>
+    </div>
+    <div class="walkthrough" data-panel="recovery">
+      <p>Watch the owner remain saved while only the consumer receives a third paid invocation.</p>
+      <div class="steps">
+        <button data-sequence="owner">1. Generate owner</button><span class="arrow">→</span>
+        <button data-sequence="wrong">2. Generate wrong consumer</button><span class="arrow">→</span>
+        <button data-sequence="check">3. Check routes</button><span class="arrow">→</span>
+        <button data-sequence="retry">4. Retry consumer</button><span class="arrow">→</span>
+        <button data-sequence="check">5. Recheck</button><span class="arrow">→</span>
+        <button data-sequence="apply">6. Apply both</button>
+      </div>
+    </div>
+    <div class="walkthrough" data-panel="atomicity" hidden>
+      <p>Try to apply after the bad route is detected. The repository must remain unchanged.</p>
+      <div class="steps">
+        <button data-sequence="owner">1. Generate owner</button><span class="arrow">→</span>
+        <button data-sequence="wrong">2. Generate wrong consumer</button><span class="arrow">→</span>
+        <button data-sequence="check">3. Check routes</button><span class="arrow">→</span>
+        <button data-sequence="apply">4. Try applying</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+  const initial = Object.freeze({ owner:"missing", consumer:"missing", route:"unchecked", repository:"original", invocations:0, message:"Start anywhere, or use a walkthrough below." });
+  let state = { ...initial };
+
+  function transition(current, action) {
+    if (action === "reset") return { ...initial, message:"Reset to the original two-file repository." };
+    if (action === "owner") return current.owner === "saved" ? { ...current, message:"Owner is already saved; no new invocation was made." } : { ...current, owner:"saved", invocations:current.invocations + 1, message:"Owner candidate generated and saved." };
+    if (action === "wrong") return current.consumer === "wrong" ? { ...current, message:"Wrong consumer already exists; no new invocation was made." } : { ...current, consumer:"wrong", route:"unchecked", invocations:current.invocations + 1, message:"Consumer generated with Account imported from ./wrong.js." };
+    if (action === "check") {
+      if (current.owner !== "saved" || current.consumer === "missing") return { ...current, message:"The complete two-file candidate set is not ready to check." };
+      if (current.consumer === "wrong") return { ...current, route:"invalid", message:"Route mismatch. Only the consumer is blamed; owner stays saved; repository stays unchanged." };
+      return { ...current, route:"valid", message:"Both candidates now satisfy the approved cross-file route." };
+    }
+    if (action === "retry") {
+      if (current.route !== "invalid") return { ...current, message:"Retry is available only after the consumer is specifically blamed." };
+      return { ...current, consumer:"repaired", route:"unchecked", invocations:current.invocations + 1, message:"Only the consumer Agent reran. The owner candidate was reused." };
+    }
+    if (action === "apply") {
+      if (current.route !== "valid") return { ...current, message:"Application blocked. Nothing was written because the complete set is not valid." };
+      return { ...current, repository:"applied", message:"Owner and repaired consumer applied together as one atomic set." };
+    }
+    return current;
+  }
+
+  function render() {
+    const owner = document.querySelector("#owner");
+    const consumer = document.querySelector("#consumer");
+    const repository = document.querySelector("#repository");
+    owner.textContent = state.owner === "saved" ? "Saved and reusable" : "Not generated";
+    owner.className = `value ${state.owner === "saved" ? "ok" : ""}`;
+    consumer.textContent = state.consumer === "wrong" ? "Rejected: wrong import route" : state.consumer === "repaired" ? "Repaired candidate saved" : "Not generated";
+    consumer.className = `value ${state.consumer === "wrong" ? "bad" : state.consumer === "repaired" ? "ok" : ""}`;
+    repository.textContent = state.repository === "applied" ? "Both files applied" : "Original files";
+    repository.className = `value ${state.repository === "applied" ? "ok" : ""}`;
+    document.querySelector("#invocations").textContent = String(state.invocations);
+    document.querySelector("#invocation-detail").textContent = state.invocations === 3 ? "Two initial Agents plus one consumer retry." : state.invocations === 2 ? "Both initial Agents ran." : state.invocations === 1 ? "One initial Agent ran." : "No Agent has run.";
+    document.querySelector("#message").textContent = state.message;
+  }
+
+  function dispatch(action) { state = transition(state, action); render(); }
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.dataset.action) dispatch(button.dataset.action);
+    if (button.dataset.sequence) dispatch(button.dataset.sequence);
+    if (button.dataset.tab) {
+      state = { ...initial, message:"Walkthrough reset to its known starting state." };
+      document.querySelectorAll("[data-tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab === button)));
+      document.querySelectorAll("[data-panel]").forEach((panel) => panel.hidden = panel.dataset.panel !== button.dataset.tab);
+      render();
+    }
+  });
+  render();
+</script>
+</body>
+</html>

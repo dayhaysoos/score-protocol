@@ -19,29 +19,15 @@ feature or general guarantee.
 | [Effect external declaration evidence](effect-external-declaration-evidence.md) | Successful bounded resolver experiment | SCORE can select public Effect declarations and a small required support layer without loading the project TypeScript environment. |
 | [External declaration resolution matrix](external-declaration-resolution-matrix.md) | Successful controlled package-layout experiment | Exact exports, conditional type routes, bounded `typesVersions`, and precise refusal can be tested without claiming every package layout. |
 | [External evidence Agent Brief binding](external-evidence-agent-brief-binding.md) | Successful preparation-to-Agent-Input experiment | Full provenance can remain in prepared evidence while the Agent receives a path-sanitized contract projection. |
+| [Cross-file declaration route retry](cross-file-declaration-route-retry.md) | Successful deterministic two-file experiment | A wrong consumer route can blame and retry only the consumer while retaining the owner and preserving atomic application. |
 
 ## Latest experiment
 
-The first production single-file candidate gate was generated and atomically
-applied as six File Candidates in Run
-`50d78e0b-0bbc-4ac2-8849-12e414066bf2`. Candidate generation succeeded, but
-independent repository verification failed. Local repairs were required before
-the current worktree passed typecheck, build, all 340 tests, package smoke
-testing, and `git diff --check`.
-
-The current result supports a narrow conclusion:
-
-1. exact final candidate bytes can be checked at the production OpenCode
-   success boundary;
-2. a failed check can retain sanitized findings and digests through existing
-   Runner evidence and presentation paths; and
-3. current regression and package checks pass after local integration repair.
-
-It does not support the stronger conclusion that the approved Slice generated
-correctly on its own. It also does not prove imported declaration source
-routing, forward-only Profile and Agent Package activation, multi-file
-candidate-set verification, project correctness, or general TypeScript
-semantics.
+The two-file cross-route experiment deliberately gave one consumer the wrong
+module specifier. The complete-set check blamed only that consumer, preserved
+the owner candidate, observed no repository change, retried the consumer once,
+and applied the repaired two-file set atomically. This proves the intended
+recovery state model is feasible without regenerating successful candidates.
 
 ## Why this followed approved-input binding
 
@@ -57,10 +43,10 @@ now integrated in the current dirty worktree. The dependency experiment retains
 external packages as closure boundaries: only reviewed public members and one
 direct supporting layer enter context, and Agents receive no package access.
 
-The next declaration question is imported project-local source routing. The
-multi-file complete-set gate remains deliberately stopped until this worktree is
-curated and that smaller routing seam is designed. Project commands and broader
-TypeScript semantics remain outside this track.
+The next decision is how to preserve the reviewed source module for each
+consumed declaration in approved input, then bind this proven route-and-retry
+behavior to existing Runner state. Project commands and broader TypeScript
+semantics remain outside this track.
 
 After the declaration-verification sequence is resolved, the explicitly
 deferred follow-on is [real-project verification](../features/real-project-verification.md):
