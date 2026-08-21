@@ -130,6 +130,23 @@ distinguish mechanisms, an internal adapter capability such as
 `filesystem-edit` or `content-return` may describe them without changing the
 Agent Package or normal CLI experience.
 
+### Candidate acceptance is not adapter policy
+
+A Runtime Adapter returns exact candidate bytes; it does not decide whether
+those bytes satisfy SCORE's approved declaration contracts. The Runner already
+checks reviewed project-local import routes across the complete candidate set,
+independently of runtime kind, before atomic application. Successful-candidate
+retention, targeted consumer retry, complete-set recheck, target drift, and
+atomic application are likewise shared Runner behavior.
+
+The supported owned-declaration check currently runs inside the OpenCode
+candidate boundary. Before Pi can claim parity, that check and the reusable
+workspace/candidate extraction must move behind the shared final-candidate
+boundary. Pi must reuse those checks rather than implement an alternate or
+weaker acceptance path. None of these checks may load the target project's
+compiler, `tsconfig.json`, dependencies, environment, network, or project
+commands.
+
 ### Adapter-owned model catalog
 
 Model availability belongs to the selected coding runtime, not to SCORE and not
@@ -282,7 +299,7 @@ then starts a rolling worker pool. Concurrency is a ceiling, not a batch size or
 file dependency.
 
 The text-only documented-interface boundary is exported as
-`score.approved-pass-export@0.1.0-alpha.6`. An older export is rejected before
+`score.approved-pass-export@0.1.0-alpha.7`. An older export is rejected before
 Run creation rather than being silently reinterpreted; prepare and approve the
 slice again to create a compatible export.
 

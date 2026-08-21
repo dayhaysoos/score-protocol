@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Approved cross-file route binding prototype</title>
+  <style>
+    :root { color-scheme:light; --ink:#172033; --muted:#68738a; --line:#d9dfeb; --paper:#f5f7fb; --accent:#3659d9; --ok:#17734b; --bad:#b23b35; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:15px/1.5 ui-sans-serif,system-ui,sans-serif; color:var(--ink); background:var(--paper); }
+    main { width:min(960px,calc(100% - 32px)); margin:40px auto; }
+    h1 { margin:0 0 8px; font-size:clamp(28px,5vw,44px); letter-spacing:-.03em; }
+    h2 { margin:0 0 16px; font-size:18px; }
+    p { margin:0; }
+    .intro { max-width:800px; color:var(--muted); font-size:17px; }
+    .panel { margin-top:24px; padding:22px; border:1px solid var(--line); border-radius:16px; background:white; box-shadow:0 10px 30px rgba(28,42,75,.06); }
+    .state { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .fact { min-height:104px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fbfcff; }
+    .label { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+    .value { margin-top:7px; font-weight:700; overflow-wrap:anywhere; }
+    .detail { margin-top:4px; color:var(--muted); font-size:13px; }
+    .ok { color:var(--ok); } .bad { color:var(--bad); }
+    .buttons,.steps,.tabs { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+    button { border:1px solid var(--line); border-radius:10px; padding:10px 13px; color:var(--ink); background:white; font:inherit; font-weight:650; cursor:pointer; }
+    button:hover { border-color:var(--accent); color:var(--accent); }
+    .tab[aria-selected="true"] { color:white; border-color:var(--ink); background:var(--ink); }
+    .walkthrough { margin-top:16px; } .walkthrough[hidden] { display:none; }
+    .walkthrough p { margin-bottom:14px; color:var(--muted); }
+    .message { margin-top:14px; min-height:24px; color:var(--muted); }
+    .arrow { color:var(--muted); }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em; }
+    @media (max-width:640px) { .state { grid-template-columns:1fr; } main { margin:24px auto; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Freeze the route before recovery needs it.</h1>
+  <p class="intro">Question: can the exact reviewed import route reach failure checking unchanged, reject substitutions, and drive targeted recovery without consulting the TypeScript project environment?</p>
+
+  <section class="panel" aria-labelledby="state-title">
+    <h2 id="state-title">Current experiment state</h2>
+    <div class="state">
+      <div class="fact"><div class="label">Reviewed route</div><div class="value"><code>Account → ./account.js</code></div><div class="detail">Owner: <code>src/account.ts</code></div></div>
+      <div class="fact"><div class="label">Approved input</div><div class="value" id="approved">Not frozen</div><div class="detail" id="digest">No approval-bound digest</div></div>
+      <div class="fact"><div class="label">Route presented to binding</div><div class="value" id="supplied">None</div><div class="detail">The binding must reproduce approval.</div></div>
+      <div class="fact"><div class="label">Binding and recovery</div><div class="value" id="outcome">Not checked</div><div class="detail" id="invocations">No Agent invocations modeled.</div></div>
+    </div>
+    <p class="message" id="message">Start anywhere, or use a walkthrough below.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="free-title">
+    <h2 id="free-title">Free play</h2>
+    <div class="buttons">
+      <button data-action="freeze">Freeze reviewed route</button>
+      <button data-action="substitute">Substitute wrong route</button>
+      <button data-action="bind">Bind approved route</button>
+      <button data-action="recover">Run targeted recovery</button>
+      <button data-action="reset">Reset</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="walk-title">
+    <h2 id="walk-title">Guided walkthroughs</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="recovery">Approved route to recovery</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="substitution">Substitution is rejected</button>
+    </div>
+    <div class="walkthrough" data-panel="recovery">
+      <p>Watch one approved route flow unchanged into targeted consumer recovery.</p>
+      <div class="steps"><button data-sequence="freeze">1. Freeze</button><span class="arrow">→</span><button data-sequence="bind">2. Bind</button><span class="arrow">→</span><button data-sequence="recover">3. Recover</button></div>
+    </div>
+    <div class="walkthrough" data-panel="substitution" hidden>
+      <p>Even a substituted route with internally consistent bytes cannot replace the approval-bound value.</p>
+      <div class="steps"><button data-sequence="freeze">1. Freeze</button><span class="arrow">→</span><button data-sequence="substitute">2. Substitute</button><span class="arrow">→</span><button data-sequence="bind">3. Try binding</button><span class="arrow">→</span><button data-sequence="recover">4. Try recovery</button></div>
+    </div>
+  </section>
+</main>
+<script>
+  const initial = Object.freeze({ approved:false, supplied:"none", binding:"unchecked", recovery:"not-run", message:"Start anywhere, or use a walkthrough below." });
+  let state = { ...initial };
+
+  function transition(current, action) {
+    if (action === "reset") return { ...initial, message:"Reset to the unfrozen reviewed route." };
+    if (action === "freeze") return { approved:true, supplied:"./account.js", binding:"unchecked", recovery:"not-run", message:"The reviewed route is now immutable and approval-digest bound." };
+    if (action === "substitute") return current.approved ? { ...current, supplied:"./wrong.js", binding:"unchecked", recovery:"not-run", message:"The presented input now contains a substituted route." } : { ...current, message:"Freeze the approved input before attempting substitution." };
+    if (action === "bind") {
+      if (!current.approved) return { ...current, message:"Nothing can bind before approval freezes the route." };
+      if (current.supplied !== "./account.js") return { ...current, binding:"rejected", recovery:"not-run", message:"Binding rejected the substituted route because it does not match approval." };
+      return { ...current, binding:"bound", message:"The exact approved route is bound for candidate checking." };
+    }
+    if (action === "recover") return current.binding === "bound" ? { ...current, recovery:"applied", message:"Wrong consumer route blamed; owner reused; consumer retried; both files applied together." } : { ...current, message:"Recovery is blocked because no exact approved route is bound." };
+    return current;
+  }
+
+  function render() {
+    document.querySelector("#approved").textContent = state.approved ? "Frozen and immutable" : "Not frozen";
+    document.querySelector("#approved").className = `value ${state.approved ? "ok" : ""}`;
+    document.querySelector("#digest").textContent = state.approved ? "sha256:30cabaf5…b21f2e2" : "No approval-bound digest";
+    document.querySelector("#supplied").textContent = state.supplied === "none" ? "None" : state.supplied;
+    document.querySelector("#supplied").className = `value ${state.supplied === "./wrong.js" ? "bad" : state.supplied === "./account.js" ? "ok" : ""}`;
+    const outcome = state.recovery === "applied" ? "Both files applied" : state.binding === "bound" ? "Exact route bound" : state.binding === "rejected" ? "Substitution rejected" : "Not checked";
+    document.querySelector("#outcome").textContent = outcome;
+    document.querySelector("#outcome").className = `value ${state.recovery === "applied" || state.binding === "bound" ? "ok" : state.binding === "rejected" ? "bad" : ""}`;
+    document.querySelector("#invocations").textContent = state.recovery === "applied" ? "Three invocations: two initial Agents plus one consumer retry." : "No recovery invocation modeled yet.";
+    document.querySelector("#message").textContent = state.message;
+  }
+
+  function dispatch(action) { state = transition(state, action); render(); }
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.dataset.action) dispatch(button.dataset.action);
+    if (button.dataset.sequence) dispatch(button.dataset.sequence);
+    if (button.dataset.tab) {
+      state = { ...initial, message:"Walkthrough reset to its known starting state." };
+      document.querySelectorAll("[data-tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab === button)));
+      document.querySelectorAll("[data-panel]").forEach((panel) => panel.hidden = panel.dataset.panel !== button.dataset.tab);
+      render();
+    }
+  });
+  render();
+</script>
+</body>
+</html>

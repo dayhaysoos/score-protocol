@@ -62,8 +62,8 @@ function readBundle(): unknown {
 function singleCreateApprovedPlan(): ApprovedPassExport {
   const control = {
     protocol: {
-      bundle_schema: "score.compilation-bundle@0.1.0-alpha.5",
-      profile: "score.coding@0.1.0-alpha.5",
+      bundle_schema: "score.compilation-bundle@0.1.0-alpha.6",
+      profile: "score.coding@0.1.0-alpha.6",
       canonicalization: "RFC 8785",
       digest_algorithm: "SHA-256"
     },
@@ -109,7 +109,7 @@ function singleCreateApprovedPlan(): ApprovedPassExport {
   const payload = { control, agent_input: agentInput };
   return {
     schema: "score.approved-pass-export",
-    version: "0.1.0-alpha.6",
+    version: "0.1.0-alpha.7",
     pass_id: "approved-pass",
     publication: {
       review_id: "review",
@@ -560,7 +560,7 @@ describe("Runner worker pool", () => {
       );
       assert.equal(claimError._tag, "RunnerStoreError");
       assert.equal(claimError.operation, "claimNext");
-      assert.match(claimError.message, /unsupported frozen Agent Package protocol.*alpha\.5/i);
+      assert.match(claimError.message, /unsupported frozen Agent Package protocol.*alpha\.6/i);
 
       let invocationCount = 0;
       const adapterLayer = Layer.succeed(
@@ -585,7 +585,7 @@ describe("Runner worker pool", () => {
       );
       assert.equal(runError._tag, "RunnerStoreError");
       assert.equal(runError.operation, "beginWork");
-      assert.match(runError.message, /unsupported frozen Agent Package protocol.*alpha\.5/i);
+      assert.match(runError.message, /unsupported frozen Agent Package protocol.*alpha\.6/i);
       assert.equal(invocationCount, 0);
 
       const inspection = new Database(runnerDatabasePath, { readonly: true });
@@ -623,7 +623,7 @@ describe("Runner worker pool", () => {
           }
         },
         {
-          message: /documented declaration.*exactly name, declaration, and description/i,
+          message: /documented owned declaration.*exactly declaration, description, name/i,
           apply: (plan: ApprovedPassExport) => {
             const payload = plan.payloads[0] as unknown as Record<string, unknown>;
             const agentInput = payload.agent_input as Record<string, unknown>;
@@ -1090,7 +1090,7 @@ describe("Runner worker pool", () => {
         assert.equal(claimedJobs.length, 2);
         for (const job of claimedJobs) {
           assert.notEqual(job.attemptId, "");
-          assert.match(job.controlJson, /score\.compilation-bundle@0\.1\.0-alpha\.5/);
+          assert.match(job.controlJson, /score\.compilation-bundle@0\.1\.0-alpha\.6/);
           assert.match(job.agentInputJson, /score\.coding\.filesystem\.single-target/);
           assert.match(job.packageDigest, /^sha256:[a-f0-9]{64}$/u);
           assert.deepEqual(job.adapter, {

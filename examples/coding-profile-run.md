@@ -3,7 +3,7 @@
 **Status:** Frozen design for the first SQLite-alpha conformance fixture. The
 scenario, source bytes, requirements, Contract, operations, and skill are
 accepted. The illustrative identifiers and JSON excerpt will be replaced by
-conforming `score.compilation-bundle@0.1.0-alpha.5` fixture data when the schema
+conforming `score.compilation-bundle@0.1.0-alpha.6` fixture data when the schema
 is implemented.
 
 This example is intentionally tiny. Its purpose is to make the table and Agent
@@ -168,8 +168,8 @@ Change Plan, File Brief, and Agent Package language used in the explanation.
 {
   "control": {
     "protocol": {
-      "bundle_schema": "score.compilation-bundle@0.1.0-alpha.5",
-      "profile": "score.coding@0.1.0-alpha.5",
+      "bundle_schema": "score.compilation-bundle@0.1.0-alpha.6",
+      "profile": "score.coding@0.1.0-alpha.6",
       "canonicalization": "RFC 8785",
       "digest_algorithm": "SHA-256"
     },

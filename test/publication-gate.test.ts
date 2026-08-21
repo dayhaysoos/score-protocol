@@ -173,7 +173,13 @@ describe("Publication Review, decision, and harness-facing export", () => {
           description: "Returns the account name and status exactly as name [status]."
         }
       ]);
-      assert.deepEqual(labelAgentInput.declarations.consumed, [accountDeclaration]);
+      assert.deepEqual(labelAgentInput.declarations.consumed, [
+        {
+          ...accountDeclaration,
+          owner_target: "src/schema.ts",
+          module_specifier: "./schema.js"
+        }
+      ]);
       assert.doesNotMatch(review.html, /TypeScript project settings/);
       assert.doesNotMatch(schemaPayload.agent_input_markdown, /formatAccountLabel/);
       assert.match(labelPayload.agent_input_markdown, /Use this documented interface as read-only context/);
@@ -202,7 +208,7 @@ describe("Publication Review, decision, and harness-facing export", () => {
       const reopened = ScoreAlpha.open(databasePath);
       const exportedAgain = reopened.exportApprovedPass(review.digest_set.pass.protocol_id);
       assert.deepEqual(exportedAgain, exported);
-      assert.equal(exported.version, "0.1.0-alpha.6");
+      assert.equal(exported.version, "0.1.0-alpha.7");
       assert.deepEqual(exported.source_snapshot, {
         revision_id: acceptedInputs.repository_revision.protocol_id,
         content_digest: acceptedInputs.repository_revision.content_digest,

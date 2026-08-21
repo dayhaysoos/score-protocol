@@ -72,6 +72,8 @@ Treat this as evidence about current source, not product intent. The command
 does not edit a Change or Slice, decide that a declaration should exist, or
 write what it means. Copy the seed intentionally only after deciding the owner
 and consumer. Supply the declaration description and consumer path yourself.
+Every project-local `consumes` entry must include the declaration `name`, owner
+path in `from`, and exact reviewed import spelling in `module_specifier`.
 
 Inspect each referenced declaration the future File Agent needs. A local export
 can be selected with another `--export` call; an imported reference names the

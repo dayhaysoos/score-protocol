@@ -15,6 +15,7 @@ import { stripVTControlCharacters } from "node:util";
 import { Effect, Layer } from "effect";
 import Database from "better-sqlite3";
 
+import { sha256Bytes } from "../src/canonical.js";
 import { createAcceptedInputPacket } from "../src/fixture-inputs.js";
 import {
   RunnerStoreError,
@@ -138,6 +139,123 @@ const retriedCandidate =
   "}\n";
 
 describe("manual failed-Job retry", () => {
+  it("rejects a wrong reviewed import route, retains the owner, and applies after retrying only the consumer", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "score-runner-route-retry-"));
+    try {
+      const fixture = await preparedTwoJobRun(directory);
+      const wrongRouteCandidate = retainedCandidate.replace("./schema.js", "./wrong.js");
+      const firstInvocations: string[] = [];
+      const rejected = await Effect.runPromise(
+        runPendingJobsAndApply(fixture.runnerDatabasePath, fixture.runId).pipe(
+          Effect.provide(
+            adapter((job) => {
+              firstInvocations.push(job.targetPath);
+              return Effect.succeed({
+                content:
+                  job.targetPath === "src/account-label.ts"
+                    ? wrongRouteCandidate
+                    : retriedCandidate,
+                runtimeSessionId: `route-attempt-${job.targetPath}`
+              });
+            })
+          )
+        )
+      );
+
+      assert.deepEqual(firstInvocations.toSorted(), [
+        "src/account-label.ts",
+        "src/schema.ts"
+      ]);
+      assert.equal(rejected.state, "completed_with_failures");
+      assert.equal(rejected.applicationState, "not_applied");
+      assert.equal(existsSync(join(fixture.repositoryRoot, "src/account-label.ts")), false);
+      assert.equal(
+        readFileSync(join(fixture.repositoryRoot, "src/schema.ts"), "utf8"),
+        "export interface Account {\n  id: string;\n  name: string;\n}\n"
+      );
+
+      const consumerAttempt = rejected.jobs.find(
+        (job) => job.targetPath === "src/account-label.ts"
+      )?.attempts?.[0];
+      const ownerAttempt = rejected.jobs.find(
+        (job) => job.targetPath === "src/schema.ts"
+      )?.attempts?.[0];
+      assert.equal(consumerAttempt?.state, "failed");
+      assert.equal(consumerAttempt?.candidateDigest, null);
+      assert.equal(consumerAttempt?.failureEvidence?.category, "candidate integrity");
+      assert.equal(
+        consumerAttempt?.failureEvidence?.declarationVerification?.findings[0]?.code,
+        "CONSUMED_DECLARATION_ROUTE_MISMATCH"
+      );
+      assert.equal(ownerAttempt?.state, "succeeded");
+      assert.ok(ownerAttempt?.candidateDigest);
+      const rejectedStatus = formatRunStatus(rejected);
+      assert.match(rejectedStatus, /Candidate integrity failure/u);
+      assert.match(rejectedStatus, /CONSUMED_DECLARATION_ROUTE_MISMATCH/u);
+      assert.match(rejectedStatus, /approved module specifier \.\/schema\.js/u);
+      assert.doesNotMatch(rejectedStatus, /wrong\.js/u);
+      const retainedDatabase = new Database(fixture.runnerDatabasePath, {
+        readonly: true
+      });
+      const rejectedRow = retainedDatabase
+        .prepare(
+          `SELECT a.candidate_content AS candidateContent,
+                  a.candidate_digest AS candidateDigest,
+                  a.rejected_output_digest AS rejectedOutputDigest
+           FROM runner_attempts a
+           JOIN runner_jobs j ON j.job_id = a.job_id
+           WHERE j.run_id = ? AND j.target_path = ?`
+        )
+        .get(fixture.runId, "src/account-label.ts") as {
+          candidateContent: string | null;
+          candidateDigest: string | null;
+          rejectedOutputDigest: string | null;
+        };
+      retainedDatabase.close();
+      assert.deepEqual(rejectedRow, {
+        candidateContent: null,
+        candidateDigest: null,
+        rejectedOutputDigest: sha256Bytes(wrongRouteCandidate)
+      });
+
+      const retryInvocations: string[] = [];
+      const applied = await Effect.runPromise(
+        retryFailedJobsAndApply(fixture.runnerDatabasePath, fixture.runId, {
+          targetPaths: ["src/account-label.ts"]
+        }).pipe(
+          Effect.provide(
+            adapter((job) => {
+              retryInvocations.push(job.targetPath);
+              return Effect.succeed({
+                content: retainedCandidate,
+                runtimeSessionId: "route-repair-attempt"
+              });
+            })
+          )
+        )
+      );
+
+      assert.deepEqual(retryInvocations, ["src/account-label.ts"]);
+      assert.equal(applied.state, "completed");
+      assert.equal(applied.applicationState, "applied");
+      assert.equal(
+        readFileSync(join(fixture.repositoryRoot, "src/account-label.ts"), "utf8"),
+        retainedCandidate
+      );
+      assert.equal(
+        readFileSync(join(fixture.repositoryRoot, "src/schema.ts"), "utf8"),
+        retriedCandidate
+      );
+      const ownerAfter = applied.jobs.find(
+        (job) => job.targetPath === "src/schema.ts"
+      )?.attempts?.[0];
+      assert.equal(ownerAfter?.attemptId, ownerAttempt?.attemptId);
+      assert.equal(ownerAfter?.candidateDigest, ownerAttempt?.candidateDigest);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("creates a new Attempt only for explicitly selected failed Jobs", async () => {
     const directory = mkdtempSync(join(tmpdir(), "score-runner-selected-retry-"));
     try {

@@ -140,8 +140,8 @@ function approvedPlan(): ApprovedPassExport {
   const sourceDigest = repositoryRevisionContentDigest({ orderedManifest: [] });
   const control = {
     protocol: {
-      bundle_schema: "score.compilation-bundle@0.1.0-alpha.5" as const,
-      profile: "score.coding@0.1.0-alpha.5" as const,
+      bundle_schema: "score.compilation-bundle@0.1.0-alpha.6" as const,
+      profile: "score.coding@0.1.0-alpha.6" as const,
       canonicalization: "RFC 8785" as const,
       digest_algorithm: "SHA-256" as const
     },
@@ -179,7 +179,7 @@ function approvedPlan(): ApprovedPassExport {
   const payload = { control, agent_input: fullAgentInput };
   return {
     schema: "score.approved-pass-export",
-    version: "0.1.0-alpha.6",
+    version: "0.1.0-alpha.7",
     pass_id: "candidate-gate-pass",
     publication: {
       review_id: "candidate-gate-review",

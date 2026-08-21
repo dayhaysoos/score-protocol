@@ -22,7 +22,7 @@ const {
 
 export const CHANGE_DRAFT_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://score-protocol.local/schema/change-draft-v1.json",
+  $id: "https://score-protocol.local/schema/change-draft-v2.json",
   type: "object",
   additionalProperties: false,
   required: ["title", "objective", "requirements", "files"],

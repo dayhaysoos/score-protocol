@@ -92,19 +92,23 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/todo.ts"
+          "from": "src/todo.ts",
+          "module_specifier": "./todo.js"
         },
         {
           "name": "addTask",
-          "from": "src/todo.ts"
+          "from": "src/todo.ts",
+          "module_specifier": "./todo.js"
         },
         {
           "name": "toggleTask",
-          "from": "src/todo.ts"
+          "from": "src/todo.ts",
+          "module_specifier": "./todo.js"
         },
         {
           "name": "filterTasks",
-          "from": "src/todo.ts"
+          "from": "src/todo.ts",
+          "module_specifier": "./todo.js"
         }
       ],
       "context": [

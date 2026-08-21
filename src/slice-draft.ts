@@ -24,7 +24,11 @@ export interface SliceFileDraft {
   readonly task: string;
   readonly requirements: ReadonlyArray<string>;
   readonly owns: ReadonlyArray<DeclarationDraft>;
-  readonly consumes: ReadonlyArray<{ readonly name: string; readonly from: string }>;
+  readonly consumes: ReadonlyArray<{
+    readonly name: string;
+    readonly from: string;
+    readonly module_specifier: string;
+  }>;
   readonly external_declarations?: ReadonlyArray<ExternalDeclarationDraft>;
   readonly context: ReadonlyArray<{ readonly path: string; readonly purpose: string }>;
   readonly skills: ReadonlyArray<SliceSkillDraft>;
@@ -65,7 +69,7 @@ const sliceId = {
 
 export const SLICE_DRAFT_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://score-protocol.local/schema/slice-draft-v3.json",
+  $id: "https://score-protocol.local/schema/slice-draft-v4.json",
   type: "object",
   additionalProperties: false,
   required: ["slice_id", "title", "objective", "requirements", "files"],
@@ -119,8 +123,12 @@ export const SLICE_DRAFT_SCHEMA = {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["name", "from"],
-              properties: { name: nonEmptyString, from: nonEmptyString }
+              required: ["name", "from", "module_specifier"],
+              properties: {
+                name: nonEmptyString,
+                from: nonEmptyString,
+                module_specifier: nonEmptyString
+              }
             }
           },
           external_declarations: {

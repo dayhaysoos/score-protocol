@@ -122,7 +122,13 @@ function accountServiceDraft(): SliceDraft {
             description: "Returns the account id and status as a label."
           }
         ],
-        consumes: [{ name: "Account", from: "src/schema.ts" }],
+        consumes: [
+          {
+            name: "Account",
+            from: "src/schema.ts",
+            module_specifier: "./schema.js"
+          }
+        ],
         context: [
           {
             path: "src/example.ts",
@@ -259,7 +265,9 @@ describe("Plan Intake", () => {
         name: "Account",
         declaration:
           'export interface Account { id: string; status: "active" | "suspended"; }',
-        description: "Represents an account with its current status."
+        description: "Represents an account with its current status.",
+        owner_target: "src/schema.ts",
+        module_specifier: "./schema.js"
       });
       assert.deepEqual(
         labelInput.input_bindings.find(
@@ -775,7 +783,13 @@ describe("Plan Intake", () => {
           {
             ...original.files[1]!,
             path: "ACCOUNT.md",
-            consumes: [{ name: "Account", from: "README.md" }],
+            consumes: [
+              {
+                name: "Account",
+                from: "README.md",
+                module_specifier: "../README.md"
+              }
+            ],
             context: []
           }
         ]
@@ -903,7 +917,13 @@ describe("Plan Intake", () => {
         name: "unresolved consumer",
         mutate: (draft) => {
           const files = draft.files as Array<Record<string, unknown>>;
-          files[1]!.consumes = [{ name: "MissingAccount", from: "src/schema.ts" }];
+          files[1]!.consumes = [
+            {
+              name: "MissingAccount",
+              from: "src/schema.ts",
+              module_specifier: "./schema.js"
+            }
+          ];
         },
         expectedCode: "DECLARATION_CONSUMER_UNRESOLVED"
       },

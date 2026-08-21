@@ -50,7 +50,8 @@
       "consumes": [
         {
           "name": "themeName",
-          "from": "src/theme.ts"
+          "from": "src/theme.ts",
+          "module_specifier": "./theme.js"
         }
       ],
       "context": [],

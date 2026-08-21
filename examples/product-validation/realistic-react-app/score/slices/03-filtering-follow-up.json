@@ -72,19 +72,23 @@
       "consumes": [
         {
           "name": "FilterBarProps",
-          "from": "src/components/FilterBar.tsx"
+          "from": "src/components/FilterBar.tsx",
+          "module_specifier": "./components/FilterBar.js"
         },
         {
           "name": "FilterBar",
-          "from": "src/components/FilterBar.tsx"
+          "from": "src/components/FilterBar.tsx",
+          "module_specifier": "./components/FilterBar.js"
         },
         {
           "name": "TaskListProps",
-          "from": "src/components/TaskList.tsx"
+          "from": "src/components/TaskList.tsx",
+          "module_specifier": "./components/TaskList.js"
         },
         {
           "name": "TaskList",
-          "from": "src/components/TaskList.tsx"
+          "from": "src/components/TaskList.tsx",
+          "module_specifier": "./components/TaskList.js"
         }
       ],
       "context": [

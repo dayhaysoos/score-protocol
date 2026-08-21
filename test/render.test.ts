@@ -232,7 +232,11 @@ describe("publication review renderer", () => {
     });
     consumerInput.objective = consumer.objective;
     consumerInput.intended_outcome = consumer.objective;
-    consumerInput.declarations.consumed.push(ownerInput.declarations.owned[0] ?? assert.fail());
+    consumerInput.declarations.consumed.push({
+      ...(ownerInput.declarations.owned[0] ?? assert.fail()),
+      owner_target: "src/account.ts",
+      module_specifier: "./account.js"
+    });
     pass.dependencies.push({
       dependent_capsule_id: consumer.capsule_id,
       prerequisite_kind: "capsule",
@@ -260,7 +264,7 @@ describe("publication review renderer", () => {
     );
     assert.match(
       html,
-      /Defined in <code>src\/account\.ts<\/code> and received by this Agent as read-only context\./
+      /Defined in <code>src\/account\.ts<\/code> and imported through <code>\.\/account\.js<\/code>\. This Agent receives the declaration as read-only context\./
     );
     assert.match(html, /<pre class="code-block language-typescript" data-language="typescript">/);
     assert.match(
@@ -344,7 +348,7 @@ describe("publication review renderer", () => {
     const html = renderPublicationReviewHtml(review);
 
     assert.equal(html, renderPublicationReviewHtml(review));
-    assert.equal(PUBLICATION_REVIEW_RENDERER.version, "0.1.0-alpha.26");
+    assert.equal(PUBLICATION_REVIEW_RENDERER.version, "0.1.0-alpha.27");
     assert.match(html, /2 files will change/);
     assert.match(html, /2 modified/);
     assert.match(html, /2 isolated file-agents/);

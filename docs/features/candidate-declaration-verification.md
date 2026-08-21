@@ -1,88 +1,82 @@
 # Candidate declaration verification
 
-**Status:** Experimental production integration implemented in the current dirty
-worktree. It is not yet an accepted release feature.
+**Status:** Experimental production integration implemented and verified on the
+current branch. It is not a release or real-project-correctness claim.
 
 ## Outcome
 
-SCORE independently verifies that final candidate bytes conform to the approved
-Documented Declarations before those candidates can be accepted for atomic
-application. An Agent may receive the same bounded findings while it works, but
-correctness never depends on the Agent choosing to request or obey that
-feedback.
+SCORE independently checks supported owned declarations and reviewed
+project-local import routes in exact final candidate bytes before atomic
+application. Agent-side feedback remains optional; acceptance does not depend on
+the Agent requesting or obeying it.
 
-## Expected behavior
+## Production behavior
 
-- The final check uses the exact returned candidate bytes and frozen approved
-  declaration inputs.
-- A valid verdict is bound to the candidate content digest.
-- Missing, unexpected, rerouted, incomplete, unsupported, or structurally
-  mismatched relevant declarations produce precise typed findings.
-- Editing a candidate after an in-session valid check cannot bypass the final
-  check.
-- Equivalent frozen inputs and candidate bytes produce byte-identical verdicts
-  and digests.
-- Candidate verification remains entirely in memory and makes no source-file
-  changes.
-- In-session Agent feedback is optional and non-authoritative; the independent
-  final check is authoritative.
-- An optional bounded repair continuation may use deterministic findings from
-  that check, but final acceptance still depends on rechecking the new bytes.
-- Verifier and repair expectations are derived from the exact approved Agent
-  Package; target, Agent Input, package, or declaration substitutions fail
-  before verification begins.
-- Every approved owned declaration relevant to the assigned file is checked
-  against the same exact candidate bytes; findings identify only the declarations
-  that fail.
+- Every project-local `consumes` entry requires `name`, owning target `from`, and
+  the exact reviewed `module_specifier`.
+- Preparation freezes that route into the consumed Documented Declaration in
+  Agent Input and shows the same owner target and import spelling in the HTML
+  review.
+- The forward-only boundary is Compilation Bundle, Coding Profile, compiler
+  input, Plan Review, Agent Input, and Runner control `0.1.0-alpha.6`, with
+  Approved Pass Export `0.1.0-alpha.7`.
+- The OpenCode Adapter checks supported non-empty owned declarations against the
+  exact final File Candidate bytes.
+- After all candidates exist, the Runner uses OXC on those final in-memory bytes
+  and checks every relevant named import against its frozen route.
+- Missing, ambiguous, wrong, unsupported, or syntactically invalid relevant
+  imports produce precise typed findings bound to candidate, binding, and
+  verdict digests.
+- A route failure changes only blamed consumer Jobs to failed, discards their
+  rejected bytes, retains safe evidence and rejected-output digests, preserves
+  every unrelated successful candidate, and applies nothing.
+- A manually authorized retry invokes only selected failed consumers with the
+  frozen runtime and Agent Package. SCORE then rechecks the complete set before
+  one atomic application.
+- Repeated identical checks produce byte-identical verdicts and digests.
 
-## Boundaries
+## Failure presentation
 
-This feature does not prove TypeScript assignability, semantic typechecking,
-builds, tests, linting, runtime behavior, deployment, or user acceptance. It
-does not authorize repository browsing, environment loading, dependency
-installation, or project command execution by an Agent. Repair Notices and
-manual retry remain separate behavior.
+Runner status states the failure category, exact finding code, declaration,
+approved module specifier, and safe digests on separate readable lines. It never
+prints or persists the rejected candidate source or an unapproved observed
+module specifier.
 
-## Production entry boundary
+## Preserved boundary
 
-The bounded prototype sequence is complete for a one-file gate: approved-input
-binding, multiple owned declarations, exact final-byte verification, precise
-findings, and one optional repair continuation have each passed independently.
+Candidate acceptance remains entirely in memory. It does not read the target
+project's `tsconfig.json`, `node_modules`, package metadata, environment,
+network, installer, shell, compiler, repository source, or project commands. It
+does not construct a TypeScript Program or synthetic project and does not claim
+assignability, compilation, builds, tests, linting, runtime behavior,
+deployment, or user acceptance.
 
-Run `50d78e0b-0bbc-4ac2-8849-12e414066bf2` applied the first production
-single-file gate Slice with six successful File Candidates. Independent
-repository verification then failed: the generated integration used an
-unsupported Effect schema API, inferred incompatible evidence types, read one
-evidence field from the wrong object, did not narrow delete operations before
-the verifier, and shipped invalid test fixtures. Those defects were repaired
-locally after the Run. The resulting dirty worktree passes typecheck, build,
-all 340 tests, package smoke testing, and `git diff --check`; it is not
-byte-identical to the six applied candidates.
+Selected external-declaration evidence remains preparation context only. It
+does not prove that a candidate imports, calls, typechecks against, or behaves
+correctly with an external package API.
 
-The current gate enforces the exact-final-byte check for non-empty owned
-declarations handled by the OpenCode Adapter. Its Coding Profile, Agent Input,
-Agent Package, and Runner activation is now forward-only at the alpha.5
-boundary. It does not yet complete the accepted feature boundary:
+## Current evidence
 
-- the current consumed-declaration input does not identify an expected source
-  module, so the gate cannot prove that an imported project-local declaration
-  was routed from the correct module.
+The production route-binding test exercises real Change preparation, HTML
+review, approval, Approved Pass Export, and Runner enqueue. The complete-set
+recovery test then proves this exact sequence:
 
-The [cross-file route retry experiment](../experiments/cross-file-declaration-route-retry.md)
-shows that once this reviewed route exists, a complete-set failure can identify
-only the consumer, preserve every other candidate, reuse the existing targeted
-retry model, and retain atomic application. That behavior is not yet wired into
-the production Runner.
+1. owner and consumer candidates finish;
+2. the consumer imports the declaration through the wrong module specifier;
+3. SCORE rejects only the consumer and persists no rejected source bytes;
+4. the owner candidate remains unchanged and saved;
+5. one manual consumer retry returns the reviewed import;
+6. SCORE rechecks the complete set and atomically applies both files.
 
-Until those gaps are addressed and the work is curated into an identified
-source revision, this is experimental enforcement rather than a production
-readiness claim. Selected external-declaration evidence supplies Agent context
-but does not verify candidate package API usage. Multi-file complete-set
-verification and project command execution remain out of scope.
+The focused gate covers exact, missing, ambiguous, wrong, unsupported, relevant
+invalid syntax, unrelated syntax isolation, missing-owner, deterministic-order,
+and safe-evidence cases. The full worktree passes typecheck, build, all 361
+tests, package smoke testing, and `git diff --check`.
 
 ## Historical evidence
 
 - [Approved multi-declaration verification experiment](../experiments/approved-multi-declaration-verification.md)
+- [Approved cross-file route binding experiment](../experiments/approved-cross-file-route-binding.md)
 - [Cross-file declaration route retry experiment](../experiments/cross-file-declaration-route-retry.md)
 - [Approved declaration input binding experiment](../experiments/approved-declaration-input-binding.md)
 - [Automatic declaration repair loop experiment](../experiments/automatic-declaration-repair-loop.md)
@@ -90,5 +84,4 @@ verification and project command execution remain out of scope.
 - [Assigned-file Agent preflight experiment](../experiments/agent-assigned-file-preflight.md)
 - [Declaration-shape normalizer experiment](../experiments/declaration-shape-normalizer.md)
 - [Verify candidate declarations in memory](../adr/0006-verify-candidate-declarations-in-memory.md)
-- [Keep live module inspection out of Agent execution](../adr/0010-keep-live-module-inspection-out-of-agent-execution.md)
-- [Introduce declaration verification forward-only](../adr/0013-introduce-declaration-verification-forward-only.md)
+- [Bind reviewed local routes and retry only consumers](../adr/0015-bind-reviewed-local-routes-and-retry-only-consumers.md)

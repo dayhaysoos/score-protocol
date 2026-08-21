@@ -63,7 +63,7 @@ export type PrepareSliceResult =
 
 const PLAN_INTAKE_PROCEDURE_ID = "cd54a061-2e17-4cf5-9dc9-919978572f22";
 const PLAN_INTAKE_PROCEDURE =
-  "Deterministically validate one SliceDraft and expand its exact textual context into SCORE Coding Profile objects.";
+  "Deterministically validate one SliceDraft and expand its exact textual context and reviewed declaration routes into SCORE Coding Profile objects.";
 
 interface CapturedFile {
   readonly path: string;
@@ -104,7 +104,7 @@ function normalizedDraft(draft: SliceDraft): SliceDraft {
 export function sliceDraftDigest(draft: SliceDraft): string {
   return sha256Json({
     schema: "score.slice-draft",
-    version: "3.0.0",
+    version: "4.0.0",
     draft: normalizedDraft(draft)
   });
 }
@@ -554,7 +554,7 @@ function compileSlice(
 
   const preparationDigest = sha256Json({
     schema: "score.slice-preparation",
-    version: "3.0.0",
+    version: "4.0.0",
     slice_draft: normalizedDraft(draft),
     resolved_slice_dependencies: normalizedResolvedDependencies(resolvedDependencies),
     declared_files: [...capturedFiles.values()]
@@ -604,7 +604,7 @@ function compileSlice(
   };
   const inputs: AcceptedInputPacket = {
     schema: "score.compiler-input-packet",
-    version: "0.1.0-alpha.5",
+    version: "0.1.0-alpha.6",
     accepted_specification: {
       protocol_id: specificationId,
       authority: "human-and-existing-agent",
@@ -616,8 +616,8 @@ function compileSlice(
     compilation_procedure: {
       protocol_id: PLAN_INTAKE_PROCEDURE_ID,
       name: "score-plan-intake",
-      version: "2.0.0",
-      profile: "score.coding@0.1.0-alpha.5",
+      version: "3.0.0",
+      profile: "score.coding@0.1.0-alpha.6",
       source: "runtime-tool-schema",
       content: PLAN_INTAKE_PROCEDURE,
       content_digest: procedureDigest
@@ -721,7 +721,9 @@ function compileSlice(
           return {
             name: documented.name,
             declaration: documented.declaration,
-            description: documented.description
+            description: documented.description,
+            owner_target: from,
+            module_specifier: consumer.module_specifier
           };
         })
       }
@@ -858,7 +860,9 @@ function compileSlice(
         dependent_capsule_handle: `file_${fileIndex + 1}`,
         prerequisite_kind: "capsule",
         prerequisite_handle: `file_${owner.fileIndex + 1}`,
-        description: `${file.draft.path} consumes ${consumer.name} from ${consumer.from}.`
+        description:
+          `${file.draft.path} consumes ${consumer.name} from ${consumer.from} ` +
+          `through ${consumer.module_specifier}.`
       });
     });
   });
@@ -875,9 +879,9 @@ function compileSlice(
 
   const bundle: CompilationBundle = {
     schema: "score.compilation-bundle",
-    schema_version: "0.1.0-alpha.5",
+    schema_version: "0.1.0-alpha.6",
     profile: "score.coding",
-    profile_version: "0.1.0-alpha.5",
+    profile_version: "0.1.0-alpha.6",
     source_bindings: {
       accepted_specification: { protocol_id: specificationId, content_digest: specificationDigest },
       repository_revision: { protocol_id: repositoryRevisionId, content_digest: repositoryDigest },

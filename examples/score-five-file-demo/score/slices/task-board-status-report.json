@@ -54,7 +54,8 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/task.ts"
+          "from": "src/task.ts",
+          "module_specifier": "./task.js"
         }
       ],
       "context": [],
@@ -87,11 +88,13 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/task.ts"
+          "from": "src/task.ts",
+          "module_specifier": "./task.js"
         },
         {
           "name": "priorityLabel",
-          "from": "src/priority.ts"
+          "from": "src/priority.ts",
+          "module_specifier": "./priority.js"
         }
       ],
       "context": [],
@@ -126,11 +129,13 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/task.ts"
+          "from": "src/task.ts",
+          "module_specifier": "./task.js"
         },
         {
           "name": "formatTask",
-          "from": "src/format-task.ts"
+          "from": "src/format-task.ts",
+          "module_specifier": "./format-task.js"
         }
       ],
       "context": [],
@@ -165,11 +170,13 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/task.ts"
+          "from": "src/task.ts",
+          "module_specifier": "./task.js"
         },
         {
           "name": "formatTaskList",
-          "from": "src/task-list.ts"
+          "from": "src/task-list.ts",
+          "module_specifier": "./task-list.js"
         }
       ],
       "context": [],

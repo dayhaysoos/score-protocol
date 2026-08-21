@@ -2,16 +2,16 @@ import { sha256Bytes } from "./canonical.js";
 
 export const AGENT_INPUT_RENDERER = {
   id: "score.coding.agent-input-markdown",
-  version: "0.1.0-alpha.5",
+  version: "0.1.0-alpha.6",
   specification:
-    "fixed headings: objective,target,intended outcome,documented interfaces to implement,read-only documented interfaces,resolved input bindings,capabilities,constraints,prohibited effects; declaration and description text is preserved exactly; JSON values use two-space indentation; declared array order is preserved"
+    "fixed headings: objective,target,intended outcome,documented interfaces to implement,read-only documented interfaces,resolved input bindings,capabilities,constraints,prohibited effects; consumed interfaces show the exact reviewed owner target and module specifier; declaration and description text is preserved exactly; JSON values use two-space indentation; declared array order is preserved"
 } as const;
 
 export const PUBLICATION_REVIEW_RENDERER = {
   id: "score.coding.publication-review-html",
-  version: "0.1.0-alpha.26",
+  version: "0.1.0-alpha.27",
   specification:
-    "single-file semantic HTML using entity-aware Change Review or Slice Review language without changing the canonical snapshot; a navigation-only sidebar links the overview, every dependency-first Agent Brief, each owned declaration, requirements when present, context, and the technical record, then becomes compact section navigation on narrow screens; the review leads with its approval readiness and exact next command, then presents dependency-first file instructions without a separate relationship map; human-facing file operations use Create and Modify while canonical operations remain unchanged; declaration labels render deterministically as Defines for owned declarations and Uses for consumed declarations; selected external package contracts and their bounded supporting types render as human-readable TypeScript rather than an opaque JSON dump; TypeScript declarations receive display-only line formatting and recognized code languages receive static syntax coloring while exact stored text remains unchanged in machine evidence; every collapsed Agent Brief names its purpose, and its expanded content shows full requirements, documented declaration owners, selected context with purpose, skills, limits, and current target state; implementation quality is explicitly outside SCORE; exact Agent Input and machine audit evidence remain disclosed on demand; printing temporarily opens every disclosure and restores its prior screen state afterward"
+    "single-file semantic HTML using entity-aware Change Review or Slice Review language without changing the canonical snapshot; a navigation-only sidebar links the overview, every dependency-first Agent Brief, each owned declaration, requirements when present, context, and the technical record, then becomes compact section navigation on narrow screens; the review leads with its approval readiness and exact next command, then presents dependency-first file instructions without a separate relationship map; human-facing file operations use Create and Modify while canonical operations remain unchanged; declaration labels render deterministically as Defines for owned declarations and Uses for consumed declarations; consumed declarations show their exact reviewed owner target and module specifier; selected external package contracts and their bounded supporting types render as human-readable TypeScript rather than an opaque JSON dump; TypeScript declarations receive display-only line formatting and recognized code languages receive static syntax coloring while exact stored text remains unchanged in machine evidence; every collapsed Agent Brief names its purpose, and its expanded content shows full requirements, documented declaration owners, selected context with purpose, skills, limits, and current target state; implementation quality is explicitly outside SCORE; exact Agent Input and machine audit evidence remain disclosed on demand; printing temporarily opens every disclosure and restores its prior screen state afterward"
 } as const;
 
 export function rendererDigest(renderer: { id: string; version: string; specification: string }): string {
@@ -33,7 +33,7 @@ export interface RenderableAgentInput {
   intended_outcome: string;
   declarations: {
     owned: Array<DocumentedDeclaration>;
-    consumed: Array<DocumentedDeclaration>;
+    consumed: Array<DocumentedConsumedDeclaration>;
   };
   input_bindings: Array<Record<string, unknown>>;
   required_capabilities: Array<Record<string, unknown>>;
@@ -47,6 +47,11 @@ export interface DocumentedDeclaration {
   readonly description: string;
 }
 
+export interface DocumentedConsumedDeclaration extends DocumentedDeclaration {
+  readonly owner_target: string;
+  readonly module_specifier: string;
+}
+
 function renderDocumentedDeclarationMarkdown(
   declaration: DocumentedDeclaration,
   readOnly: boolean
@@ -57,7 +62,13 @@ function renderDocumentedDeclarationMarkdown(
     "",
     declaration.description,
     ...(readOnly
-      ? ["", "Use this documented interface as read-only context. Do not redefine it in this file."]
+      ? [
+          "",
+          `Owner target: ${(declaration as DocumentedConsumedDeclaration).owner_target}`,
+          `Required module specifier: ${(declaration as DocumentedConsumedDeclaration).module_specifier}`,
+          "",
+          "Use this documented interface as read-only context. Do not redefine it in this file."
+        ]
       : []),
     "",
     "```ts",
@@ -1111,10 +1122,9 @@ function renderDeclarations(
     index: number,
     ownerPath?: string
   ) => {
-    const sourceCopy =
-      relationship === "Uses"
-        ? `<p>${ownerPath === undefined ? "This Agent receives the declaration" : `Defined in <code>${escapeHtml(ownerPath)}</code> and received by this Agent`} as read-only context.</p>`
-        : "";
+    const sourceCopy = relationship === "Uses"
+      ? `<p>Defined in <code>${escapeHtml(stringValue(declaration.owner_target, ownerPath ?? "the reviewed owner"))}</code> and imported through <code>${escapeHtml(stringValue(declaration.module_specifier))}</code>. This Agent receives the declaration as read-only context.</p>`
+      : "";
     return `
       <details class="context-item" id="${escapeHtml(declarationAnchor(fileAnchor, relationship, declaration, index))}">
         <summary><span>${escapeHtml(stringValue(declaration.name))}</span><span class="context-kind">${relationship}</span></summary>

@@ -132,11 +132,13 @@
       "consumes": [
         {
           "name": "TaskItemProps",
-          "from": "src/components/TaskItem.tsx"
+          "from": "src/components/TaskItem.tsx",
+          "module_specifier": "./TaskItem.js"
         },
         {
           "name": "TaskItem",
-          "from": "src/components/TaskItem.tsx"
+          "from": "src/components/TaskItem.tsx",
+          "module_specifier": "./TaskItem.js"
         }
       ],
       "context": [
@@ -184,19 +186,23 @@
       "consumes": [
         {
           "name": "TaskComposerProps",
-          "from": "src/components/TaskComposer.tsx"
+          "from": "src/components/TaskComposer.tsx",
+          "module_specifier": "./components/TaskComposer.js"
         },
         {
           "name": "TaskComposer",
-          "from": "src/components/TaskComposer.tsx"
+          "from": "src/components/TaskComposer.tsx",
+          "module_specifier": "./components/TaskComposer.js"
         },
         {
           "name": "TaskListProps",
-          "from": "src/components/TaskList.tsx"
+          "from": "src/components/TaskList.tsx",
+          "module_specifier": "./components/TaskList.js"
         },
         {
           "name": "TaskList",
-          "from": "src/components/TaskList.tsx"
+          "from": "src/components/TaskList.tsx",
+          "module_specifier": "./components/TaskList.js"
         }
       ],
       "context": [

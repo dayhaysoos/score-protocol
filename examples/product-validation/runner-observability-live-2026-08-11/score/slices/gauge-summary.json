@@ -57,7 +57,8 @@
       "consumes": [
         {
           "name": "Gauge",
-          "from": "src/gauge.ts"
+          "from": "src/gauge.ts",
+          "module_specifier": "./gauge.js"
         }
       ],
       "context": [
@@ -96,11 +97,13 @@
       "consumes": [
         {
           "name": "Gauge",
-          "from": "src/gauge.ts"
+          "from": "src/gauge.ts",
+          "module_specifier": "./gauge.js"
         },
         {
           "name": "formatGauge",
-          "from": "src/format-gauge.ts"
+          "from": "src/format-gauge.ts",
+          "module_specifier": "./format-gauge.js"
         }
       ],
       "context": [

@@ -63,7 +63,8 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/domain/task.ts"
+          "from": "src/domain/task.ts",
+          "module_specifier": "./task.js"
         }
       ],
       "context": [
@@ -110,7 +111,8 @@
       "consumes": [
         {
           "name": "Task",
-          "from": "src/domain/task.ts"
+          "from": "src/domain/task.ts",
+          "module_specifier": "./task.js"
         }
       ],
       "context": [

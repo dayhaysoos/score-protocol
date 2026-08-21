@@ -57,7 +57,8 @@
       "consumes": [
         {
           "name": "SensorReading",
-          "from": "src/sensor.ts"
+          "from": "src/sensor.ts",
+          "module_specifier": "./sensor.js"
         }
       ],
       "context": [
@@ -96,11 +97,13 @@
       "consumes": [
         {
           "name": "SensorReading",
-          "from": "src/sensor.ts"
+          "from": "src/sensor.ts",
+          "module_specifier": "./sensor.js"
         },
         {
           "name": "formatSensor",
-          "from": "src/format-sensor.ts"
+          "from": "src/format-sensor.ts",
+          "module_specifier": "./format-sensor.js"
         }
       ],
       "context": [

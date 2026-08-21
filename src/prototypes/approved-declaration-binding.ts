@@ -99,7 +99,7 @@ export function bindApprovedDeclarationRepair(input: {
   const { approvedPlan, job } = input;
   if (
     approvedPlan.schema !== "score.approved-pass-export" ||
-    approvedPlan.version !== "0.1.0-alpha.6"
+    approvedPlan.version !== "0.1.0-alpha.7"
   ) {
     return invalid(
       "APPROVED_EXPORT_UNSUPPORTED",

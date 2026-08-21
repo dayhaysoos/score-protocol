@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://score-protocol.local/schema/compilation-bundle-0.1.0-alpha.5.json",
-  "title": "SCORE Compilation Bundle 0.1.0-alpha.5",
+  "$id": "https://score-protocol.local/schema/compilation-bundle-0.1.0-alpha.6.json",
+  "title": "SCORE Compilation Bundle 0.1.0-alpha.6",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,9 +15,9 @@
   ],
   "properties": {
     "schema": { "const": "score.compilation-bundle" },
-    "schema_version": { "const": "0.1.0-alpha.5" },
+    "schema_version": { "const": "0.1.0-alpha.6" },
     "profile": { "const": "score.coding" },
-    "profile_version": { "const": "0.1.0-alpha.5" },
+    "profile_version": { "const": "0.1.0-alpha.6" },
     "source_bindings": { "$ref": "#/$defs/sourceBindings" },
     "proposed_definition": { "$ref": "#/$defs/proposedDefinition" },
     "compiler_findings": { "$ref": "#/$defs/compilerFindings" }

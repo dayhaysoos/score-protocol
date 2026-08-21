@@ -87,7 +87,13 @@ function changeDraft(objective: string): ChangeDraft {
             description: "Returns the account id and status as a label."
           }
         ],
-        consumes: [{ name: "Account", from: "src/account.ts" }],
+        consumes: [
+          {
+            name: "Account",
+            from: "src/account.ts",
+            module_specifier: "./account.js"
+          }
+        ],
         context: [
           {
             path: "README.md",

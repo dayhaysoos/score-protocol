@@ -57,7 +57,8 @@
       "consumes": [
         {
           "name": "Reading",
-          "from": "src/reading.ts"
+          "from": "src/reading.ts",
+          "module_specifier": "./reading.js"
         }
       ],
       "context": [
@@ -96,11 +97,13 @@
       "consumes": [
         {
           "name": "Reading",
-          "from": "src/reading.ts"
+          "from": "src/reading.ts",
+          "module_specifier": "./reading.js"
         },
         {
           "name": "formatReading",
-          "from": "src/format-reading.ts"
+          "from": "src/format-reading.ts",
+          "module_specifier": "./format-reading.js"
         }
       ],
       "context": [

@@ -157,7 +157,7 @@ function approvedBindingFixture(declarationCount: 1 | 2 = 1) {
   const payloadDigest = sha256Json(payload);
   const approvedPlan: ApprovedPassExport = {
     schema: "score.approved-pass-export",
-    version: "0.1.0-alpha.6",
+    version: "0.1.0-alpha.7",
     pass_id: "approved-pass-1",
     publication: {
       review_id: "approved-review-1",

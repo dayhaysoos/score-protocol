@@ -44,6 +44,17 @@ function hasExactKeys(value: unknown, expectedKeys: readonly string[]): value is
   );
 }
 
+interface ParsedDocumentedDeclaration {
+  readonly name: string;
+  readonly declaration: string;
+  readonly description: string;
+}
+
+interface ParsedConsumedDeclaration extends ParsedDocumentedDeclaration {
+  readonly owner_target: string;
+  readonly module_specifier: string;
+}
+
 function validateDocumentedDeclarationContexts(
   definition: ProposedDefinition
 ): ValidationFinding[] {
@@ -52,8 +63,8 @@ function validateDocumentedDeclarationContexts(
   const parsedContexts = new Map<
     string,
     {
-      owned: Array<{ name: string; declaration: string; description: string }>;
-      consumed: Array<{ name: string; declaration: string; description: string }>;
+      owned: ParsedDocumentedDeclaration[];
+      consumed: ParsedConsumedDeclaration[];
     }
   >();
 
@@ -72,8 +83,8 @@ function validateDocumentedDeclarationContexts(
     }
 
     const parsed = {
-      owned: [] as Array<{ name: string; declaration: string; description: string }>,
-      consumed: [] as Array<{ name: string; declaration: string; description: string }>
+      owned: [] as ParsedDocumentedDeclaration[],
+      consumed: [] as ParsedConsumedDeclaration[]
     };
 
     for (const group of ["owned", "consumed"] as const) {
@@ -89,27 +100,52 @@ function validateDocumentedDeclarationContexts(
         continue;
       }
       declarations.forEach((declaration, index) => {
+        const expectedKeys =
+          group === "owned"
+            ? ["declaration", "description", "name"]
+            : [
+                "declaration",
+                "description",
+                "module_specifier",
+                "name",
+                "owner_target"
+              ];
         if (
-          !hasExactKeys(declaration, ["declaration", "description", "name"]) ||
+          !hasExactKeys(declaration, expectedKeys) ||
           typeof declaration.name !== "string" ||
           declaration.name.length === 0 ||
           typeof declaration.declaration !== "string" ||
           declaration.declaration.length === 0 ||
           typeof declaration.description !== "string" ||
-          declaration.description.length === 0
+          declaration.description.length === 0 ||
+          (group === "consumed" &&
+            (typeof declaration.owner_target !== "string" ||
+              declaration.owner_target.length === 0 ||
+              typeof declaration.module_specifier !== "string" ||
+              declaration.module_specifier.length === 0))
         ) {
           findings.push(
             issue(
               "DOCUMENTED_DECLARATION_ENTRY_INVALID",
               `${contentLocation}/${group}/${index}`,
-              "Each documented declaration must contain exactly nonempty name, declaration, and description text"
+              group === "owned"
+                ? "Each owned documented declaration must contain exactly nonempty name, declaration, and description text"
+                : "Each consumed documented declaration must also contain exactly one nonempty owner target and module specifier"
             )
           );
-        } else {
-          parsed[group].push({
+        } else if (group === "owned") {
+          parsed.owned.push({
             name: declaration.name,
             declaration: declaration.declaration,
             description: declaration.description
+          });
+        } else {
+          parsed.consumed.push({
+            name: declaration.name,
+            declaration: declaration.declaration,
+            description: declaration.description,
+            owner_target: declaration.owner_target as string,
+            module_specifier: declaration.module_specifier as string
           });
         }
       });
@@ -164,8 +200,8 @@ function validateDocumentedDeclarationContexts(
     string,
     {
       contextItemHandle: string;
-      owned: Array<{ name: string; declaration: string; description: string }>;
-      consumed: Array<{ name: string; declaration: string; description: string }>;
+      owned: ParsedDocumentedDeclaration[];
+      consumed: ParsedConsumedDeclaration[];
     }
   >();
   for (const capsule of definition.capsules) {
@@ -182,13 +218,10 @@ function validateDocumentedDeclarationContexts(
 
   const ownedByCapsule = new Map<
     string,
-    Map<string, { name: string; declaration: string; description: string }>
+    Map<string, ParsedDocumentedDeclaration>
   >();
   for (const [capsuleHandle, declarations] of declarationsByCapsule) {
-    const ownedByName = new Map<
-      string,
-      { name: string; declaration: string; description: string }
-    >();
+    const ownedByName = new Map<string, ParsedDocumentedDeclaration>();
     declarations.owned.forEach((declaration, index) => {
       if (ownedByName.has(declaration.name)) {
         findings.push(
@@ -283,6 +316,25 @@ function validateDocumentedDeclarationContexts(
         return;
       }
       consumedRelations.add(relation);
+      const ownerTarget = definition.capsules.find(
+        ({ handle }) => handle === owner.capsuleHandle
+      )?.target_path;
+      if (consumed.owner_target !== ownerTarget) {
+        findings.push(
+          issue(
+            "DOCUMENTED_DECLARATION_CONSUMER_ROUTE_DIVERGENT",
+            location,
+            `Consumed documented declaration ${consumed.name} names a different owner target`,
+            {
+              capsule_handle: capsuleHandle,
+              owner_capsule_handle: owner.capsuleHandle,
+              name: consumed.name,
+              expected_owner_target: ownerTarget,
+              actual_owner_target: consumed.owner_target
+            }
+          )
+        );
+      }
       if (
         consumed.declaration !== owner.declaration.declaration ||
         consumed.description !== owner.declaration.description

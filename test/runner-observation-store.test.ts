@@ -32,8 +32,8 @@ function approvedCreatePlan(targetPaths = ["src/alpha.ts", "src/beta.ts"]): Appr
   const payloads = targetPaths.map((targetPath, index) => {
     const control = {
       protocol: {
-        bundle_schema: "score.compilation-bundle@0.1.0-alpha.5" as const,
-        profile: "score.coding@0.1.0-alpha.5" as const,
+        bundle_schema: "score.compilation-bundle@0.1.0-alpha.6" as const,
+        profile: "score.coding@0.1.0-alpha.6" as const,
         canonicalization: "RFC 8785" as const,
         digest_algorithm: "SHA-256" as const
       },
@@ -89,7 +89,7 @@ function approvedCreatePlan(targetPaths = ["src/alpha.ts", "src/beta.ts"]): Appr
   });
   return {
     schema: "score.approved-pass-export",
-    version: "0.1.0-alpha.6",
+    version: "0.1.0-alpha.7",
     pass_id: "observation-approved-pass",
     publication: {
       review_id: "observation-review",

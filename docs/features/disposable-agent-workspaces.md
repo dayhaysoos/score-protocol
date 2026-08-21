@@ -1,6 +1,6 @@
 # Disposable Agent workspaces
 
-**Status:** Planned. No active Slice.
+**Status:** Planned shared extraction. No active Slice.
 
 ## Outcome
 
@@ -29,6 +29,15 @@ application.
 A disposable workspace is a runtime delivery mechanism, not permission to copy
 or typecheck the host project during preparation. It does not expand approved
 context or make non-target edits eligible for application.
+
+## Current implementation position
+
+OpenCode already uses a disposable per-Job workspace and target-only candidate
+extraction, but that machinery remains inside `open-code-adapter.ts`. Pi work
+must first extract the reusable workspace, inspection, and cleanup behavior
+behind an adapter-neutral invocation seam while proving OpenCode remains
+unchanged. This extraction must not add repository, dependency, environment, or
+project-command access to an Agent.
 
 ## Acceptance examples
 

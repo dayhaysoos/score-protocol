@@ -51,7 +51,8 @@
       "consumes": [
         {
           "name": "Reading",
-          "from": "src/reading.ts"
+          "from": "src/reading.ts",
+          "module_specifier": "./reading.js"
         }
       ],
       "context": [
@@ -93,11 +94,13 @@
       "consumes": [
         {
           "name": "Reading",
-          "from": "src/reading.ts"
+          "from": "src/reading.ts",
+          "module_specifier": "./reading.js"
         },
         {
           "name": "readingProgress",
-          "from": "src/reading-progress.ts"
+          "from": "src/reading-progress.ts",
+          "module_specifier": "./reading-progress.js"
         }
       ],
       "context": [

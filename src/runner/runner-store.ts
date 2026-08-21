@@ -16,6 +16,7 @@ import {
   AttemptId,
   AdapterConfiguration,
   CandidateFile,
+  type CandidateDeclarationFailureEvidence,
   type CandidateFile as CandidateFileType,
   ConfirmedTarget,
   type ConfirmedTarget as ConfirmedTargetType,
@@ -180,8 +181,8 @@ const StoredJobProtocolRow = Schema.Struct({
 });
 const SupportedRunRules = Schema.Struct({
   protocol: Schema.Struct({
-    bundle_schema: Schema.Literal("score.compilation-bundle@0.1.0-alpha.5"),
-    profile: Schema.Literal("score.coding@0.1.0-alpha.5"),
+    bundle_schema: Schema.Literal("score.compilation-bundle@0.1.0-alpha.6"),
+    profile: Schema.Literal("score.coding@0.1.0-alpha.6"),
     canonicalization: Schema.Literal("RFC 8785"),
     digest_algorithm: Schema.Literal("SHA-256")
   }),
@@ -225,7 +226,9 @@ const SupportedAgentInput = Schema.Struct({
       Schema.Struct({
         name: Schema.String,
         declaration: Schema.String,
-        description: Schema.String
+        description: Schema.String,
+        owner_target: Schema.String,
+        module_specifier: Schema.String
       })
     )
   })
@@ -267,7 +270,7 @@ function requireSupportedStoredJobProtocol(
         message:
           `Job ${row.targetPath} has an unsupported frozen Agent Package protocol ` +
           `(${frozenJobProtocolDescription(row.controlJson)}); this Runner executes only ` +
-          "score.compilation-bundle@0.1.0-alpha.5 / score.coding@0.1.0-alpha.5 Jobs. " +
+          "score.compilation-bundle@0.1.0-alpha.6 / score.coding@0.1.0-alpha.6 Jobs. " +
           "Prepare and approve a new revision before execution."
       })
   });
@@ -313,14 +316,17 @@ function validateOpaquePackageShape(input: {
         `Agent Input declarations.${group}[${index}]`
       );
       const keys = Object.keys(declaration).toSorted();
+      const expectedKeys =
+        group === "owned"
+          ? ["declaration", "description", "name"]
+          : ["declaration", "description", "module_specifier", "name", "owner_target"];
       if (
-        keys.length !== 3 ||
-        keys[0] !== "declaration" ||
-        keys[1] !== "description" ||
-        keys[2] !== "name"
+        keys.length !== expectedKeys.length ||
+        keys.some((key, keyIndex) => key !== expectedKeys[keyIndex])
       ) {
         throw new Error(
-          `Each documented declaration must contain exactly name, declaration, and description; ` +
+          `Each documented ${group === "owned" ? "owned" : "consumed"} declaration must contain exactly ` +
+            `${expectedKeys.join(", ")}; ` +
             `declarations.${group}[${index}] contains ${keys.join(", ") || "no fields"}`
         );
       }
@@ -494,6 +500,13 @@ export class RunnerStore extends Context.Service<RunnerStore, {
     readonly targetOutputState?: TargetOutputStateType;
     readonly targetOutputDigest?: string;
     readonly diagnosticContent?: string;
+  }) => Effect.Effect<void, RunnerStoreError>;
+  readonly rejectCandidateRoutes: (input: {
+    readonly runId: RunId;
+    readonly rejections: ReadonlyArray<{
+      readonly targetPath: string;
+      readonly evidence: CandidateDeclarationFailureEvidence;
+    }>;
   }) => Effect.Effect<void, RunnerStoreError>;
   readonly recordAttemptObservation: (input: {
     readonly job: ClaimedJobType;
@@ -1089,7 +1102,7 @@ const makeRunnerStore = (
     });
     const frozen = yield* Effect.try({
       try: () => {
-        if (input.approvedPlan.version !== "0.1.0-alpha.6") {
+        if (input.approvedPlan.version !== "0.1.0-alpha.7") {
           throw new Error(`Unsupported approved Plan export ${input.approvedPlan.version}`);
         }
         const sourceSnapshot = input.approvedPlan.source_snapshot;
@@ -2058,6 +2071,127 @@ const makeRunnerStore = (
     );
   });
 
+  const rejectCandidateRoutes = Effect.fn("RunnerStore.rejectCandidateRoutes")(
+    function*(input: {
+      readonly runId: RunId;
+      readonly rejections: ReadonlyArray<{
+        readonly targetPath: string;
+        readonly evidence: CandidateDeclarationFailureEvidence;
+      }>;
+    }) {
+      if (input.rejections.length === 0) {
+        return yield* new RunnerStoreError({
+          operation: "rejectCandidateRoutes",
+          message: `Run ${input.runId} has no rejected declaration routes`
+        });
+      }
+      const failedAt = new Date().toISOString();
+      yield* sql.withTransaction(
+        Effect.gen(function*() {
+          for (const rejection of input.rejections) {
+            const failureEvidence = sanitizeFailureEvidence(
+              {
+                category: "candidate integrity",
+                stage: "candidate ready",
+                name: "Declaration route verification",
+                status: "error",
+                statusCode: null,
+                reason:
+                  "The final candidate does not match its approved declaration import routes.",
+                declarationVerification: rejection.evidence
+              },
+              "candidate ready"
+            );
+            const attemptRows = yield* sql.unsafe(
+              `UPDATE runner_attempts
+               SET state = 'failed', completed_at = ?,
+                   candidate_path = NULL, candidate_digest = NULL, candidate_content = NULL,
+                   failure_tag = 'candidate integrity', failure_message = ?,
+                   failure_stage = 'candidate ready', observed_stage = 'failed',
+                   observation_source = 'runner', observed_at = ?,
+                   observation_sequence = observation_sequence + 1,
+                   terminal_outcome_json = ?, rejected_output_digest = ?,
+                   rejected_output_path = NULL, failure_evidence_json = ?
+               WHERE attempt_id = (
+                 SELECT a.attempt_id
+                 FROM runner_attempts a
+                 JOIN runner_jobs j ON j.job_id = a.job_id
+                 WHERE j.run_id = ? AND j.target_path = ?
+                   AND j.state = 'succeeded' AND a.state = 'succeeded'
+                 ORDER BY a.attempt_number DESC
+                 LIMIT 1
+               )
+                 AND candidate_digest = ?
+               RETURNING attempt_id AS id`,
+              [
+                failedAt,
+                failureEvidence.reason ?? safeFailureMessage("candidate integrity"),
+                failedAt,
+                canonicalJson(terminalOutcomeFromEvidence(failureEvidence)),
+                rejection.evidence.candidateDigest,
+                canonicalJson(failureEvidence),
+                input.runId,
+                rejection.targetPath,
+                rejection.evidence.candidateDigest
+              ]
+            ).pipe(
+              Effect.flatMap((rows) =>
+                Schema.decodeUnknownEffect(Schema.Array(TransitionRow))(rows)
+              )
+            );
+            if (attemptRows.length !== 1) {
+              return yield* new RunnerStoreError({
+                operation: "rejectCandidateRoutes",
+                message: `Candidate ${rejection.targetPath} changed before declaration-route rejection`
+              });
+            }
+            const jobRows = yield* sql.unsafe(
+              `UPDATE runner_jobs SET state = 'failed'
+               WHERE run_id = ? AND target_path = ? AND state = 'succeeded'
+               RETURNING job_id AS id`,
+              [input.runId, rejection.targetPath]
+            ).pipe(
+              Effect.flatMap((rows) =>
+                Schema.decodeUnknownEffect(Schema.Array(TransitionRow))(rows)
+              )
+            );
+            if (jobRows.length !== 1) {
+              return yield* new RunnerStoreError({
+                operation: "rejectCandidateRoutes",
+                message: `Job ${rejection.targetPath} changed before declaration-route rejection`
+              });
+            }
+          }
+          const runRows = yield* sql.unsafe(
+            `UPDATE runner_runs
+             SET state = 'completed_with_failures', observed_phase = 'not applied',
+                 last_observed_at = ?, terminal_at = ?,
+                 observation_sequence = observation_sequence + 1,
+                 run_failure_category = 'candidate integrity', run_failure_message = ?
+             WHERE run_id = ? AND state = 'completed' AND application_state = 'not_applied'
+             RETURNING run_id AS id`,
+            [
+              failedAt,
+              failedAt,
+              safeFailureMessage("candidate integrity"),
+              input.runId
+            ]
+          ).pipe(
+            Effect.flatMap((rows) =>
+              Schema.decodeUnknownEffect(Schema.Array(TransitionRow))(rows)
+            )
+          );
+          if (runRows.length !== 1) {
+            return yield* new RunnerStoreError({
+              operation: "rejectCandidateRoutes",
+              message: `Run ${input.runId} changed before declaration-route rejection`
+            });
+          }
+        })
+      );
+    }
+  );
+
   const finalizeRun = Effect.fn("RunnerStore.finalizeRun")(function*(runId: RunId) {
     const activeRows = yield* sql.unsafe(
       `SELECT COUNT(*) AS count FROM runner_jobs
@@ -2568,6 +2702,10 @@ const makeRunnerStore = (
     completeFailure: (input) =>
       completeFailure(input).pipe(
         Effect.mapError((cause) => storeError("completeFailure", cause))
+      ),
+    rejectCandidateRoutes: (input) =>
+      rejectCandidateRoutes(input).pipe(
+        Effect.mapError((cause) => storeError("rejectCandidateRoutes", cause))
       ),
     finalizeRun: (runId) =>
       finalizeRun(runId).pipe(Effect.mapError((cause) => storeError("finalizeRun", cause))),

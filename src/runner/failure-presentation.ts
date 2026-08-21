@@ -86,12 +86,15 @@ function formatDeclarationVerification(
   evidence: CandidateDeclarationFailureEvidence
 ): string[] {
   const lines = ["Declaration findings"];
-  for (const finding of evidence.findings) {
+  for (const [index, finding] of evidence.findings.entries()) {
     const declaration = finding.declaration ?? "file";
+    lines.push(`Finding ${index + 1}`);
+    lines.push(`  Code: ${terminalSafeLine(finding.code, 96) || "Unprintable"}`);
     lines.push(
-      terminalSafeLine(
-        `  Code: ${finding.code} · Declaration: ${declaration} · Message: ${finding.message}`
-      ) || "  Unprintable declaration finding"
+      `  Declaration: ${terminalSafeLine(declaration, 120) || "Unprintable"}`
+    );
+    lines.push(
+      `  What this means: ${terminalSafeLine(finding.message, 320) || "Unprintable"}`
     );
   }
   if (evidence.bindingDigest !== null) {

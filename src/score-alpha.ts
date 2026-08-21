@@ -29,9 +29,9 @@ import type { CompilationBundle, ProposedDefinition } from "./types.js";
 import { hasBlockingFindings, validateCompilationBundle } from "./validation.js";
 
 const VALIDATOR_ID = "score-alpha.structural-validator";
-const VALIDATOR_VERSION = "0.1.0-alpha.5";
+const VALIDATOR_VERSION = "0.1.0-alpha.6";
 const PUBLICATION_VALIDATOR_ID = "score-alpha.persisted-definition-validator";
-const PUBLICATION_VALIDATOR_VERSION = "0.1.0-alpha.5";
+const PUBLICATION_VALIDATOR_VERSION = "0.1.0-alpha.6";
 const PUBLICATION_CHECKS = [
   "one reviewed work revision with exactly its declared file scope",
   "file operations match the Source Snapshot",
@@ -179,7 +179,7 @@ export interface ReviewDigestSet {
 
 export interface ReviewSnapshot extends RenderableReviewSnapshot {
   schema: "score.publication-review";
-  version: "0.1.0-alpha.5";
+  version: "0.1.0-alpha.6";
   digest_set: ReviewDigestSet;
 }
 
@@ -278,7 +278,7 @@ export interface PublicationDecisionInput {
 
 export interface ApprovedPassExport {
   schema: "score.approved-pass-export";
-  version: "0.1.0-alpha.6";
+  version: "0.1.0-alpha.7";
   pass_id: string;
   publication: {
     review_id: string;
@@ -330,7 +330,7 @@ function documentedDeclarations(value: unknown): RenderableAgentInput["declarati
     throw new Error("Documented declaration context must be an object");
   }
   const record = value as Record<string, unknown>;
-  const validate = (
+  const validateOwned = (
     items: unknown
   ): Array<{ name: string; declaration: string; description: string }> => {
     if (!Array.isArray(items)) throw new Error("Documented declarations must be arrays");
@@ -353,9 +353,38 @@ function documentedDeclarations(value: unknown): RenderableAgentInput["declarati
       };
     });
   };
+  const validateConsumed = (
+    items: unknown
+  ): RenderableAgentInput["declarations"]["consumed"] => {
+    if (!Array.isArray(items)) throw new Error("Documented declarations must be arrays");
+    return items.map((item) => {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        throw new Error("Each consumed documented declaration must be an object");
+      }
+      const declaration = item as Record<string, unknown>;
+      if (
+        typeof declaration.name !== "string" ||
+        typeof declaration.declaration !== "string" ||
+        typeof declaration.description !== "string" ||
+        typeof declaration.owner_target !== "string" ||
+        typeof declaration.module_specifier !== "string"
+      ) {
+        throw new Error(
+          "Each consumed documented declaration requires name, declaration, description, owner target, and module specifier text"
+        );
+      }
+      return {
+        name: declaration.name,
+        declaration: declaration.declaration,
+        description: declaration.description,
+        owner_target: declaration.owner_target,
+        module_specifier: declaration.module_specifier
+      };
+    });
+  };
   return {
-    owned: validate(record.owned),
-    consumed: validate(record.consumed)
+    owned: validateOwned(record.owned),
+    consumed: validateConsumed(record.consumed)
   };
 }
 
@@ -2627,8 +2656,8 @@ export class ScoreAlpha {
         };
         const control = {
           protocol: {
-            bundle_schema: "score.compilation-bundle@0.1.0-alpha.5",
-            profile: "score.coding@0.1.0-alpha.5",
+            bundle_schema: "score.compilation-bundle@0.1.0-alpha.6",
+            profile: "score.coding@0.1.0-alpha.6",
             canonicalization: "RFC 8785",
             digest_algorithm: "SHA-256"
           },
@@ -2736,7 +2765,7 @@ export class ScoreAlpha {
       };
       const snapshot: ReviewSnapshot = {
         schema: "score.publication-review",
-        version: "0.1.0-alpha.5",
+        version: "0.1.0-alpha.6",
         review_id: reviewId,
         created_at: createdAt,
         manifest: {
@@ -2970,7 +2999,7 @@ export class ScoreAlpha {
     const sourceSnapshot = readRepositorySourceSnapshot(this.db, passId);
     return {
       schema: "score.approved-pass-export",
-      version: "0.1.0-alpha.6",
+      version: "0.1.0-alpha.7",
       pass_id: passId,
       publication: {
         review_id: first.review_id,

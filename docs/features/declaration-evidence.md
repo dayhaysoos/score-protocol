@@ -1,8 +1,8 @@
 # Declaration evidence
 
 **Status:** Project-local preparation remains planned. Bounded selected external
-package evidence is implemented separately in the current dirty worktree. No
-active Slice.
+package evidence is implemented separately on the current branch. No active
+Slice.
 
 ## Outcome
 

@@ -1,13 +1,13 @@
 ---
 name: score-authoring
-version: 0.1.0-alpha.5
+version: 0.1.0-alpha.6
 description: Author one complete SCORE Compilation Bundle for the canonical Account Status alpha proof.
 ---
 
 # SCORE authoring procedure
 
 Use this procedure only for the current local alpha proof targeting
-`score.compilation-bundle@0.1.0-alpha.5` and `score.coding@0.1.0-alpha.5`.
+`score.compilation-bundle@0.1.0-alpha.6` and `score.coding@0.1.0-alpha.6`.
 
 The governing meaning and alpha implementation live in this repository. Read
 and follow:

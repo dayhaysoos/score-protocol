@@ -92,7 +92,7 @@ export function createAcceptedInputPacket(): AcceptedInputPacket {
 
   return {
     schema: "score.compiler-input-packet",
-    version: "0.1.0-alpha.5",
+    version: "0.1.0-alpha.6",
     accepted_specification: {
       protocol_id: FIXTURE_IDS.acceptedSpecification,
       authority: "human-and-llm-deliberation",
@@ -104,8 +104,8 @@ export function createAcceptedInputPacket(): AcceptedInputPacket {
     compilation_procedure: {
       protocol_id: FIXTURE_IDS.compilationProcedure,
       name: "score-authoring",
-      version: "0.1.0-alpha.5",
-      profile: "score.coding@0.1.0-alpha.5",
+      version: "0.1.0-alpha.6",
+      profile: "score.coding@0.1.0-alpha.6",
       source: "fixtures/account-status-authoring-procedure.md",
       content: procedureContent,
       content_digest: procedureDigest

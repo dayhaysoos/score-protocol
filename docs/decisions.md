@@ -1885,11 +1885,12 @@ numbers remain stable so prior discussions and links do not break.
 
 ## D-088: Declarations are immutable documented text, not parsed source contracts
 
-- **Status:** Superseded in part by D-094 and ADR-0014 only for parsing
-  explicitly selected, locked external-package declaration evidence during
-  trusted preparation. Authored Documented Declarations remain opaque and
-  authoritative; the candidate, project-environment, Agent-isolation, and
-  project-verification boundaries below remain in force.
+- **Status:** Superseded in part by D-094 and ADR-0014 for bounded selected
+  external-package evidence during trusted preparation, and by D-095 and
+  ADR-0015 for reviewed project-local module routes and in-memory final-candidate
+  declaration checks. Authored Documented Declarations remain authoritative;
+  the project-environment, Agent-isolation, and project-verification boundaries
+  below remain in force.
 - **Supersedes:** D-072's structured declaration kinds and generated-source
   verification; D-073's normalized Project Settings, inferred module paths, and
   per-file compiler checks; D-078's preparation of relevant Project Settings;
@@ -1898,37 +1899,36 @@ numbers remain stable so prior discussions and links do not break.
   Inputs, Runtime Adapter containment, package and candidate integrity, target
   drift protection, complete-Run requirement, and atomic application remain in
   force.
-- **Documented declaration:** Each authored declaration contains exactly a
-  stable `name`, exact `declaration` text, and concise `description`. The text is
-  ordinary immutable agent context. SCORE validates only the surrounding data
-  shape and ownership graph, then stores, reviews, digests, and routes those
-  exact strings without parsing, normalizing, classifying, or reserializing
-  them.
+- **Documented declaration:** Each authored owned declaration contains exactly a
+  stable `name`, exact `declaration` text, and concise `description`. A consumed
+  declaration projection also carries its reviewed owning target and exact
+  module specifier under D-095. The declaration text remains immutable agent
+  context and authoritative product meaning; candidate parsing cannot rewrite
+  or reinterpret it.
 - **Routing:** Every declaration still has one owning File Brief and zero or
   more explicit same-slice consumers. Owners receive their documented
-  declarations. Consumers receive only the documented declarations they name.
-  Supporting declarations, exact import statements, binding forms, prop names,
-  call arguments, and caller-observable behavior must be written explicitly in
-  the Slice Draft's declaration text, description, task, requirements, or
-  constraints. SCORE does not infer a declaration closure or import path.
+  declarations. Consumers receive only the documented declarations they name,
+  their owner target, and the exact authored `module_specifier`. SCORE never
+  infers that route. Binding forms, prop names, call arguments, and
+  caller-observable behavior remain explicit authored meaning.
 - **No project environment:** Preparation does not parse `tsconfig.json`,
   `package.json`, provider source, candidate source, or dependency metadata to
   reproduce a TypeScript environment. Project Settings are no longer Source
   Snapshot identity or Agent Input. SCORE creates no TypeScript `Program`,
   synthetic project, declaration file, peer-candidate workspace, or dependency
   installation.
-- **Opaque candidates:** Candidate source is an opaque single-target artifact.
-  SCORE does not use Babel, an AST, TypeScript source parsing, typechecking,
-  export or signature matching, import inspection, local-redefinition rules,
-  call-site analysis, linting, tests, builds, or generated-code execution as a
-  gate. It continues to require the assigned target, reject undeclared workspace
-  changes, preserve exact bytes and digests, require every Job, recheck confirmed
-  target state, and apply the complete set atomically as unstaged changes.
-- **Truthful result:** Successful delivery means only that every candidate was
-  generated, integrity-checked, and applied. The natural-language description
-  and generated behavior are not deterministically verified. Typechecking,
-  builds, tests, linting, browser review, and other acceptance work happen after
-  application in the real project.
+- **Candidate boundary:** Candidate source remains an opaque single-target
+  artifact except for the bounded in-memory declaration-shape and reviewed-route
+  checks accepted by D-095 and the declaration-gate ADRs. SCORE still performs
+  no TypeScript project construction, assignability checking, call-site
+  analysis, linting, tests, builds, or generated-code execution as a candidate
+  gate. It requires every Job, rechecks confirmed target state, and applies the
+  complete set atomically as unstaged changes.
+- **Truthful result:** Successful forward-only delivery additionally means the
+  supported approved declaration checks passed. The natural-language
+  description and generated behavior are not thereby verified. Typechecking,
+  builds, tests, linting, browser review, and other real-project acceptance work
+  remain separate.
 - **Compatibility:** This is a breaking alpha protocol boundary. Previously
   prepared definitions and Runs remain historical evidence; they are not
   silently reinterpreted under the text-only contract. Work intended for the
@@ -2172,3 +2172,34 @@ numbers remain stable so prior discussions and links do not break.
   selected public contract, conditional exports, and bounded directly required
   types without exposing the target project's real TypeScript environment or
   copying dependency internals.
+
+## D-095: Reviewed local module routes gate the complete candidate set
+
+- **Supersedes narrowly:** D-088 only where it prohibited a reviewed local route
+  field and in-memory parsing of final candidate bytes. D-094 remains the only
+  exception for trusted preparation reads from selected installed packages.
+- **Reviewed route:** Every project-local `consumes` entry requires an exact
+  `module_specifier`. Preparation freezes the authored spelling with the owner
+  target and declaration into Agent Input and the human review; SCORE never
+  derives it from project configuration or filesystem resolution.
+- **Complete-set gate:** Once every File Candidate is present, the Runner uses
+  the pinned OXC parser on final in-memory candidate bytes and verifies relevant
+  named imports against the approved routes. Missing, ambiguous, wrong,
+  unsupported, or syntactically invalid relevant imports fail closed with typed
+  findings and digest-bound verdicts.
+- **Failure and recovery:** Only blamed consumer Jobs fail. Their rejected bytes
+  are discarded while safe findings and the rejected-output digest remain.
+  Other successful candidates stay saved. A manual retry invokes only selected
+  failed consumers, then SCORE rechecks the complete set and applies all files
+  atomically only when every check passes.
+- **Preserved isolation:** Candidate acceptance reads no real `tsconfig.json`,
+  `node_modules`, package metadata, environment, network, installer, shell,
+  compiler, repository source, or project command. It performs no TypeScript
+  assignability or whole-project verification.
+- **Forward-only activation:** Coding Profile, compiler input, Compilation
+  Bundle, Plan Review, Agent Input, and Runner control advance to
+  `0.1.0-alpha.6`; Approved Pass Export advances to `0.1.0-alpha.7`. Older work
+  remains historical and must be prepared and approved again.
+- **Reason:** The approved route-binding and targeted-recovery experiments
+  established that SCORE can close this integration gap without weakening Agent
+  isolation or recreating the target project's TypeScript environment.

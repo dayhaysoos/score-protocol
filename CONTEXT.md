@@ -370,9 +370,10 @@ _Avoid_: resource lock, job claim, file order, inferred ownership
 **Declaration Consumer**:
 An Agent Brief explicitly named to use a documented declaration from its owning
 file. The exact documented declaration is read-only context for that
-Agent Brief together with its bounded Declaration Closure. Required import
-spelling and caller behavior remain approved instructions; inspected source may
-provide evidence but cannot define or alter them.
+Agent Brief together with its bounded Declaration Closure, owning target, and
+exact reviewed `module_specifier`. SCORE freezes rather than infers that import
+spelling. Caller behavior remains approved meaning; inspected source may
+provide evidence but cannot define or alter it.
 _Avoid_: co-owner, copied declaration, whole-Contract context
 
 **Agent**:

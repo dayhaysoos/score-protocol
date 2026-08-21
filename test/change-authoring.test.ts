@@ -107,7 +107,13 @@ function mixedChangeDraft(): ChangeDraft {
             description: "Returns the account id and status as a label."
           }
         ],
-        consumes: [{ name: "Account", from: "src/account.ts" }],
+        consumes: [
+          {
+            name: "Account",
+            from: "src/account.ts",
+            module_specifier: "./account.js"
+          }
+        ],
         context: [],
         skills: [{ name: "Type imports", path: "skills/type-imports.md" }],
         constraints: ["Return a string without side effects."]
@@ -339,7 +345,9 @@ describe("Change authoring", () => {
         name: "Account",
         declaration:
           'export interface Account { id: string; status: "active" | "suspended"; }',
-        description: "Represents an account with its current status."
+        description: "Represents an account with its current status.",
+        owner_target: "src/account.ts",
+        module_specifier: "./account.js"
       });
       assert.equal(
         formatter.agent_input.input_bindings.find(

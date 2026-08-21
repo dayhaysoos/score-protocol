@@ -36,6 +36,7 @@ import {
 import { loadApprovedPlan } from "./approved-plan.js";
 import { RuntimeAdapter } from "./runtime-adapter.js";
 import { RunnerStore, RunnerStoreLive } from "./runner-store.js";
+import { verifyCandidateSetDeclarationRoutes } from "./candidate-set-declaration-route-gate.js";
 import type {
   RuntimeAttemptFact,
   RuntimeAttemptReporter
@@ -54,6 +55,21 @@ import {
   verifyRepositoryTargetsMatch,
   verifyRepositoryMatchesSnapshot
 } from "./repository-application.js";
+
+function rejectInvalidCandidateRoutes(input: {
+  readonly store: typeof RunnerStore.Service;
+  readonly runId: RunId;
+  readonly candidates: ReadonlyArray<CandidateFile>;
+}): Effect.Effect<boolean, RunnerStoreError> {
+  const routeVerdict = verifyCandidateSetDeclarationRoutes(input.candidates);
+  if (routeVerdict.status === "valid") return Effect.succeed(false);
+  return input.store
+    .rejectCandidateRoutes({
+      runId: input.runId,
+      rejections: routeVerdict.rejections
+    })
+    .pipe(Effect.as(true));
+}
 
 function comparableDatabasePath(path: string): string {
   const absolute = resolve(path);
@@ -725,6 +741,11 @@ const runPendingJobsEffect = Effect.fn("Runner.runPendingJobs")(
       })
     );
     yield* store.finalizeRun(runId);
+    const finalized = yield* store.inspectRun(runId);
+    if (finalized.state === "completed") {
+      const candidates = yield* store.readCandidates(runId);
+      yield* rejectInvalidCandidateRoutes({ store, runId, candidates });
+    }
     yield* publish();
     return yield* store.inspectRun(runId);
   }
@@ -949,6 +970,15 @@ export function applyRunCandidates(
       }).pipe(
         Effect.tapError(() => retainRunFailure("candidate integrity"))
       );
+      const rejected = yield* rejectInvalidCandidateRoutes({
+        store,
+        runId,
+        candidates
+      });
+      if (rejected) {
+        yield* publish();
+        return yield* store.inspectRun(runId);
+      }
       yield* store.beginApplication(runId);
       yield* publish();
       const apply = Effect.try({

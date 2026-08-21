@@ -74,7 +74,8 @@
       "consumes": [
         {
           "name": "CandidateDeclarationFinding",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         }
       ],
       "context": [
@@ -123,11 +124,13 @@
       "consumes": [
         {
           "name": "CandidateDeclarationFinding",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         },
         {
           "name": "CandidateDeclarationFailureEvidence",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         }
       ],
       "context": [
@@ -164,15 +167,18 @@
       "consumes": [
         {
           "name": "verifyFileCandidateDeclarations",
-          "from": "src/runner/candidate-declaration-gate.ts"
+          "from": "src/runner/candidate-declaration-gate.ts",
+          "module_specifier": "./candidate-declaration-gate.js"
         },
         {
           "name": "FileCandidateDeclarationVerdict",
-          "from": "src/runner/candidate-declaration-gate.ts"
+          "from": "src/runner/candidate-declaration-gate.ts",
+          "module_specifier": "./candidate-declaration-gate.js"
         },
         {
           "name": "CandidateDeclarationFailureEvidence",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         }
       ],
       "context": [
@@ -210,11 +216,13 @@
       "consumes": [
         {
           "name": "CandidateDeclarationFinding",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         },
         {
           "name": "CandidateDeclarationFailureEvidence",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         }
       ],
       "context": [
@@ -246,19 +254,23 @@
       "consumes": [
         {
           "name": "verifyFileCandidateDeclarations",
-          "from": "src/runner/candidate-declaration-gate.ts"
+          "from": "src/runner/candidate-declaration-gate.ts",
+          "module_specifier": "./candidate-declaration-gate.js"
         },
         {
           "name": "FileCandidateDeclarationVerdict",
-          "from": "src/runner/candidate-declaration-gate.ts"
+          "from": "src/runner/candidate-declaration-gate.ts",
+          "module_specifier": "./candidate-declaration-gate.js"
         },
         {
           "name": "CandidateDeclarationFinding",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         },
         {
           "name": "CandidateDeclarationFailureEvidence",
-          "from": "src/runner/domain.ts"
+          "from": "src/runner/domain.ts",
+          "module_specifier": "./domain.js"
         }
       ],
       "context": [

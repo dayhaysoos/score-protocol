@@ -1,6 +1,6 @@
 # Runtime Adapter foundation
 
-**Status:** Planned. No active Slice.
+**Status:** Implemented and verified. No active Slice.
 
 ## Outcome
 
@@ -34,6 +34,18 @@ lifecycle and filesystem mechanics stay behind the relevant adapter.
   kind and are never mislabeled.
 - The complete repository passes typecheck, build, tests, and guided Runner
   startup after each foundation Slice.
+
+## Current implementation
+
+The Runner now depends on the adapter-neutral `RuntimeAdapter` service and its
+Run-scoped `withRun` lifecycle. Persisted configuration is a closed
+`opencode | pi` union, and runtime identity is carried through claimed Jobs.
+OpenCode runs through that seam without changing Runner-owned concurrency,
+recovery, evidence, or application behavior.
+
+This foundation does not mean Pi is executable yet. The reusable disposable
+workspace and candidate-extraction logic still lives inside the OpenCode
+adapter, and runtime selection still defaults to OpenCode.
 
 ## Historical evidence
 

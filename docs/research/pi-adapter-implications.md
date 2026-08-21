@@ -8,6 +8,12 @@
 
 **Pi baseline:** [`@earendil-works/pi-coding-agent` v0.84.1](https://github.com/earendil-works/pi/tree/v0.84.1), tag commit `53fa77ccd8a279eb87e92294ef3687b03ff80112`
 
+**Freshness note (2026-08-21):** This remains the researched baseline, not the
+dependency to install automatically. The latest official release observed
+before implementation is v0.84.2, whose model-refresh and cancellation APIs
+changed. The first Pi dependency Slice must reinspect that exact release, choose
+and review one pin, and update the Node floor deliberately.
+
 ## Current planning decision
 
 The researched security fact remains unchanged: Pi's built-in filesystem tools
@@ -25,8 +31,9 @@ candidate, and the real project remains untouched until SCORE applies the
 complete verified candidate set atomically.
 
 References below to pathless exact-target tools describe the conservative
-research recommendation that preceded this product decision. The authored
-Slices under `score/slices/` are authoritative for implementation scope.
+research recommendation that preceded this product decision. The durable
+feature documents under `docs/features/` are authoritative for current product
+intent; any executable Slice must be prepared fresh from the current code.
 
 ## Bottom line
 
@@ -307,7 +314,12 @@ A Pi adapter should not be called behaviorally equivalent until all of these are
 
 ## Recommended decision
 
-Proceed with the Pi adapter, but make the first SCORE-authored slice the adapter-neutral runtime refactor—not Pi-specific code. Then extract the shared single-target harness and add Pi behind it.
+Proceed with the Pi adapter from the already implemented adapter-neutral Runtime
+Adapter foundation. The next SCORE-authored Slice should extract the shared
+workspace/candidate harness from OpenCode and preserve its behavior. Before Pi
+can claim adapter parity, move the supported owned-declaration check into that
+shared final-candidate boundary; the complete-set project-local route gate is
+already Runner-owned. Add Pi behind those shared seams in later reviewed Slices.
 
 The implementation is safe and tractable if SCORE owns all four boundaries Pi does not natively provide:
 

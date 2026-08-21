@@ -384,7 +384,7 @@ describe("score change CLI", () => {
       assert.equal(result.status, 0);
       assert.equal(result.stderr, "");
       const schema = parseCompactJsonLine(result.stdout);
-      assert.equal(schema.$id, "https://score-protocol.local/schema/change-draft-v1.json");
+      assert.equal(schema.$id, "https://score-protocol.local/schema/change-draft-v2.json");
       assert.equal(existsSync(join(projectRoot, ".score")), false);
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });

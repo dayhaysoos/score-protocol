@@ -4,7 +4,7 @@ This directory records durable product intent. Feature documents explain what
 SCORE should eventually do and how a person can recognize success. They are not
 executable Slices and are not accepted implementation specifications.
 
-SCORE keeps exactly one current executable Slice in `score/slices`. That Slice
+SCORE keeps at most one current executable Slice in `score/slices`. That Slice
 must be prepared from the repository as it exists at the time of execution.
 Retired Slices remain in `score/retired-slices` as historical design evidence;
 their file targets, declarations, dependencies, and digests may be stale.
@@ -37,9 +37,9 @@ survives those revisions; an executable Slice does not.
 | [Pi runtime](pi-runtime.md) | Run Pi through SCORE's frozen package, isolation, and candidate boundaries. | `pi-runtime-primitives.json`, `pi-worker-lifecycle.json`, `pi-adapter.json` |
 | [Runtime diagnostics and acceptance](runtime-diagnostics-and-acceptance.md) | Make runtime support understandable, diagnosable, and explicitly proven before release. | `pi-doctor-documentation.json` |
 
-This integration prepared no new executable Slice. The two retained files in
-`score/slices/` are experiment-era authoring records, not authorization to run
-the next feature; reconcile or retire them before preparing another Slice.
+This integration prepared no new executable Slice. `score/slices/` is empty so
+the next feature begins from a freshly inspected and reviewed Slice rather than
+an experiment-era authoring record.
 
 ## Deferred research tracks
 

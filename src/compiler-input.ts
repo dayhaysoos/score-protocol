@@ -7,7 +7,7 @@ export interface AcceptedRequirementInput {
 
 export interface AcceptedInputPacket {
   readonly schema: "score.compiler-input-packet";
-  readonly version: "0.1.0-alpha.5";
+  readonly version: "0.1.0-alpha.6";
   readonly accepted_specification: {
     readonly protocol_id: string;
     readonly authority: string;

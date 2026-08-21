@@ -57,7 +57,8 @@
       "consumes": [
         {
           "name": "Metric",
-          "from": "src/metric.ts"
+          "from": "src/metric.ts",
+          "module_specifier": "./metric.js"
         }
       ],
       "context": [
@@ -96,11 +97,13 @@
       "consumes": [
         {
           "name": "Metric",
-          "from": "src/metric.ts"
+          "from": "src/metric.ts",
+          "module_specifier": "./metric.js"
         },
         {
           "name": "formatMetric",
-          "from": "src/format-metric.ts"
+          "from": "src/format-metric.ts",
+          "module_specifier": "./format-metric.js"
         }
       ],
       "context": [

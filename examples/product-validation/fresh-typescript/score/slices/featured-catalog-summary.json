@@ -57,7 +57,8 @@
       "consumes": [
         {
           "name": "Product",
-          "from": "src/product.ts"
+          "from": "src/product.ts",
+          "module_specifier": "./product.js"
         }
       ],
       "context": [
@@ -96,11 +97,13 @@
       "consumes": [
         {
           "name": "Product",
-          "from": "src/product.ts"
+          "from": "src/product.ts",
+          "module_specifier": "./product.js"
         },
         {
           "name": "formatProduct",
-          "from": "src/format-product.ts"
+          "from": "src/format-product.ts",
+          "module_specifier": "./format-product.js"
         }
       ],
       "context": [
